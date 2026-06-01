@@ -1,0 +1,292 @@
+import 'package:flutter/material.dart';
+
+import 'empty_classroom_page.dart';
+import 'campus_card_recharge_page.dart';
+import 'campus_card_webview_page.dart';
+import 'electricity_recharge_page.dart';
+import 'network_speed_test_page.dart';
+import 'xgxt_webview_page.dart';
+import 'timetable_page.dart';
+import 'vpn_converter_page.dart';
+import 'score_page.dart';
+import 'webview_detail_page.dart';
+import '../models/app_constants.dart';
+
+class FunctionPage extends StatelessWidget {
+  const FunctionPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: CustomScrollView(
+        slivers: [
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(24, 60, 24, 32),
+              child: Text(
+                '全部功能',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ),
+          ),
+          SliverList(
+            delegate: SliverChildListDelegate([
+              _buildCategorySection('校卡服务', [
+                _FunctionItem(
+                  Icons.add_card_outlined,
+                  '校园卡充值',
+                  '校园卡在线充值',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CampusCardRechargePage()),
+                    );
+                  },
+                ),
+                _FunctionItem(
+                  Icons.bolt_outlined,
+                  '电费充值',
+                  '寝室电费在线充值',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ElectricityRechargePage()),
+                    );
+                  },
+                ),
+                _FunctionItem(
+                  Icons.credit_card_outlined,
+                  '校园卡',
+                  '查看校园卡信息',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CampusCardWebViewPage()),
+                    );
+                  },
+                ),
+              ]),
+              _buildCategorySection('学习教务', [
+                _FunctionItem(
+                  Icons.meeting_room_outlined,
+                  '空教室',
+                  '实时查找空闲教室',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const EmptyClassroomPage()),
+                    );
+                  },
+                ),
+                _FunctionItem(
+                  Icons.connect_without_contact_outlined,
+                  '学工系统',
+                  '进入学工系统',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const XgxtWebViewPage()),
+                    );
+                  },
+                ),
+                _FunctionItem(
+                  Icons.workspace_premium_outlined,
+                  '成绩查询',
+                  '查看课程成绩',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ScorePage()),
+                    );
+                  },
+                ),
+                _FunctionItem(
+                  Icons.auto_stories_outlined,
+                  '课程表',
+                  '查看本学期课表',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const TimetablePage()),
+                    );
+                  },
+                ),
+              ]),
+              _buildCategorySection('校园生活', [
+                _FunctionItem(
+                  Icons.build_circle_outlined,
+                  '报修平台',
+                  '提交校园报修工单',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const WebViewDetailPage(
+                          title: '报修平台',
+                          url: AppConstants.repairsSsoUrl,
+                          userAgent:
+                              'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36',
+                          showWebBack: true,
+                          targetUrl: '/relax/mobile/index.html',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _FunctionItem(
+                  Icons.event_seat_outlined,
+                  '场馆预约',
+                  '预约场馆资源',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const WebViewDetailPage(
+                          title: '场馆预约',
+                          url: AppConstants.gymReservationUrl,
+                          showWebBack: true,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ]),
+              _buildCategorySection('网络工具', [
+                _FunctionItem(
+                  Icons.vpn_lock_outlined,
+                  'VPN转换',
+                  '校园网接入与转换',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const VpnConverterPage(),
+                      ),
+                    );
+                  },
+                ),
+                _FunctionItem(
+                  Icons.speed_outlined,
+                  '测速工具',
+                  '检测当前网络速度',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NetworkSpeedTestPage(),
+                      ),
+                    );
+                  },
+                ),
+              ]),
+              const SizedBox(height: 100),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategorySection(String title, List<_FunctionItem> items) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          child: Builder(
+            builder: (context) {
+              return Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.primary,
+                  letterSpacing: 0.5,
+                ),
+              );
+            }
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Builder(
+            builder: (context) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4)),
+                ),
+                child: Column(
+                  children: items.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final item = entry.value;
+                    return _buildListTile(item, isLast: index == items.length - 1, context: context);
+                  }).toList(),
+                ),
+              );
+            }
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildListTile(_FunctionItem item, {required bool isLast, required BuildContext context}) {
+    return InkWell(
+      onTap: () {
+        item.onTap?.call();
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          border: isLast ? null : Border(
+            bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3), width: 1),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(item.icon, size: 22, color: Theme.of(context).colorScheme.primary),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    item.subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FunctionItem {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  _FunctionItem(this.icon, this.title, this.subtitle, {this.onTap});
+}
