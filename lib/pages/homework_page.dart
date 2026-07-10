@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/homework_model.dart';
 import '../providers/homework_provider.dart';
+import '../services/app_cookie_manager.dart';
+import 'webview_detail_page.dart';
 
 class HomeworkPage extends ConsumerStatefulWidget {
   const HomeworkPage({super.key});
@@ -103,6 +105,13 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> with SingleTickerPr
         itemCount: items.length,
         itemBuilder: (context, index) {
           final item = items[index];
+          final isCompleted = item.status == HomeworkStatus.completed;
+          final isArchived = item.status == HomeworkStatus.archived;
+          final titleColor = isCompleted
+              ? Theme.of(context).colorScheme.onSurface.withOpacity(0.65)
+              : Theme.of(context).colorScheme.onSurface;
+          final subtitleColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
           return Card(
             elevation: 0,
             margin: const EdgeInsets.only(bottom: 12),
@@ -113,23 +122,62 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> with SingleTickerPr
             ),
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              title: Text(item.title, style: TextStyle(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface)),
+              title: Text(
+                item.title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: titleColor,
+                  decoration: isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
+                  decorationColor: titleColor,
+                ),
+              ),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 6),
-                  Text(item.courseName, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500)),
+                  Text(
+                    item.courseName,
+                    style: TextStyle(
+                      color: subtitleColor.withOpacity(isCompleted ? 0.75 : 1),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                   if (item.endTime != null) ...[
                     const SizedBox(height: 4),
                     Text(
                       '截止时间: ' + DateFormat('MM-dd HH:mm').format(item.endTime!) + '', 
-                      style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: isCompleted
+                            ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7)
+                            : Theme.of(context).colorScheme.error,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        decoration: isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
+                      ),
                     ),
                   ] else if (item.rawTimeStr.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
                       item.rawTimeStr, 
-                      style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: isCompleted
+                            ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7)
+                            : Theme.of(context).colorScheme.error,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        decoration: isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                  if (isArchived) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '已存档',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ]
                 ],
@@ -139,8 +187,34 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> with SingleTickerPr
                   : item.status == HomeworkStatus.completed
                       ? Icon(Icons.check_circle_rounded, color: Colors.green.shade400)
                       : Icon(Icons.archive_rounded, color: Colors.grey.shade400),
-              onTap: () {
-              },
+                  onTap: () async {
+                    if (item.isManual) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('手动作业暂不支持跳转学习通')),
+                      );
+                      return;
+                    }
+
+                    if (item.dataUrl.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('未找到可打开的学习通作业链接')),
+                      );
+                      return;
+                    }
+
+                    await AppCookieManager().injectAllChaoxingCookies();
+
+                    if (!context.mounted) return;
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => WebViewDetailPage(
+                          title: '作业详情',
+                          url: item.dataUrl,
+                          showWebBack: true,
+                        ),
+                      ),
+                    );
+                  },
             ),
           );
         },

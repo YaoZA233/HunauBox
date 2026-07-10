@@ -10,6 +10,7 @@ import 'timetable_page.dart';
 import 'vpn_converter_page.dart';
 import 'score_page.dart';
 import 'webview_detail_page.dart';
+import 'bus_tracking_page.dart';
 import '../models/app_constants.dart';
 
 class FunctionPage extends StatelessWidget {
@@ -111,6 +112,16 @@ class FunctionPage extends StatelessWidget {
                 ),
               ]),
               _buildCategorySection('校园生活', [
+                _FunctionItem(
+                  Icons.airport_shuttle_outlined,
+                  '实时校车',
+                  '基于定位打开校车追踪',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const BusTrackingPage()),
+                    );
+                  },
+                ),
                 _FunctionItem(
                   Icons.build_circle_outlined,
                   '报修平台',

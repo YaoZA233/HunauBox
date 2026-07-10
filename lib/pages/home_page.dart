@@ -27,6 +27,7 @@ import 'xgxt_webview_page.dart';
 import 'vpn_converter_page.dart';
 import 'network_speed_test_page.dart';
 import 'webview_detail_page.dart';
+import 'bus_tracking_page.dart';
 import '../models/app_constants.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -865,6 +866,13 @@ class _HomePageState extends ConsumerState<HomePage> {
             showWebBack: true,
           ),
         ),
+      );
+      return;
+    }
+
+    if (id == 'bus') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const BusTrackingPage()),
       );
       return;
     }

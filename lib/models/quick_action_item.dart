@@ -25,6 +25,7 @@ class QuickActionCatalog {
     QuickActionItem(id: 'gym', label: '场馆预约', icon: Icons.event_seat_outlined),
     QuickActionItem(id: 'vpn', label: 'VPN转换', icon: Icons.vpn_lock_outlined),
     QuickActionItem(id: 'speed_test', label: '测速工具', icon: Icons.speed_outlined),
+    QuickActionItem(id: 'bus', label: '实时校车', icon: Icons.airport_shuttle_outlined),
   ];
 
   static const defaultIds = <String>[
@@ -36,6 +37,7 @@ class QuickActionCatalog {
     'score',
     'timetable',
     'repair',
+    'bus',
   ];
 
   static QuickActionItem? byId(String id) {

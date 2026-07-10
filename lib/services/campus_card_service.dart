@@ -291,6 +291,7 @@ class CampusCardService {
     }
 
     const url = 'https://fin-serv.hunau.edu.cn/alipay/transferFromAlipay2Card';
+    _logger.i('📡 [校园卡支付] 请求支付宝表单，amount=${amount.toStringAsFixed(0)}, openid=$_openid, idserial=${_cachedInfo?.idserial}');
 
     try {
       final response = await _dio.post(
@@ -313,7 +314,9 @@ class CampusCardService {
       );
 
       if (response.statusCode == 200 && response.data != null) {
-        return response.data.toString();
+        final html = response.data.toString();
+        _logger.i('📄 [校园卡支付] 表单响应长度=${html.length}, containsAlipayScheme=${html.contains('alipays://') || html.contains('alipay://')}');
+        return html;
       }
       throw Exception('充值请求失败: ${response.statusCode}');
     } catch (e) {

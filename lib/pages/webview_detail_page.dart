@@ -48,8 +48,13 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
   @override
   void initState() {
     super.initState();
-    _cookieReady = AppCookieManager().syncMultiDomainCookiesToWebView(widget.url);
+    _cookieReady = _prepareCookies();
     _startLoadTimeout();
+  }
+
+  Future<void> _prepareCookies() async {
+    await AppCookieManager().syncMultiDomainCookiesFromWebView(widget.url);
+    await AppCookieManager().syncMultiDomainCookiesToWebView(widget.url);
   }
 
   @override
@@ -402,8 +407,10 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                       onProgressChanged: (controller, progress) {
                         setState(() => _progress = progress / 100);
                       },
-                      onLoadHttpError: (controller, url, statusCode, description) {
-                        if (url != null) {
+                      onLoadHttpError: (controller, url, statusCode, description) async {
+                        final currentUrl = await controller.getUrl();
+                        if (url != null && url.toString() == currentUrl?.toString()) {
+                          if (!mounted) return;
                           setState(() {
                             _errorMessage = 'HTTP $statusCode: $description';
                             _isLoading = false;
@@ -411,6 +418,7 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                         }
                       },
                       onReceivedError: (controller, request, error) {
+                        if (request.isForMainFrame != true) return;
                         final url = request.url?.toString() ?? '';
                         if (url.startsWith('http')) {
                           setState(() {

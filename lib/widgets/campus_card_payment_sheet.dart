@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -30,7 +31,42 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
   String? _error;
   String? _htmlForm;
 
+  Future<void> _launchExternal(Uri uri, String source) async {
+    _logger.i('🚀 [校园卡支付] 外部拉起尝试($source): $uri');
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (launched) {
+        _logger.i('✅ [校园卡支付] 外部拉起结果($source): $launched');
+        return;
+      }
+
+      _logger.w('⚠️ [校园卡支付] 直接外拉返回 false($source): $uri');
+
+      if (!kIsWeb) {
+        final scheme = uri.scheme.toLowerCase();
+        if (scheme == 'alipays' || scheme == 'alipay') {
+          final intentUri = _buildAlipayIntentUri(uri);
+          if (intentUri != null) {
+            _logger.i('🧭 [校园卡支付] 尝试 intent 兜底($source): $intentUri');
+            final intentLaunched = await launchUrl(intentUri, mode: LaunchMode.externalApplication);
+            _logger.i('✅ [校园卡支付] intent 兜底结果($source): $intentLaunched');
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      _logger.e('❌ [校园卡支付] 外部拉起失败($source): $e');
+    }
+  }
+
+  Uri? _buildAlipayIntentUri(Uri uri) {
+    if (uri.scheme.isEmpty || uri.host.isEmpty) return null;
+    final intentString = 'intent://${uri.host}${uri.path}${uri.hasQuery ? '?${uri.query}' : ''}#Intent;scheme=${uri.scheme};package=com.eg.android.AlipayGphone;end';
+    return Uri.tryParse(intentString);
+  }
+
   Future<void> _startPayment() async {
+    _logger.i('🚀 [校园卡支付] 开始提交支付，amount=${widget.amount}, card=${widget.info.idserial}');
     setState(() {
       _isConfirming = false;
       _isPaying = true;
@@ -39,6 +75,7 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
     try {
       final service = CampusCardService.instance;
       _htmlForm = await service.getAlipayForm(double.parse(widget.amount));
+      _logger.i('📄 [校园卡支付] 支付表单返回，length=${_htmlForm?.length ?? 0}, containsAlipayScheme=${_htmlForm?.contains('alipays://') == true || _htmlForm?.contains('alipay://') == true}');
 
       if (mounted) {
         setState(() {});
@@ -170,24 +207,55 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
                   initialData: InAppWebViewInitialData(data: _htmlForm!),
                   initialSettings: InAppWebViewSettings(
                     javaScriptEnabled: true,
+                    domStorageEnabled: true,
+                    useShouldOverrideUrlLoading: true,
+                    supportMultipleWindows: true,
+                    javaScriptCanOpenWindowsAutomatically: true,
                     userAgent: AppConstants.campusCardUA,
                   ),
                   onLoadStart: (controller, url) async {
                     final urlString = url?.toString() ?? '';
+                    _logger.i('🌐 [校园卡支付] WebView loadStart: $urlString');
+                    if (urlString.contains('paySuccess')) {
+                      _handleSuccess();
+                    }
+                  },
+                  onLoadStop: (controller, url) async {
+                    final urlString = url?.toString() ?? '';
+                    _logger.i('🏁 [校园卡支付] WebView loadStop: $urlString');
                     if (urlString.contains('paySuccess')) {
                       _handleSuccess();
                     }
                   },
                   shouldOverrideUrlLoading: (controller, navigationAction) async {
-                    final url = navigationAction.request.url?.toString() ?? '';
-                    if (url.startsWith('alipays://') || url.startsWith('alipay://')) {
-                      final uri = Uri.parse(url);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      }
+                    final uri = navigationAction.request.url;
+                    final url = uri?.toString() ?? '';
+                    _logger.i('🔀 [校园卡支付] shouldOverrideUrlLoading: $url');
+
+                    if (uri == null) {
+                      return NavigationActionPolicy.ALLOW;
+                    }
+
+                    final scheme = uri.scheme.toLowerCase();
+                    if (scheme != 'http' && scheme != 'https') {
+                      await _launchExternal(uri, 'shouldOverrideUrlLoading');
                       return NavigationActionPolicy.CANCEL;
                     }
                     return NavigationActionPolicy.ALLOW;
+                  },
+                  onCreateWindow: (controller, createWindowAction) async {
+                    final uri = createWindowAction.request.url;
+                    final url = uri?.toString() ?? '';
+                    _logger.i('🪟 [校园卡支付] onCreateWindow: $url');
+                    if (uri != null) {
+                      final scheme = uri.scheme.toLowerCase();
+                      if (scheme != 'http' && scheme != 'https') {
+                        await _launchExternal(uri, 'onCreateWindow');
+                        return false;
+                      }
+                      await controller.loadUrl(urlRequest: URLRequest(url: uri));
+                    }
+                    return false;
                   },
                 ),
               ),

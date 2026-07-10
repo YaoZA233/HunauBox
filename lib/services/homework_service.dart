@@ -68,7 +68,7 @@ class HomeworkService {
             endTime = _parseRemainTime(remainTimeStr, now);
           }
 
-          final id = dataUrl.isNotEmpty ? dataUrl : '\$courseName|\$title';
+          final id = dataUrl.isNotEmpty ? dataUrl : '$courseName|$title';
           final finalUrl = _transformDataUrl(dataUrl);
 
           results.add(HomeworkModel(
@@ -102,7 +102,7 @@ class HomeworkService {
       final classId = uri.queryParameters['clazzId'];
 
       if (taskrefId != null && courseId != null && classId != null) {
-        return 'https://mooc1-api.chaoxing.com/mooc-ans/work/phone/task-work?taskrefId=\$taskrefId&courseId=\$courseId&classId=\$classId&ut=s';
+        return 'https://mooc1-api.chaoxing.com/mooc-ans/work/phone/task-work?taskrefId=$taskrefId&courseId=$courseId&classId=$classId&ut=s';
       }
       return url;
     } catch (e) {
@@ -115,9 +115,9 @@ class HomeworkService {
       final clean = str.replaceFirst('剩余', '');
       int totalMinutes = 0;
 
-      final dayMatch = RegExp(r'(\\d+)天').firstMatch(clean);
-      final hourMatch = RegExp(r'(\\d+)小时').firstMatch(clean);
-      final minuteMatch = RegExp(r'(\\d+)分钟').firstMatch(clean);
+      final dayMatch = RegExp(r'(\d+)天').firstMatch(clean);
+      final hourMatch = RegExp(r'(\d+)小时').firstMatch(clean);
+      final minuteMatch = RegExp(r'(\d+)分钟').firstMatch(clean);
 
       if (dayMatch != null) totalMinutes += int.parse(dayMatch.group(1)!) * 24 * 60;
       if (hourMatch != null) totalMinutes += int.parse(hourMatch.group(1)!) * 60;

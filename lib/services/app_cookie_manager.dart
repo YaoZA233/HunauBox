@@ -30,6 +30,8 @@ class AppCookieManager {
       AppConstants.ssoBaseUrl,
       AppConstants.portalBaseUrl,
       AppConstants.webvpnBaseUrl,
+      'https://bxpt.hunau.edu.cn',
+      'https://bxpt.hunau.edu.cn/relax/',
       'https://passport2.chaoxing.com',
       'https://notice.chaoxing.com',
       'https://mooc1.chaoxing.com',
@@ -96,6 +98,31 @@ class AppCookieManager {
     } catch (e) {
       _logger.w('Failed to sync cookies to WebView for $url: $e');
     }
+  }
+
+  Future<void> injectAllChaoxingCookies() async {
+    await initialize();
+    final domains = [
+      'http://chaoxing.com',
+      'https://chaoxing.com',
+      'https://passport2.chaoxing.com',
+      'https://notice.chaoxing.com',
+      'http://notice.chaoxing.com',
+      'https://mooc1.chaoxing.com',
+      'http://mooc1.chaoxing.com',
+      'https://mooc1-api.chaoxing.com',
+      'https://mooc-res2.chaoxing.com',
+      'https://photo.chaoxing.com',
+      'https://p.cldisk.com',
+      'https://ananas.chaoxing.com',
+      'https://fin-serv.hunau.edu.cn',
+    ];
+
+    for (final domain in domains) {
+      await syncMultiDomainCookiesToWebView(domain);
+    }
+
+    _logger.i('Injected Chaoxing cookies to WebView');
   }
 
   Future<void> clearAllCookies() async {
