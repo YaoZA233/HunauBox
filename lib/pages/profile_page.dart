@@ -1,11 +1,16 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/secure_storage_helper.dart';
 import '../services/app_cookie_manager.dart';
 import 'settings_page.dart';
 import 'help_feedback_page.dart';
 
 class ProfilePage extends StatelessWidget {
+  static final Uri _repositoryUri = Uri.parse(
+    'https://github.com/YaoZA233/HunauSmartCompusLife',
+  );
+
   final String? realName;
   final String? avatarUrl;
   final String? studentId;
@@ -28,6 +33,18 @@ class ProfilePage extends StatelessWidget {
     onLogout();
     if (context.mounted) {
       Navigator.pop(context);
+    }
+  }
+
+  Future<void> _openRepository(BuildContext context) async {
+    final launched = await launchUrl(
+      _repositoryUri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('无法打开项目仓库链接')),
+      );
     }
   }
 
@@ -169,8 +186,17 @@ class ProfilePage extends StatelessWidget {
                       applicationName: 'Life@HUNAU',
                       applicationVersion: '1.0.0',
                       applicationIcon: Icon(Icons.school, size: 64, color: Theme.of(context).colorScheme.primary),
-                      children: const [
-                        Text('智慧农大提供校园生活一站式服务。'),
+                      children: [
+                        const Text('智慧农大提供校园生活一站式服务。'),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: () => _openRepository(context),
+                            icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                            label: const Text('github.com/YaoZA233/HunauSmartCompusLife'),
+                          ),
+                        ),
                       ],
                     );
                   },

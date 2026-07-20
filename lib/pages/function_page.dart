@@ -11,10 +11,19 @@ import 'vpn_converter_page.dart';
 import 'score_page.dart';
 import 'webview_detail_page.dart';
 import 'bus_tracking_page.dart';
+import 'dorm_service_page.dart';
 import '../models/app_constants.dart';
+import '../services/auth_guard.dart';
 
 class FunctionPage extends StatelessWidget {
   const FunctionPage({super.key});
+
+  Future<void> _openProtectedPage(BuildContext context, Widget page) async {
+    final result = await AuthGuard.ensureLoggedIn(context);
+    if (!result.allowed || !context.mounted) return;
+
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,9 +52,7 @@ class FunctionPage extends StatelessWidget {
                   '校园卡充值',
                   '校园卡在线充值',
                   onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const CampusCardRechargePage()),
-                    );
+                    _openProtectedPage(context, const CampusCardRechargePage());
                   },
                 ),
                 _FunctionItem(
@@ -53,8 +60,9 @@ class FunctionPage extends StatelessWidget {
                   '电费充值',
                   '寝室电费在线充值',
                   onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const ElectricityRechargePage()),
+                    _openProtectedPage(
+                      context,
+                      const ElectricityRechargePage(),
                     );
                   },
                 ),
@@ -63,9 +71,7 @@ class FunctionPage extends StatelessWidget {
                   '校园卡',
                   '查看校园卡信息',
                   onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const CampusCardWebViewPage()),
-                    );
+                    _openProtectedPage(context, const CampusCardWebViewPage());
                   },
                 ),
               ]),
@@ -75,9 +81,7 @@ class FunctionPage extends StatelessWidget {
                   '空教室',
                   '实时查找空闲教室',
                   onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const EmptyClassroomPage()),
-                    );
+                    _openProtectedPage(context, const EmptyClassroomPage());
                   },
                 ),
                 _FunctionItem(
@@ -85,8 +89,22 @@ class FunctionPage extends StatelessWidget {
                   '学工系统',
                   '进入学工系统',
                   onTap: () {
+                    _openProtectedPage(context, const XgxtWebViewPage());
+                  },
+                ),
+                _FunctionItem(
+                  Icons.rate_review_outlined,
+                  '教学评价平台',
+                  '查看并完成待评价任务',
+                  onTap: () {
                     Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const XgxtWebViewPage()),
+                      MaterialPageRoute(
+                        builder: (_) => WebViewDetailPage(
+                          title: '教学评价平台',
+                          url: AppConstants.teachingEvalUrl,
+                          showWebBack: true,
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -95,9 +113,7 @@ class FunctionPage extends StatelessWidget {
                   '成绩查询',
                   '查看课程成绩',
                   onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const ScorePage()),
-                    );
+                    _openProtectedPage(context, const ScorePage());
                   },
                 ),
                 _FunctionItem(
@@ -105,8 +121,38 @@ class FunctionPage extends StatelessWidget {
                   '课程表',
                   '查看本学期课表',
                   onTap: () {
+                    _openProtectedPage(context, const TimetablePage());
+                  },
+                ),
+                _FunctionItem(
+                  Icons.calendar_month_outlined,
+                  '电子校历',
+                  '查看学校校历安排',
+                  onTap: () {
                     Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const TimetablePage()),
+                      MaterialPageRoute(
+                        builder: (_) => const WebViewDetailPage(
+                          title: '电子校历',
+                          url: AppConstants.schoolCalendarUrl,
+                          showWebBack: true,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _FunctionItem(
+                  Icons.library_books_outlined,
+                  '图书荐购',
+                  '提交图书采购推荐',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const WebViewDetailPage(
+                          title: '图书荐购',
+                          url: AppConstants.bookRecommendationUrl,
+                          showWebBack: true,
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -117,9 +163,7 @@ class FunctionPage extends StatelessWidget {
                   '实时校车',
                   '基于定位打开校车追踪',
                   onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const BusTrackingPage()),
-                    );
+                    _openProtectedPage(context, const BusTrackingPage());
                   },
                 ),
                 _FunctionItem(
@@ -151,6 +195,46 @@ class FunctionPage extends StatelessWidget {
                         builder: (_) => const WebViewDetailPage(
                           title: '场馆预约',
                           url: AppConstants.gymReservationUrl,
+                          showWebBack: true,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _FunctionItem(
+                  Icons.apartment_outlined,
+                  '学生公寓',
+                  '查看宿舍楼、楼层、房间和床号',
+                  onTap: () {
+                    _openProtectedPage(context, const DormServicePage());
+                  },
+                ),
+                _FunctionItem(
+                  Icons.local_activity_outlined,
+                  '通识教育大讲堂',
+                  '查看并参与通识讲堂活动',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const WebViewDetailPage(
+                          title: '通识教育大讲堂',
+                          url: AppConstants.lecturesUrl,
+                          showWebBack: true,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _FunctionItem(
+                  Icons.celebration_outlined,
+                  '活动广场',
+                  '查看校园活动与报名信息',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const WebViewDetailPage(
+                          title: '活动广场',
+                          url: AppConstants.activitySquareUrl,
                           showWebBack: true,
                         ),
                       ),
@@ -209,7 +293,7 @@ class FunctionPage extends StatelessWidget {
                   letterSpacing: 0.5,
                 ),
               );
-            }
+            },
           ),
         ),
         Padding(
@@ -220,17 +304,25 @@ class FunctionPage extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerLowest,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4)),
+                  border: Border.all(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withOpacity(0.4),
+                  ),
                 ),
                 child: Column(
                   children: items.asMap().entries.map((entry) {
                     final index = entry.key;
                     final item = entry.value;
-                    return _buildListTile(item, isLast: index == items.length - 1, context: context);
+                    return _buildListTile(
+                      item,
+                      isLast: index == items.length - 1,
+                      context: context,
+                    );
                   }).toList(),
                 ),
               );
-            }
+            },
           ),
         ),
         const SizedBox(height: 24),
@@ -238,28 +330,48 @@ class FunctionPage extends StatelessWidget {
     );
   }
 
-  Widget _buildListTile(_FunctionItem item, {required bool isLast, required BuildContext context}) {
+  Widget _buildListTile(
+    _FunctionItem item, {
+    required bool isLast,
+    required BuildContext context,
+  }) {
     return InkWell(
-      onTap: () {
+      onTap: () async {
+        final result = await AuthGuard.ensureLoggedIn(context);
+        if (!result.allowed || !context.mounted) return;
+
         item.onTap?.call();
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          border: isLast ? null : Border(
-            bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3), width: 1),
-          ),
+          border: isLast
+              ? null
+              : Border(
+                  bottom: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primaryContainer.withOpacity(0.4),
                 shape: BoxShape.circle,
               ),
-              child: Icon(item.icon, size: 22, color: Theme.of(context).colorScheme.primary),
+              child: Icon(
+                item.icon,
+                size: 22,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -285,7 +397,13 @@ class FunctionPage extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5)),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant.withOpacity(0.5),
+            ),
           ],
         ),
       ),

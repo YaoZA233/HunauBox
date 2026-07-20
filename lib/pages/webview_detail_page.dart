@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_cookie_manager.dart';
+import '../services/webvpn_auth_service.dart';
 
 class WebViewDetailPage extends StatefulWidget {
   final String title;
@@ -14,6 +15,7 @@ class WebViewDetailPage extends StatefulWidget {
   final bool showWebBack;
   final String? userAgent;
   final String? targetUrl;
+  final String? postAuthUrl;
   final Color? appBarColor;
 
   const WebViewDetailPage({
@@ -24,6 +26,7 @@ class WebViewDetailPage extends StatefulWidget {
     this.showWebBack = false,
     this.userAgent,
     this.targetUrl,
+    this.postAuthUrl,
     this.appBarColor,
   });
 
@@ -44,6 +47,7 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
   String? _errorMessage;
   Timer? _loadTimeoutTimer;
   late final Future<void> _cookieReady;
+  bool _hasNavigatedToPostAuthUrl = false;
 
   @override
   void initState() {
@@ -54,7 +58,24 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
 
   Future<void> _prepareCookies() async {
     await AppCookieManager().syncMultiDomainCookiesFromWebView(widget.url);
-    await AppCookieManager().syncMultiDomainCookiesToWebView(widget.url);
+    if (_isWebVpnUrl(widget.url)) {
+      await WebVpnAuthService().ensureSession();
+      await AppCookieManager().syncMultiDomainCookiesToWebView(widget.url);
+    } else if (_isChaoxingUrl(widget.url)) {
+      await AppCookieManager().injectAllChaoxingCookies();
+    } else {
+      await AppCookieManager().syncMultiDomainCookiesToWebView(widget.url);
+    }
+  }
+
+  bool _isChaoxingUrl(String url) {
+    final host = Uri.tryParse(url)?.host ?? '';
+    return host.endsWith('chaoxing.com');
+  }
+
+  bool _isWebVpnUrl(String url) {
+    final host = Uri.tryParse(url)?.host ?? '';
+    return host == 'webvpn.hunau.edu.cn';
   }
 
   @override
@@ -98,6 +119,30 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
       return false;
     }
     return launchUrl(url, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _openPostAuthUrlIfReady(
+    InAppWebViewController controller,
+    String currentUrl,
+  ) async {
+    final postAuthUrl = widget.postAuthUrl;
+    if (postAuthUrl == null || _hasNavigatedToPostAuthUrl) return;
+
+    final currentUri = Uri.tryParse(currentUrl);
+    final targetUri = Uri.tryParse(postAuthUrl);
+    if (currentUri == null ||
+        targetUri == null ||
+        currentUri.host != targetUri.host) {
+      return;
+    }
+
+    if (currentUrl.contains(targetUri.fragment)) {
+      _hasNavigatedToPostAuthUrl = true;
+      return;
+    }
+
+    _hasNavigatedToPostAuthUrl = true;
+    await controller.loadUrl(urlRequest: URLRequest(url: WebUri(postAuthUrl)));
   }
 
   @override
@@ -248,7 +293,8 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                               }, 100);
                             })();
                           """,
-                          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                          injectionTime:
+                              UserScriptInjectionTime.AT_DOCUMENT_START,
                         ),
                         UserScript(
                           source: """
@@ -276,7 +322,8 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                               window.CXJSBridge = mockBridge;
                             })();
                           """,
-                          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                          injectionTime:
+                              UserScriptInjectionTime.AT_DOCUMENT_START,
                         ),
                       ]),
                       initialSettings: InAppWebViewSettings(
@@ -296,7 +343,8 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                         thirdPartyCookiesEnabled: true,
                         sharedCookiesEnabled: true,
                         userAgent: _resolveUserAgent(),
-                        mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+                        mixedContentMode:
+                            MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
                       ),
                       onWebViewCreated: (controller) {
                         _webViewController = controller;
@@ -308,12 +356,18 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                             if (data is Map) {
                               final name = data['name']?.toString() ?? '';
                               final userInfo = data['userInfo'];
-                              if (name == 'CLIENT_OPEN_URL' && userInfo is Map) {
+                              if (name == 'CLIENT_OPEN_URL' &&
+                                  userInfo is Map) {
                                 final webUrl = userInfo['webUrl']?.toString();
                                 if (webUrl != null && webUrl.isNotEmpty) {
-                                  final cleanUrl = webUrl.replaceAll('#INNER', '');
+                                  final cleanUrl = webUrl.replaceAll(
+                                    '#INNER',
+                                    '',
+                                  );
                                   await controller.loadUrl(
-                                    urlRequest: URLRequest(url: WebUri(cleanUrl)),
+                                    urlRequest: URLRequest(
+                                      url: WebUri(cleanUrl),
+                                    ),
                                   );
                                 }
                               }
@@ -328,23 +382,31 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                           },
                         );
                       },
-                      shouldOverrideUrlLoading: (controller, navigationAction) async {
-                        final uri = navigationAction.request.url;
-                        if (uri == null) return NavigationActionPolicy.ALLOW;
-                        final scheme = uri.scheme;
-                        if (scheme == 'jsbridge' || scheme == 'chaoxing') {
-                          final urlString = uri.toString();
-                          if (urlString.contains('postnotificationwithid-')) {
-                            final parts = urlString.split('postnotificationwithid-');
-                            if (parts.length > 1) {
-                              final notificationId = parts[1];
-                              final callbackIds = [
-                                'postnotificationwithid-$notificationId',
-                                'id-$notificationId',
-                                notificationId,
-                              ];
-                              for (final cbId in callbackIds) {
-                                final js = """
+                      shouldOverrideUrlLoading:
+                          (controller, navigationAction) async {
+                            final uri = navigationAction.request.url;
+                            if (uri == null) {
+                              return NavigationActionPolicy.ALLOW;
+                            }
+                            final scheme = uri.scheme;
+                            if (scheme == 'jsbridge' || scheme == 'chaoxing') {
+                              final urlString = uri.toString();
+                              if (urlString.contains(
+                                'postnotificationwithid-',
+                              )) {
+                                final parts = urlString.split(
+                                  'postnotificationwithid-',
+                                );
+                                if (parts.length > 1) {
+                                  final notificationId = parts[1];
+                                  final callbackIds = [
+                                    'postnotificationwithid-$notificationId',
+                                    'id-$notificationId',
+                                    notificationId,
+                                  ];
+                                  for (final cbId in callbackIds) {
+                                    final js =
+                                        """
                                   if (window.CXJSBridge) {
                                     if (CXJSBridge.onPushNotification) CXJSBridge.onPushNotification('$cbId');
                                     if (CXJSBridge._onPushNotification) CXJSBridge._onPushNotification('$cbId');
@@ -353,18 +415,20 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                                     }
                                   }
                                 """;
-                                await controller.evaluateJavascript(source: js);
+                                    await controller.evaluateJavascript(
+                                      source: js,
+                                    );
+                                  }
+                                }
                               }
+                              return NavigationActionPolicy.CANCEL;
                             }
-                          }
-                          return NavigationActionPolicy.CANCEL;
-                        }
-                        if (scheme != 'http' && scheme != 'https') {
-                          await _launchExternalUrl(uri);
-                          return NavigationActionPolicy.CANCEL;
-                        }
-                        return NavigationActionPolicy.ALLOW;
-                      },
+                            if (scheme != 'http' && scheme != 'https') {
+                              await _launchExternalUrl(uri);
+                              return NavigationActionPolicy.CANCEL;
+                            }
+                            return NavigationActionPolicy.ALLOW;
+                          },
                       onCreateWindow: (controller, createWindowAction) async {
                         final uri = createWindowAction.request.url;
                         if (uri != null) {
@@ -386,12 +450,15 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                         _cancelLoadTimeout();
                         final urlString = url?.toString() ?? '';
 
+                        await _openPostAuthUrlIfReady(controller, urlString);
+
                         if (urlString.contains('bxpt.hunau.edu.cn/relax') &&
                             !urlString.contains('/mobile/') &&
                             !urlString.contains('ticket=') &&
                             !urlString.contains('cas/login')) {
                           await controller.evaluateJavascript(
-                            source: "window.location.href = '/relax/mobile/index.html';",
+                            source:
+                                "window.location.href = '/relax/mobile/index.html';",
                           );
                           return;
                         }
@@ -407,19 +474,22 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                       onProgressChanged: (controller, progress) {
                         setState(() => _progress = progress / 100);
                       },
-                      onLoadHttpError: (controller, url, statusCode, description) async {
-                        final currentUrl = await controller.getUrl();
-                        if (url != null && url.toString() == currentUrl?.toString()) {
-                          if (!mounted) return;
-                          setState(() {
-                            _errorMessage = 'HTTP $statusCode: $description';
-                            _isLoading = false;
-                          });
-                        }
-                      },
+                      onLoadHttpError:
+                          (controller, url, statusCode, description) async {
+                            final currentUrl = await controller.getUrl();
+                            if (url != null &&
+                                url.toString() == currentUrl.toString()) {
+                              if (!mounted) return;
+                              setState(() {
+                                _errorMessage =
+                                    'HTTP $statusCode: $description';
+                                _isLoading = false;
+                              });
+                            }
+                          },
                       onReceivedError: (controller, request, error) {
                         if (request.isForMainFrame != true) return;
-                        final url = request.url?.toString() ?? '';
+                        final url = request.url.toString();
                         if (url.startsWith('http')) {
                           setState(() {
                             _errorMessage = error.description;
@@ -433,13 +503,14 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                           action: PermissionResponseAction.GRANT,
                         );
                       },
-                      onGeolocationPermissionsShowPrompt: (controller, origin) async {
-                        return GeolocationPermissionShowPromptResponse(
-                          origin: origin,
-                          allow: true,
-                          retain: true,
-                        );
-                      },
+                      onGeolocationPermissionsShowPrompt:
+                          (controller, origin) async {
+                            return GeolocationPermissionShowPromptResponse(
+                              origin: origin,
+                              allow: true,
+                              retain: true,
+                            );
+                          },
                     );
                   },
                 ),
@@ -455,7 +526,11 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.wifi_off_rounded, size: 40, color: Colors.black54),
+                          const Icon(
+                            Icons.wifi_off_rounded,
+                            size: 40,
+                            color: Colors.black54,
+                          ),
                           const SizedBox(height: 12),
                           Text(
                             _errorMessage!,

@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'home_page.dart';
 import 'function_page.dart';
 import 'notice_page.dart';
 import 'homework_page.dart';
+import '../providers/homework_provider.dart';
+import '../providers/notice_provider.dart';
+import '../services/auth_guard.dart';
 import '../services/navigation_settings_store.dart';
 
-class MainNavigator extends StatefulWidget {
+class MainNavigator extends ConsumerStatefulWidget {
   const MainNavigator({super.key});
   @override
-  State<MainNavigator> createState() => _MainNavigatorState();
+  ConsumerState<MainNavigator> createState() => _MainNavigatorState();
 }
 
-class _MainNavigatorState extends State<MainNavigator> {
+class _MainNavigatorState extends ConsumerState<MainNavigator> {
   int _index = 0;
   final _navStore = NavigationSettingsStore.instance;
 
@@ -26,6 +30,24 @@ class _MainNavigatorState extends State<MainNavigator> {
   void initState() {
     super.initState();
     _navStore.load();
+  }
+
+  Future<void> _handleDestinationSelected(int value) async {
+    if (value == _index) return;
+
+    if (value != 0) {
+      final result = await AuthGuard.ensureLoggedIn(context);
+      if (!result.allowed || !mounted) return;
+
+      if (value == 2) {
+        ref.read(noticeProvider.notifier).refresh();
+      } else if (value == 3) {
+        ref.read(homeworkProvider.notifier).refresh();
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _index = value);
   }
 
   @override
@@ -49,12 +71,30 @@ class _MainNavigatorState extends State<MainNavigator> {
             bottomNavigationBar: NavigationBar(
               height: 60,
               selectedIndex: _index,
-              onDestinationSelected: (v) => setState(() => _index = v),
+              onDestinationSelected: (v) {
+                _handleDestinationSelected(v);
+              },
               destinations: const [
-                NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '主页'),
-                NavigationDestination(icon: Icon(Icons.grid_view_outlined), selectedIcon: Icon(Icons.grid_view), label: '功能'),
-                NavigationDestination(icon: Icon(Icons.notifications_outlined), selectedIcon: Icon(Icons.notifications), label: '通知'),
-                NavigationDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment), label: '作业'),
+                NavigationDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home),
+                  label: '主页',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.grid_view_outlined),
+                  selectedIcon: Icon(Icons.grid_view),
+                  label: '功能',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.notifications_outlined),
+                  selectedIcon: Icon(Icons.notifications),
+                  label: '通知',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.assignment_outlined),
+                  selectedIcon: Icon(Icons.assignment),
+                  label: '作业',
+                ),
               ],
               labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             ),
@@ -65,7 +105,9 @@ class _MainNavigatorState extends State<MainNavigator> {
           body: Stack(
             children: [
               Padding(
-                padding: EdgeInsets.only(bottom: 80 + MediaQuery.paddingOf(context).bottom),
+                padding: EdgeInsets.only(
+                  bottom: 80 + MediaQuery.paddingOf(context).bottom,
+                ),
                 child: AnimatedIndexedStack(
                   index: _index,
                   children: [
@@ -82,7 +124,9 @@ class _MainNavigatorState extends State<MainNavigator> {
                 bottom: 12 + MediaQuery.paddingOf(context).bottom,
                 child: _FloatingNavBar(
                   selectedIndex: _index,
-                  onChanged: (v) => setState(() => _index = v),
+                  onChanged: (v) {
+                    _handleDestinationSelected(v);
+                  },
                   surfaceColor: theme.colorScheme.surface,
                   primaryColor: theme.colorScheme.primary,
                   onSurfaceVariant: theme.colorScheme.onSurfaceVariant,
@@ -193,7 +237,9 @@ class _NavBarContent extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          isSelected ? _MainNavigatorState._destinations[i].$2 : _MainNavigatorState._destinations[i].$1,
+                          isSelected
+                              ? _MainNavigatorState._destinations[i].$2
+                              : _MainNavigatorState._destinations[i].$1,
                           size: 24,
                           color: isSelected ? primaryColor : onSurfaceVariant,
                         ),
@@ -202,7 +248,9 @@ class _NavBarContent extends StatelessWidget {
                           _MainNavigatorState._destinations[i].$3,
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w400,
                             color: isSelected ? primaryColor : onSurfaceVariant,
                           ),
                         ),
@@ -233,7 +281,8 @@ class AnimatedIndexedStack extends StatefulWidget {
   State<AnimatedIndexedStack> createState() => _AnimatedIndexedStackState();
 }
 
-class _AnimatedIndexedStackState extends State<AnimatedIndexedStack> with SingleTickerProviderStateMixin {
+class _AnimatedIndexedStackState extends State<AnimatedIndexedStack>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late int _previousIndex;
 
@@ -266,22 +315,13 @@ class _AnimatedIndexedStackState extends State<AnimatedIndexedStack> with Single
   @override
   Widget build(BuildContext context) {
     return FadeTransition(
-      opacity: CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeIn,
-      ),
+      opacity: CurvedAnimation(parent: _controller, curve: Curves.easeIn),
       child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 0.03),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(
-          parent: _controller,
-          curve: Curves.easeOutCubic,
-        )),
-        child: IndexedStack(
-          index: widget.index,
-          children: widget.children,
-        ),
+        position: Tween<Offset>(begin: const Offset(0, 0.03), end: Offset.zero)
+            .animate(
+              CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+            ),
+        child: IndexedStack(index: widget.index, children: widget.children),
       ),
     );
   }

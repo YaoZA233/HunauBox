@@ -12,14 +12,17 @@ class AppCookieManager {
   AppCookieManager._internal();
 
   late final PersistCookieJar dioCookieJar;
-  final webview.CookieManager _webViewCookieManager = webview.CookieManager.instance();
+  final webview.CookieManager _webViewCookieManager =
+      webview.CookieManager.instance();
   bool _initialized = false;
   final _logger = AppLogger.instance;
 
   Future<void> initialize() async {
     if (_initialized) return;
     final appDocDir = await getApplicationDocumentsDirectory();
-    dioCookieJar = PersistCookieJar(storage: FileStorage('${appDocDir.path}/.cookies'));
+    dioCookieJar = PersistCookieJar(
+      storage: FileStorage('${appDocDir.path}/.cookies'),
+    );
     _initialized = true;
   }
 
@@ -33,7 +36,10 @@ class AppCookieManager {
       'https://bxpt.hunau.edu.cn',
       'https://bxpt.hunau.edu.cn/relax/',
       'https://passport2.chaoxing.com',
+      'https://auth.chaoxing.com',
       'https://notice.chaoxing.com',
+      'https://hd.chaoxing.com',
+      'https://office.chaoxing.com',
       'https://mooc1.chaoxing.com',
       'https://mooc1-api.chaoxing.com',
       'https://mooc-res2.chaoxing.com',
@@ -45,7 +51,9 @@ class AppCookieManager {
       'https://fin-serv.hunau.edu.cn',
     ];
 
-    if (currentUrl != null && currentUrl.isNotEmpty && !domains.contains(currentUrl)) {
+    if (currentUrl != null &&
+        currentUrl.isNotEmpty &&
+        !domains.contains(currentUrl)) {
       domains.add(currentUrl);
     }
 
@@ -61,7 +69,8 @@ class AppCookieManager {
           await dioCookieJar.saveFromResponse(Uri.parse(domain), [dioCookie]);
 
           if (domain.contains('webvpn.hunau.edu.cn') &&
-              (cookie.name.contains('vpn_ticket') || cookie.name.contains('webvpn_key'))) {
+              (cookie.name.contains('vpn_ticket') ||
+                  cookie.name.contains('webvpn_key'))) {
             final mirroredCookie = io.Cookie(cookie.name, cookie.value)
               ..domain = 'portal.hunau.edu.cn'
               ..path = '/'
@@ -106,8 +115,13 @@ class AppCookieManager {
       'http://chaoxing.com',
       'https://chaoxing.com',
       'https://passport2.chaoxing.com',
+      'https://auth.chaoxing.com',
       'https://notice.chaoxing.com',
       'http://notice.chaoxing.com',
+      'https://hd.chaoxing.com',
+      'http://hd.chaoxing.com',
+      'https://office.chaoxing.com',
+      'http://office.chaoxing.com',
       'https://mooc1.chaoxing.com',
       'http://mooc1.chaoxing.com',
       'https://mooc1-api.chaoxing.com',

@@ -8,6 +8,7 @@ import '../models/quick_action_item.dart';
 import '../providers/homework_provider.dart';
 import '../providers/notice_provider.dart';
 import '../services/auth_service.dart';
+import '../services/auth_guard.dart';
 import '../services/secure_storage_helper.dart';
 import '../services/quick_action_store.dart';
 import '../services/timetable_storage.dart';
@@ -28,6 +29,7 @@ import 'vpn_converter_page.dart';
 import 'network_speed_test_page.dart';
 import 'webview_detail_page.dart';
 import 'bus_tracking_page.dart';
+import 'dorm_service_page.dart';
 import '../models/app_constants.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -84,6 +86,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     super.didUpdateWidget(oldWidget);
 
     if (widget.isActive && !_wasActive) {
+      _syncSavedLoginState();
       _loadPreviewCourses();
       _loadSemesterProgress();
     }
@@ -102,10 +105,33 @@ class _HomePageState extends ConsumerState<HomePage> {
       return;
     }
 
-    await _performLogin(username, password, showWelcome: true, useBottomSheet: false);
+    await _performLogin(
+      username,
+      password,
+      showWelcome: true,
+      useBottomSheet: false,
+    );
+  }
+
+  Future<void> _syncSavedLoginState() async {
+    if (_isLoggedIn || !await AuthGuard.hasSavedCredentials()) return;
+
+    final userInfo = await _authService.fetchFullUserInfo();
+    if (!mounted) return;
+
+    setState(() {
+      _isLoggedIn = true;
+      _realName = userInfo['realName'];
+      _avatarUrl = userInfo['avatarUrl'];
+    });
   }
 
   Future<void> _handleLogin() async {
+    if (!_isLoggedIn && await AuthGuard.hasSavedCredentials()) {
+      await _syncSavedLoginState();
+    }
+    if (!mounted) return;
+
     if (_isLoggedIn) {
       final storage = SecureStorageHelper();
       final username = await storage.getUsername();
@@ -223,7 +249,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('欢迎回来，${realName?.trim().isNotEmpty == true ? realName : '农大学子'}'),
+        content: Text(
+          '欢迎回来，${realName?.trim().isNotEmpty == true ? realName : '农大学子'}',
+        ),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
         margin: const EdgeInsets.only(left: 16, right: 16, bottom: 24),
@@ -248,6 +276,32 @@ class _HomePageState extends ConsumerState<HomePage> {
     });
   }
 
+  Future<bool> _ensureLoggedInForFeature() async {
+    if (_isLoggedIn) return true;
+
+    final result = await AuthGuard.ensureLoggedIn(context);
+    if (!result.allowed || !mounted) return false;
+
+    setState(() {
+      _isLoggedIn = true;
+      if (result.userInfo != null) {
+        _realName = result.userInfo!['realName'];
+        _avatarUrl = result.userInfo!['avatarUrl'];
+      }
+    });
+
+    if (result.userInfo != null) {
+      _playLoginSuccessAnimation();
+      _showWelcomePopup(_realName);
+    }
+
+    _loadPreviewCourses();
+    _loadSemesterProgress();
+    ref.read(noticeProvider.notifier).refresh();
+    ref.read(homeworkProvider.notifier).refresh();
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final CourseModel? displayCourse = _currentCourse ?? _nextCourse;
@@ -257,15 +311,23 @@ class _HomePageState extends ConsumerState<HomePage> {
         : (_isShowingTomorrow ? '明天第一节课' : '下一节课');
 
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 60), // 防止顶部被遮挡，加大 padding
+      padding: const EdgeInsets.symmetric(
+        horizontal: 24,
+        vertical: 60,
+      ), // 防止顶部被遮挡，加大 padding
       children: [
         // 问候语 + 右上角头像
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-                "Life@HUNAU",
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, height: 1.2, letterSpacing: -1.0)
+              "Life@HUNAU",
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                height: 1.2,
+                letterSpacing: -1.0,
+              ),
             ),
             GestureDetector(
               onTap: _isLoading ? null : _handleLogin,
@@ -281,50 +343,69 @@ class _HomePageState extends ConsumerState<HomePage> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         boxShadow: _isLoading
-                            ? [BoxShadow(color: Colors.green.withOpacity(0.18), blurRadius: 14, spreadRadius: 2)]
+                            ? [
+                                BoxShadow(
+                                  color: Colors.green.withOpacity(0.18),
+                                  blurRadius: 14,
+                                  spreadRadius: 2,
+                                ),
+                              ]
                             : const [],
                       ),
                       child: CircleAvatar(
                         radius: 24,
-                          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                          backgroundImage: _isLoggedIn && _avatarUrl != null
-                              ? FileImage(File(_avatarUrl!)) as ImageProvider
-                              : null,
-                          child: _isLoggedIn && _avatarUrl != null
-                              ? null
-                              : Icon(Icons.person, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer,
+                        backgroundImage: _isLoggedIn && _avatarUrl != null
+                            ? FileImage(File(_avatarUrl!)) as ImageProvider
+                            : null,
+                        child: _isLoggedIn && _avatarUrl != null
+                            ? null
+                            : Icon(
+                                Icons.person,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer,
+                              ),
                       ),
                     ),
                   ),
-                      if (_isLoading)
-                        SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                  if (_isLoading)
+                    SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  if (_showLoginSuccessBadge)
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.7, end: 1.0),
+                        duration: const Duration(milliseconds: 450),
+                        curve: Curves.easeOutBack,
+                        builder: (context, scale, child) {
+                          return Transform.scale(scale: scale, child: child);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white,
+                          ),
+                          child: Icon(
+                            Icons.verified_rounded,
+                            size: 18,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
-                      if (_showLoginSuccessBadge)
-                        Align(
-                          alignment: Alignment.bottomRight,
-                          child: TweenAnimationBuilder<double>(
-                            tween: Tween(begin: 0.7, end: 1.0),
-                            duration: const Duration(milliseconds: 450),
-                            curve: Curves.easeOutBack,
-                            builder: (context, scale, child) {
-                              return Transform.scale(scale: scale, child: child);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white,
-                              ),
-                              child: Icon(Icons.verified_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
-                            ),
-                          ),
-                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -335,22 +416,35 @@ class _HomePageState extends ConsumerState<HomePage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5)),
+              border: Border.all(
+                color: Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withOpacity(0.5),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   _hitokotoText,
-                  style: TextStyle(fontSize: 14, height: 1.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 if (_hitokotoFrom.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text(
                     '—— $_hitokotoFrom',
-                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ],
               ],
@@ -363,41 +457,83 @@ class _HomePageState extends ConsumerState<HomePage> {
         Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4),
+            color: Theme.of(
+              context,
+            ).colorScheme.primaryContainer.withOpacity(0.4),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3)),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.outlineVariant.withOpacity(0.3),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(Icons.schedule_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
+                  Icon(
+                    Icons.schedule_rounded,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   const SizedBox(width: 8),
-                  Text(statusLabel, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    statusLabel,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
               if (_isLoadingTimetable) ...[
-                Text("正在同步课表...", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface)),
+                Text(
+                  "正在同步课表...",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
               ] else if (!hasCourse) ...[
                 Text(
                   _hasTimetable ? "今天没有课" : "导入课表后即可显示",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
                 if (!_hasTimetable) ...[
                   const SizedBox(height: 6),
-                  Text("去导入课表后即可显示", style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  Text(
+                    "去导入课表后即可显示",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ] else ...[
                 Text(
-                  displayCourse!.name,
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface),
+                  displayCourse.name,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   "${_formatCourseTime(displayCourse)} • ${displayCourse.classroom}",
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 14, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ],
@@ -415,17 +551,29 @@ class _HomePageState extends ConsumerState<HomePage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("常用服务", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text(
+              "常用服务",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             InkWell(
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const FunctionPage()),
-                );
+              onTap: () async {
+                if (!await _ensureLoggedInForFeature() || !context.mounted) {
+                  return;
+                }
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const FunctionPage()));
               },
               borderRadius: BorderRadius.circular(8),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Text("查看全部", style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
+                child: Text(
+                  "查看全部",
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
           ],
@@ -476,7 +624,9 @@ class _HomePageState extends ConsumerState<HomePage> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+        ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -492,8 +642,22 @@ class _HomePageState extends ConsumerState<HomePage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("学期进度", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
-              Text("当前第$_currentWeek周 / 共$_totalWeeks周", style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500)),
+              Text(
+                "学期进度",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              Text(
+                "当前第$_currentWeek周 / 共$_totalWeeks周",
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -510,7 +674,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 800),
                   curve: Curves.easeOutCubic,
-                  width: constraints.maxWidth * (_progressPercent / 100).clamp(0.0, 1.0),
+                  width:
+                      constraints.maxWidth *
+                      (_progressPercent / 100).clamp(0.0, 1.0),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(999),
                     color: Theme.of(context).colorScheme.primary,
@@ -524,9 +690,29 @@ class _HomePageState extends ConsumerState<HomePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text("已开学 $_elapsedDays 天", style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
-              Text("$_progressPercent%", style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 16, fontWeight: FontWeight.w900, height: 1.0)),
-              Text("剩余 $_remainingDays 天", style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+              Text(
+                "已开学 $_elapsedDays 天",
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+              Text(
+                "$_progressPercent%",
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                ),
+              ),
+              Text(
+                "剩余 $_remainingDays 天",
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
             ],
           ),
         ],
@@ -552,13 +738,20 @@ class _HomePageState extends ConsumerState<HomePage> {
 
           final now = DateTime.now();
           final bool isAfter10PM = now.hour >= 22;
-          final DateTime targetDate = isAfter10PM ? now.add(const Duration(days: 1)) : now;
+          final DateTime targetDate = isAfter10PM
+              ? now.add(const Duration(days: 1))
+              : now;
           DateTime? firstWeekMonday;
           int targetWeek = 0;
 
           if (metadata != null && metadata['firstWeekMonday'] != null) {
-            firstWeekMonday = DateTime.parse(metadata['firstWeekMonday'] as String);
-            targetWeek = DateCalculator.getCurrentWeekNumber(firstWeekMonday, targetDate);
+            firstWeekMonday = DateTime.parse(
+              metadata['firstWeekMonday'] as String,
+            );
+            targetWeek = DateCalculator.getCurrentWeekNumber(
+              firstWeekMonday,
+              targetDate,
+            );
           }
 
           final todayCourses = _filterCoursesForDate(
@@ -577,7 +770,10 @@ class _HomePageState extends ConsumerState<HomePage> {
             final tomorrow = targetDate.add(const Duration(days: 1));
             final tomorrowWeek = firstWeekMonday == null
                 ? 0
-                : DateCalculator.getCurrentWeekNumber(firstWeekMonday, tomorrow);
+                : DateCalculator.getCurrentWeekNumber(
+                    firstWeekMonday,
+                    tomorrow,
+                  );
             final tomorrowCourses = _filterCoursesForDate(
               allCourses,
               tomorrow,
@@ -641,7 +837,10 @@ class _HomePageState extends ConsumerState<HomePage> {
     }).toList();
   }
 
-  (CourseModel?, CourseModel?) _selectCurrentAndNext(List<CourseModel> courses, DateTime targetDate) {
+  (CourseModel?, CourseModel?) _selectCurrentAndNext(
+    List<CourseModel> courses,
+    DateTime targetDate,
+  ) {
     if (courses.isEmpty) return (null, null);
 
     final nowMinutes = targetDate.hour * 60 + targetDate.minute;
@@ -649,7 +848,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     CourseModel? next;
 
     for (final course in courses) {
-      final startTime = DateCalculator.getSectionTime(course.startPeriod)['start']!;
+      final startTime = DateCalculator.getSectionTime(
+        course.startPeriod,
+      )['start']!;
       final endTime = DateCalculator.getSectionTime(course.endPeriod)['end']!;
       final startMinutes = _toMinutes(startTime);
       final endMinutes = _toMinutes(endTime);
@@ -677,8 +878,10 @@ class _HomePageState extends ConsumerState<HomePage> {
   String _formatCourseTime(CourseModel course) {
     final start = DateCalculator.getSectionTime(course.startPeriod)['start']!;
     final end = DateCalculator.getSectionTime(course.endPeriod)['end']!;
-    final startStr = '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
-    final endStr = '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}';
+    final startStr =
+        '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
+    final endStr =
+        '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}';
     return '$startStr - $endStr';
   }
 
@@ -689,16 +892,25 @@ class _HomePageState extends ConsumerState<HomePage> {
       final icsContent = await storage.readTimetable();
 
       if (metadata != null && metadata['firstWeekMonday'] != null) {
-        final firstWeekMonday = DateTime.parse(metadata['firstWeekMonday'] as String);
+        final firstWeekMonday = DateTime.parse(
+          metadata['firstWeekMonday'] as String,
+        );
         final now = DateTime.now();
 
-        final startDate = DateTime(firstWeekMonday.year, firstWeekMonday.month, firstWeekMonday.day);
+        final startDate = DateTime(
+          firstWeekMonday.year,
+          firstWeekMonday.month,
+          firstWeekMonday.day,
+        );
         final currentDate = DateTime(now.year, now.month, now.day);
 
         int elapsedDays = currentDate.difference(startDate).inDays + 1;
         if (elapsedDays < 0) elapsedDays = 0;
 
-        final currentWeek = DateCalculator.getCurrentWeekNumber(firstWeekMonday, now);
+        final currentWeek = DateCalculator.getCurrentWeekNumber(
+          firstWeekMonday,
+          now,
+        );
 
         int totalWeeks = 20;
         if (icsContent != null) {
@@ -707,7 +919,9 @@ class _HomePageState extends ConsumerState<HomePage> {
           for (final course in courses) {
             final weeks = WeekParser.parseWeeks(course.weeks);
             if (weeks.isNotEmpty) {
-              final courseMaxWeek = weeks.reduce((curr, next) => curr > next ? curr : next);
+              final courseMaxWeek = weeks.reduce(
+                (curr, next) => curr > next ? curr : next,
+              );
               if (courseMaxWeek > maxWeek) {
                 maxWeek = courseMaxWeek;
               }
@@ -722,7 +936,9 @@ class _HomePageState extends ConsumerState<HomePage> {
 
         int progressPercent = 0;
         if (totalDays > 0) {
-          progressPercent = (elapsedDays / totalDays * 100).clamp(0, 100).toInt();
+          progressPercent = (elapsedDays / totalDays * 100)
+              .clamp(0, 100)
+              .toInt();
         }
 
         if (mounted) {
@@ -771,15 +987,25 @@ class _HomePageState extends ConsumerState<HomePage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4),
+              color: Theme.of(
+                context,
+              ).colorScheme.primaryContainer.withOpacity(0.4),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 24, color: Theme.of(context).colorScheme.primary),
+            child: Icon(
+              icon,
+              size: 24,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -789,10 +1015,13 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Future<void> _handleQuickActionTap(String id) async {
+    if (!await _ensureLoggedInForFeature()) return;
+    if (!mounted) return;
+
     if (id == 'timetable') {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const TimetablePage()),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const TimetablePage()));
       if (!mounted) return;
       _loadPreviewCourses();
       _loadSemesterProgress();
@@ -800,23 +1029,23 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
 
     if (id == 'empty_classroom') {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const EmptyClassroomPage()),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const EmptyClassroomPage()));
       return;
     }
 
     if (id == 'score') {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ScorePage()),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ScorePage()));
       return;
     }
 
     if (id == 'campus_card_recharge') {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const CampusCardRechargePage()),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const CampusCardRechargePage()));
       return;
     }
 
@@ -828,15 +1057,54 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
 
     if (id == 'campus_card') {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const CampusCardWebViewPage()),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const CampusCardWebViewPage()));
       return;
     }
 
     if (id == 'xgxt') {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const XgxtWebViewPage()));
+      return;
+    }
+
+    if (id == 'teaching_eval') {
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const XgxtWebViewPage()),
+        MaterialPageRoute(
+          builder: (_) => WebViewDetailPage(
+            title: '教学评价平台',
+            url: AppConstants.teachingEvalUrl,
+            showWebBack: true,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (id == 'school_calendar') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const WebViewDetailPage(
+            title: '电子校历',
+            url: AppConstants.schoolCalendarUrl,
+            showWebBack: true,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (id == 'book_recommend') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const WebViewDetailPage(
+            title: '图书荐购',
+            url: AppConstants.bookRecommendationUrl,
+            showWebBack: true,
+          ),
+        ),
       );
       return;
     }
@@ -870,29 +1138,62 @@ class _HomePageState extends ConsumerState<HomePage> {
       return;
     }
 
-    if (id == 'bus') {
+    if (id == 'dorm_service') {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const DormServicePage()));
+      return;
+    }
+
+    if (id == 'lecture_hall') {
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const BusTrackingPage()),
+        MaterialPageRoute(
+          builder: (_) => const WebViewDetailPage(
+            title: '通识教育大讲堂',
+            url: AppConstants.lecturesUrl,
+            showWebBack: true,
+          ),
+        ),
       );
+      return;
+    }
+
+    if (id == 'activity_square') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const WebViewDetailPage(
+            title: '活动广场',
+            url: AppConstants.activitySquareUrl,
+            showWebBack: true,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (id == 'bus') {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const BusTrackingPage()));
       return;
     }
 
     if (id == 'vpn') {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const VpnConverterPage()),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const VpnConverterPage()));
       return;
     }
 
     if (id == 'speed_test') {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const NetworkSpeedTestPage()),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const NetworkSpeedTestPage()));
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('该功能正在开发中')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('该功能正在开发中')));
   }
 } // 确保这个大括号存在
