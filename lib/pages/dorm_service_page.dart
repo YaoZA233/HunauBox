@@ -18,7 +18,12 @@ class _DormServicePageState extends State<DormServicePage> {
   @override
   void initState() {
     super.initState();
-    _future = _service.fetchDormInfo();
+    _future = _loadInitialInfo();
+  }
+
+  Future<DormInfo> _loadInitialInfo() async {
+    final cachedInfo = await _service.loadCachedDormInfo();
+    return cachedInfo ?? _service.fetchDormInfo();
   }
 
   Future<void> _refresh() async {
@@ -144,7 +149,7 @@ class _DormServicePageState extends State<DormServicePage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '更新于 $fetchedAt',
+                  '缓存时间 $fetchedAt',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),

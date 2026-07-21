@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart' as webview;
 
@@ -32,7 +33,65 @@ class WebVpnAuthService {
       var loginInjected = false;
       var completed = false;
 
+      Future<void> injectLoginIfNeeded(
+        webview.InAppWebViewController controller,
+        String urlString,
+      ) async {
+        final isCasLoginPage =
+            urlString.contains('/cas/login') ||
+            urlString.contains('/authn/login.html') ||
+            urlString.contains('sso.hunau.edu.cn');
+        if (!isCasLoginPage || loginInjected || completed) return;
+
+        final jsUsername = jsonEncode(username);
+        final jsPassword = jsonEncode(password);
+        final result = await controller.evaluateJavascript(
+          source: '''
+            (async function() {
+              const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+              for (let i = 0; i < 20; i++) {
+                const queryInFrames = (selector) => {
+                  let el = document.querySelector(selector);
+                  if (el) return el;
+                  const frames = document.querySelectorAll('iframe');
+                  for (const frame of frames) {
+                    try {
+                      const doc = frame.contentDocument || frame.contentWindow.document;
+                      const inner = doc.querySelector(selector);
+                      if (inner) return inner;
+                    } catch (e) {}
+                  }
+                  return null;
+                };
+
+                const userInput = queryInFrames('input.email-username') || queryInFrames('input[name="username"]');
+                const passInput = queryInFrames('input[name="authcode"]') || queryInFrames('input[type="password"]');
+                const loginButton = queryInFrames('button.exeActionBtn') ||
+                    queryInFrames('input[type="submit"]') ||
+                    queryInFrames('button[type="submit"]') ||
+                    queryInFrames('.login-btn');
+
+                if (userInput && passInput && loginButton) {
+                  userInput.value = $jsUsername;
+                  passInput.value = $jsPassword;
+                  userInput.dispatchEvent(new Event('input', {bubbles: true}));
+                  passInput.dispatchEvent(new Event('input', {bubbles: true}));
+                  loginButton.click();
+                  return 'INJECTED_AND_CLICKED';
+                }
+                await sleep(500);
+              }
+              return 'NOT_FOUND';
+            })();
+          ''',
+        );
+        if (result?.toString().contains('INJECTED_AND_CLICKED') == true) {
+          loginInjected = true;
+        }
+      }
+
       final webView = webview.HeadlessInAppWebView(
+        initialSize: const Size(1080, 1920),
         initialUrlRequest: webview.URLRequest(
           url: webview.WebUri(AppConstants.webvpnLoginUrl),
         ),
@@ -45,6 +104,9 @@ class WebVpnAuthService {
           userAgent:
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         ),
+        onLoadStart: (controller, url) async {
+          await injectLoginIfNeeded(controller, url?.toString() ?? '');
+        },
         onLoadStop: (controller, url) async {
           if (completed) return;
           final urlString = url?.toString() ?? '';
@@ -56,58 +118,7 @@ class WebVpnAuthService {
             return;
           }
 
-          final isCasLoginPage =
-              urlString.contains('/cas/login') ||
-              urlString.contains('/authn/login.html') ||
-              urlString.contains('sso.hunau.edu.cn');
-
-          if (isCasLoginPage && !loginInjected) {
-            final jsUsername = jsonEncode(username);
-            final jsPassword = jsonEncode(password);
-            final result = await controller.evaluateJavascript(
-              source:
-                  '''
-                (async function() {
-                  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-                  for (let i = 0; i < 20; i++) {
-                    const queryInFrames = (selector) => {
-                      let el = document.querySelector(selector);
-                      if (el) return el;
-                      const frames = document.querySelectorAll('iframe');
-                      for (const frame of frames) {
-                        try {
-                          const doc = frame.contentDocument || frame.contentWindow.document;
-                          const inner = doc.querySelector(selector);
-                          if (inner) return inner;
-                        } catch (e) {}
-                      }
-                      return null;
-                    };
-
-                    const userInput = queryInFrames('input.email-username') || queryInFrames('input[name="username"]');
-                    const passInput = queryInFrames('input[name="authcode"]') || queryInFrames('input[type="password"]');
-                    const loginButton = queryInFrames('button.exeActionBtn') ||
-                        queryInFrames('input[type="submit"]') ||
-                        queryInFrames('button[type="submit"]') ||
-                        queryInFrames('.login-btn');
-
-                    if (userInput && passInput && loginButton) {
-                      userInput.value = $jsUsername;
-                      passInput.value = $jsPassword;
-                      loginButton.click();
-                      return 'INJECTED_AND_CLICKED';
-                    }
-                    await sleep(500);
-                  }
-                  return 'NOT_FOUND';
-                })();
-              ''',
-            );
-
-            if (result?.toString().contains('INJECTED_AND_CLICKED') == true) {
-              loginInjected = true;
-            }
-          }
+          await injectLoginIfNeeded(controller, urlString);
         },
       );
 

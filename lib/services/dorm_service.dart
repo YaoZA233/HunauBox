@@ -10,6 +10,8 @@ import 'package:html/parser.dart' as html_parser;
 
 import '../models/app_constants.dart';
 import 'app_cookie_manager.dart';
+import 'dorm_storage.dart';
+import 'secure_storage_helper.dart';
 import 'webvpn_auth_service.dart';
 
 class DormInfo {
@@ -42,7 +44,13 @@ class DormService {
       '(KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36';
 
   final Dio _dio = Dio();
+  final DormStorage _storage;
+  final SecureStorageHelper _credentials;
   bool _cookiesReady = false;
+
+  DormService({DormStorage? storage, SecureStorageHelper? credentials})
+    : _storage = storage ?? DormStorage(),
+      _credentials = credentials ?? SecureStorageHelper();
 
   Future<void> _ensureCookieJar() async {
     if (_cookiesReady) return;
@@ -71,14 +79,63 @@ class DormService {
 
     // 宿舍信息由页面脚本异步加载，直接请求初始 HTML 只能拿到页面壳。
     final renderedInfo = await _fetchRenderedDormInfo();
-    if (renderedInfo?.hasCoreInfo == true) return renderedInfo!;
+    if (renderedInfo?.hasCoreInfo == true) {
+      await _saveCachedInfo(renderedInfo!);
+      return renderedInfo!;
+    }
 
-    final staticInfo = await _fetchStaticDormInfo();
+    DormInfo? staticInfo;
+    try {
+      staticInfo = await _fetchStaticDormInfoWithRetry();
+    } catch (_) {
+      // Keep usable rendered fields when the secondary HTTP request is flaky.
+      if (renderedInfo?.hasAny == true) {
+        await _saveCachedInfo(renderedInfo!);
+        return renderedInfo!;
+      }
+      rethrow;
+    }
     final info = _mergeInfo(renderedInfo, staticInfo);
     if (!info.hasAny) {
       throw Exception('未能识别宿舍信息，可打开网页核对');
     }
+    await _saveCachedInfo(info);
     return info;
+  }
+
+  Future<DormInfo?> loadCachedDormInfo() async {
+    final accountId = await _cacheAccountId();
+    if (accountId == null) return null;
+
+    final cached = await _storage.read(accountId);
+    if (cached == null) return null;
+    final fetchedAt = DateTime.tryParse(cached['fetchedAt']?.toString() ?? '');
+    final info = DormInfo(
+      dormBuilding: cached['dormBuilding']?.toString() ?? '',
+      floor: cached['floor']?.toString() ?? '',
+      room: cached['room']?.toString() ?? '',
+      bed: cached['bed']?.toString() ?? '',
+      fetchedAt: fetchedAt ?? DateTime.now(),
+    );
+    return info.hasAny ? info : null;
+  }
+
+  Future<void> _saveCachedInfo(DormInfo info) async {
+    if (!info.hasAny) return;
+    final accountId = await _cacheAccountId();
+    if (accountId == null) return;
+    await _storage.save(accountId, {
+      'dormBuilding': info.dormBuilding,
+      'floor': info.floor,
+      'room': info.room,
+      'bed': info.bed,
+      'fetchedAt': info.fetchedAt.toIso8601String(),
+    });
+  }
+
+  Future<String?> _cacheAccountId() async {
+    final username = (await _credentials.getUsername())?.trim();
+    return username?.isNotEmpty == true ? username : null;
   }
 
   Future<DormInfo?> _fetchRenderedDormInfo() async {
@@ -185,7 +242,7 @@ class DormService {
         extractionRunning = true;
 
         try {
-          for (var attempt = 0; attempt < 24; attempt++) {
+          for (var attempt = 0; attempt < 16; attempt++) {
             if (disposed || completer.isCompleted) return;
 
             final renderedHtml = await controller.evaluateJavascript(
@@ -213,6 +270,10 @@ class DormService {
               if (completer.isCompleted) return;
             }
 
+            // Some dorm pages only request data after the first document has
+            // settled. Reloading once reproduces that transition automatically.
+            if (attempt == 5) await controller.reload();
+
             await Future<void>.delayed(const Duration(milliseconds: 500));
           }
         } finally {
@@ -224,7 +285,7 @@ class DormService {
     try {
       await headlessWebView.run();
       return await completer.future.timeout(
-        const Duration(seconds: 18),
+        const Duration(seconds: 12),
         onTimeout: () => bestInfo,
       );
     } catch (_) {
@@ -260,6 +321,21 @@ class DormService {
 
     final info = parseDormInfo(html);
     return info.hasAny ? info : null;
+  }
+
+  Future<DormInfo?> _fetchStaticDormInfoWithRetry() async {
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await _fetchStaticDormInfo();
+      } catch (error) {
+        lastError = error;
+        if (attempt == 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+        }
+      }
+    }
+    throw lastError ?? Exception('学生公寓服务加载失败');
   }
 
   bool _looksLikeLoginPage(String html) {

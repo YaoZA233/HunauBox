@@ -412,140 +412,16 @@ class _HomePageState extends ConsumerState<HomePage> {
           ],
         ),
         if (_hitokotoText.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Theme.of(
-                  context,
-                ).colorScheme.outlineVariant.withOpacity(0.5),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _hitokotoText,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.5,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                if (_hitokotoFrom.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    '—— $_hitokotoFrom',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          const SizedBox(height: 14),
+          _buildQuoteLine(),
         ],
-        const SizedBox(height: 32),
-
-        // 状态区
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Theme.of(
-              context,
-            ).colorScheme.primaryContainer.withOpacity(0.4),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Theme.of(
-                context,
-              ).colorScheme.outlineVariant.withOpacity(0.3),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.schedule_rounded,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    statusLabel,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (_isLoadingTimetable) ...[
-                Text(
-                  "正在同步课表...",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-              ] else if (!hasCourse) ...[
-                Text(
-                  _hasTimetable ? "今天没有课" : "导入课表后即可显示",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                if (!_hasTimetable) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    "去导入课表后即可显示",
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ] else ...[
-                Text(
-                  displayCourse.name,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  "${_formatCourseTime(displayCourse)} • ${displayCourse.classroom}",
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ],
-          ),
+        const SizedBox(height: 26),
+        _buildCampusOverview(
+          displayCourse: displayCourse,
+          statusLabel: statusLabel,
+          hasCourse: hasCourse,
         ),
-
-        if (_firstWeekMonday != null) ...[
-          const SizedBox(height: 20),
-          _buildSemesterProgress(),
-        ],
-
-        const SizedBox(height: 40),
+        const SizedBox(height: 36),
 
         // 功能入口标题
         Row(
@@ -619,104 +495,161 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  Widget _buildSemesterProgress() {
+  Widget _buildQuoteLine() {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.format_quote_rounded, size: 22, color: colors.tertiary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _hitokotoText,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.45,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              if (_hitokotoFrom.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(
+                  _hitokotoFrom,
+                  style: TextStyle(fontSize: 12, color: colors.tertiary),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCampusOverview({
+    required CourseModel? displayCourse,
+    required String statusLabel,
+    required bool hasCourse,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final hasSemester = _firstWeekMonday != null;
+    final progress = (_progressPercent / 100).clamp(0.0, 1.0);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: colors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(8),
+        border: Border(left: BorderSide(color: colors.primary, width: 4)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "学期进度",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
+      child: SizedBox(
+        height: 108,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+          Expanded(
+            flex: 6,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.schedule_rounded, size: 17, color: colors.primary),
+                    const SizedBox(width: 7),
+                    Text(
+                      statusLabel,
+                      style: TextStyle(
+                        color: colors.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              Text(
-                "当前第$_currentWeek周 / 共$_totalWeeks周",
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            height: 10,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            alignment: Alignment.centerLeft,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 800),
-                  curve: Curves.easeOutCubic,
-                  width:
-                      constraints.maxWidth *
-                      (_progressPercent / 100).clamp(0.0, 1.0),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    color: Theme.of(context).colorScheme.primary,
+                const SizedBox(height: 12),
+                if (_isLoadingTimetable)
+                  Text('正在同步课表...', style: _overviewTitleStyle(colors))
+                else if (!hasCourse)
+                  Text(
+                    _hasTimetable ? '今天没有课' : '尚未导入课表',
+                    style: _overviewTitleStyle(colors),
+                  )
+                else ...[
+                  Text(
+                    displayCourse!.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: _overviewTitleStyle(colors),
                   ),
-                );
-              },
+                  const SizedBox(height: 5),
+                  Text(
+                    '${_formatCourseTime(displayCourse)}  ${displayCourse.classroom}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
+                  ),
+                ],
+              ],
             ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                "已开学 $_elapsedDays 天",
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
+          const SizedBox(width: 16),
+          Container(width: 1, color: colors.outlineVariant),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: 92,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  hasSemester ? '第$_currentWeek周' : '学期进度',
+                  style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
                 ),
-              ),
-              Text(
-                "$_progressPercent%",
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  height: 1.0,
+                const SizedBox(height: 4),
+                Text(
+                  hasSemester ? '$_progressPercent%' : '--',
+                  style: TextStyle(
+                    fontSize: 25,
+                    fontWeight: FontWeight.w800,
+                    color: colors.secondary,
+                  ),
                 ),
-              ),
-              Text(
-                "剩余 $_remainingDays 天",
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
+                const SizedBox(height: 9),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    minHeight: 5,
+                    value: hasSemester ? progress : 0,
+                    backgroundColor: colors.surfaceContainerHighest,
+                    valueColor: AlwaysStoppedAnimation(colors.secondary),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 7),
+                Text(
+                  hasSemester ? '余$_remainingDays天 / $_totalWeeks周' : '导入课表后显示',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
+                ),
+              ],
+            ),
           ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  TextStyle _overviewTitleStyle(ColorScheme colors) {
+    return TextStyle(
+      fontSize: 20,
+      height: 1.2,
+      fontWeight: FontWeight.w700,
+      color: colors.onSurface,
     );
   }
 
@@ -1015,7 +948,8 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Future<void> _handleQuickActionTap(String id) async {
-    if (!await _ensureLoggedInForFeature()) return;
+    // The calendar is a public web page and should remain usable before login.
+    if (id != 'school_calendar' && !await _ensureLoggedInForFeature()) return;
     if (!mounted) return;
 
     if (id == 'timetable') {

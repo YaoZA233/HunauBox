@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../models/message_model.dart';
 import '../providers/notice_provider.dart';
 import 'notice_detail_screen.dart';
@@ -11,12 +12,14 @@ class NoticePage extends ConsumerStatefulWidget {
   ConsumerState<NoticePage> createState() => _NoticePageState();
 }
 
-class _NoticePageState extends ConsumerState<NoticePage> with AutomaticKeepAliveClientMixin {
+class _NoticePageState extends ConsumerState<NoticePage>
+    with AutomaticKeepAliveClientMixin {
   final ScrollController _scrollController = ScrollController();
-  
+  int _selectedFilter = 0;
+
   @override
-  bool get wantKeepAlive => true; 
-  
+  bool get wantKeepAlive => true;
+
   @override
   void initState() {
     super.initState();
@@ -30,269 +33,412 @@ class _NoticePageState extends ConsumerState<NoticePage> with AutomaticKeepAlive
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      final noticeState = ref.read(noticeProvider);
-      if (!noticeState.isLoading && !noticeState.isLoadingMore && noticeState.hasMore) {
-        ref.read(noticeProvider.notifier).loadMore();
-      }
+    if (!_scrollController.hasClients ||
+        _scrollController.position.pixels <
+            _scrollController.position.maxScrollExtent - 200) {
+      return;
+    }
+    final noticeState = ref.read(noticeProvider);
+    if (!noticeState.isLoading &&
+        !noticeState.isLoadingMore &&
+        noticeState.hasMore) {
+      ref.read(noticeProvider.notifier).loadMore();
     }
   }
-  
+
+  Future<void> _refresh() => ref.read(noticeProvider.notifier).refresh();
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final noticeState = ref.watch(noticeProvider);
-    
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('通知', style: TextStyle(fontWeight: FontWeight.bold)),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-      ),
+      appBar: AppBar(title: const Text('通知'), centerTitle: false),
       body: _buildBody(noticeState),
     );
   }
-  
+
   Widget _buildBody(NoticeState noticeState) {
     if (noticeState.isLoading && noticeState.messages.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('正在加载通知...'),
-          ],
-        ),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
-    
     if (noticeState.errorMessage != null && noticeState.messages.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(
-              '加载失败',
-              style: Theme.of(context).textTheme.titleLarge,
+      return _buildErrorState();
+    }
+
+    final unread = noticeState.messages.where(_isUnread).toList();
+    final visibleMessages = _selectedFilter == 0
+        ? noticeState.messages
+        : unread;
+
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: CustomScrollView(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            sliver: SliverToBoxAdapter(
+              child: _buildOverview(
+                unreadCount: unread.length,
+                totalCount: noticeState.messages.length,
+              ),
             ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                noticeState.errorMessage!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600],
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            sliver: SliverToBoxAdapter(child: _buildFilterControl()),
+          ),
+          if (noticeState.isLoading)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
+            ),
+          if (visibleMessages.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: _buildEmptyState(showUnreadOnly: _selectedFilter == 1),
+            )
+          else ...[
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _NoticeItem(
+                      message: visibleMessages[index],
+                      onTap: () => _openNotice(visibleMessages[index]),
+                    ),
+                  ),
+                  childCount: visibleMessages.length,
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => ref.read(noticeProvider.notifier).refresh(),
-              icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
-            ),
+            SliverToBoxAdapter(child: _buildLoadMoreState(noticeState)),
           ],
-        ),
-      );
-    }
-    
-    if (noticeState.messages.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.notifications_none, size: 80, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              '暂无通知',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '有新消息时会在这里显示',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    
-    return RefreshIndicator(
-      backgroundColor: Theme.of(context).cardColor,
-      color: Theme.of(context).primaryColor,
-      onRefresh: () => ref.read(noticeProvider.notifier).refresh(),
-      child: ListView.builder(
-        controller: _scrollController,
-        itemCount: noticeState.messages.length + (noticeState.hasMore ? 1 : 0),
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100), // 为悬浮导航栏留出空间
-        itemBuilder: (context, index) {
-          if (index == noticeState.messages.length) {
-            return _buildLoadMoreIndicator(noticeState);
-          }
-          final message = noticeState.messages[index];
-          return _buildMessageCard(message);
-        },
+          const SliverToBoxAdapter(child: SizedBox(height: 92)),
+        ],
       ),
     );
   }
 
-  Widget _buildLoadMoreIndicator(NoticeState noticeState) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Center(
-        child: noticeState.isLoadingMore
-            ? const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+  Widget _buildOverview({required int unreadCount, required int totalCount}) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          unreadCount == 0 ? '消息已全部查看' : '有 $unreadCount 条消息未读',
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          totalCount == 0 ? '下拉刷新以同步校园通知' : '最近共收到 $totalCount 条通知',
+          style: TextStyle(fontSize: 14, color: colors.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterControl() {
+    final colors = Theme.of(context).colorScheme;
+    const labels = ['全部', '未读'];
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final segmentWidth = (constraints.maxWidth - 6) / labels.length;
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutCubic,
+                left: _selectedFilter * segmentWidth,
+                top: 0,
+                width: segmentWidth,
+                height: 38,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 5,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
                   ),
-                  SizedBox(width: 12),
-                  Text('正在加载更多...', style: TextStyle(color: Colors.grey)),
-                ],
-              )
-            : noticeState.hasMore 
-                ? const SizedBox.shrink()
-                : const Text('没有更多通知了', style: TextStyle(color: Colors.grey)),
-      ),
-    );
-  }
-  
-  Widget _buildMessageCard(MessageModel message) {
-    String timeDisplay = message.sendTime;
-    try {
-      final parts = message.sendTime.split(' ');
-      if (parts.length > 1) {
-        final date = parts[0];
-        final time = parts[1];
-        final now = DateTime.now();
-        final String today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-        timeDisplay = (date == today) ? time.substring(0, 5) : date.substring(5);
-      }
-    } catch (_) {}
-
-    String initial = '通';
-    if (message.createrName.isNotEmpty) {
-      initial = message.createrName[0];
-    }
-
-    final isUnread = !message.isRead || message.hasRedDot;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          final targetId = message.uuid.isNotEmpty ? message.uuid : message.idCode;
-          if (targetId.isNotEmpty) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => NoticeDetailScreen(noticeId: targetId),
+                ),
               ),
-            );
-          }
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.01),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+              Row(
+                children: List.generate(labels.length, (index) {
+                  final selected = _selectedFilter == index;
+                  return Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: () => setState(() => _selectedFilter = index),
+                      child: Center(
+                        child: Text(
+                          labels[index],
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: selected
+                                ? colors.onSurface
+                                : colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
               ),
             ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({required bool showUnreadOnly}) {
+    final colors = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 72),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              showUnreadOnly
+                  ? Icons.mark_email_read_outlined
+                  : Icons.notifications_none_rounded,
+              size: 44,
+              color: colors.secondary,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              showUnreadOnly ? '暂时没有未读通知' : '暂无通知',
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '下拉即可同步最新消息',
+              style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    final colors = Theme.of(context).colorScheme;
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.55,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.cloud_off_rounded, size: 44, color: colors.error),
+                  const SizedBox(height: 14),
+                  const Text(
+                    '通知暂时无法同步',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '请检查登录状态后下拉重试',
+                    style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
           ),
-          padding: const EdgeInsets.all(16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadMoreState(NoticeState state) {
+    final colors = Theme.of(context).colorScheme;
+    if (state.isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    if (state.hasMore) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      child: Center(
+        child: Text(
+          '已查看全部通知',
+          style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openNotice(MessageModel message) async {
+    final targetId = message.uuid.isNotEmpty ? message.uuid : message.idCode;
+    if (targetId.isEmpty) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => NoticeDetailScreen(noticeId: targetId)),
+    );
+  }
+
+  bool _isUnread(MessageModel message) => !message.isRead || message.hasRedDot;
+}
+
+class _NoticeItem extends StatelessWidget {
+  final MessageModel message;
+  final VoidCallback onTap;
+
+  const _NoticeItem({required this.message, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final unread = !message.isRead || message.hasRedDot;
+    final accent = unread ? colors.primary : colors.outlineVariant;
+    final sender = message.createrName.isEmpty ? '系统' : message.createrName;
+
+    return Material(
+      color: unread
+          ? colors.surfaceContainerLowest
+          : colors.surfaceContainerHighest.withValues(alpha: 0.26),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(15, 14, 14, 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border(left: BorderSide(color: accent, width: 3)),
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Avatar
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: unread
+                      ? colors.primaryContainer
+                      : colors.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(6),
+                ),
                 child: Text(
-                  initial,
+                  sender[0],
                   style: TextStyle(
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w800,
+                    color: unread
+                        ? colors.onPrimaryContainer
+                        : colors.onSurfaceVariant,
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
-              // Content
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           child: Text(
                             message.title,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
-                              color: isUnread ? Theme.of(context).colorScheme.onSurface : Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 16,
+                              height: 1.3,
+                              fontWeight: unread
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                              color: unread
+                                  ? colors.onSurface
+                                  : colors.onSurfaceVariant,
+                            ),
                           ),
                         ),
-                        if (isUnread) ...[
+                        if (unread) ...[
                           const SizedBox(width: 8),
                           Container(
-                            width: 8,
-                            height: 8,
-                            margin: const EdgeInsets.only(top: 6),
-                            decoration: const BoxDecoration(
-                              color: Colors.redAccent,
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: colors.primary,
                               shape: BoxShape.circle,
                             ),
                           ),
-                        ]
+                        ],
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 7),
                     Text(
-                      message.content.replaceAll('\r\n', ' ').replaceAll('\n', ' '),
+                      message.content.replaceAll(RegExp(r'[\r\n]+'), ' '),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 13,
                         height: 1.4,
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 11),
                     Row(
                       children: [
-                        Icon(Icons.person_outline, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8)),
-                        const SizedBox(width: 4),
-                        Text(
-                          message.createrName,
-                          style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        Icon(
+                          Icons.account_circle_outlined,
+                          size: 15,
+                          color: colors.onSurfaceVariant,
                         ),
-                        const Spacer(),
-                        Icon(Icons.access_time_rounded, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8)),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            sender,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
                         Text(
-                          timeDisplay,
-                          style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          _formatTime(message.sendTime),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -304,5 +450,18 @@ class _NoticePageState extends ConsumerState<NoticePage> with AutomaticKeepAlive
         ),
       ),
     );
+  }
+
+  String _formatTime(String rawTime) {
+    try {
+      final parts = rawTime.split(' ');
+      if (parts.length < 2) return rawTime;
+      final now = DateTime.now();
+      final today =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      return parts.first == today ? parts[1].substring(0, 5) : parts.first.substring(5);
+    } catch (_) {
+      return rawTime;
+    }
   }
 }

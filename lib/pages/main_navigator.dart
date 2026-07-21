@@ -57,56 +57,14 @@ class _MainNavigatorState extends ConsumerState<MainNavigator> {
     return ValueListenableBuilder<bool>(
       valueListenable: _navStore.useFloatingNav,
       builder: (context, useFloatingNav, _) {
-        if (!useFloatingNav) {
-          return Scaffold(
-            body: AnimatedIndexedStack(
-              index: _index,
-              children: [
-                HomePage(isActive: _index == 0),
-                FunctionPage(),
-                NoticePage(),
-                HomeworkPage(),
-              ],
-            ),
-            bottomNavigationBar: NavigationBar(
-              height: 60,
-              selectedIndex: _index,
-              onDestinationSelected: (v) {
-                _handleDestinationSelected(v);
-              },
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home),
-                  label: '主页',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.grid_view_outlined),
-                  selectedIcon: Icon(Icons.grid_view),
-                  label: '功能',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.notifications_outlined),
-                  selectedIcon: Icon(Icons.notifications),
-                  label: '通知',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.assignment_outlined),
-                  selectedIcon: Icon(Icons.assignment),
-                  label: '作业',
-                ),
-              ],
-              labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            ),
-          );
-        }
-
         return Scaffold(
           body: Stack(
             children: [
               Padding(
                 padding: EdgeInsets.only(
-                  bottom: 80 + MediaQuery.paddingOf(context).bottom,
+                  bottom: useFloatingNav
+                      ? 80 + MediaQuery.paddingOf(context).bottom
+                      : 0,
                 ),
                 child: AnimatedIndexedStack(
                   index: _index,
@@ -118,22 +76,51 @@ class _MainNavigatorState extends ConsumerState<MainNavigator> {
                   ],
                 ),
               ),
-              Positioned(
-                left: 20,
-                right: 20,
-                bottom: 12 + MediaQuery.paddingOf(context).bottom,
-                child: _FloatingNavBar(
-                  selectedIndex: _index,
-                  onChanged: (v) {
-                    _handleDestinationSelected(v);
-                  },
-                  surfaceColor: theme.colorScheme.surface,
-                  primaryColor: theme.colorScheme.primary,
-                  onSurfaceVariant: theme.colorScheme.onSurfaceVariant,
+              if (useFloatingNav)
+                Positioned(
+                  left: 20,
+                  right: 20,
+                  bottom: 12 + MediaQuery.paddingOf(context).bottom,
+                  child: _FloatingNavBar(
+                    selectedIndex: _index,
+                    onChanged: _handleDestinationSelected,
+                    surfaceColor: theme.colorScheme.surface,
+                    primaryColor: theme.colorScheme.primary,
+                    onSurfaceVariant: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
             ],
           ),
+          bottomNavigationBar: useFloatingNav
+              ? null
+              : NavigationBar(
+                  height: 60,
+                  selectedIndex: _index,
+                  onDestinationSelected: _handleDestinationSelected,
+                  destinations: const [
+                    NavigationDestination(
+                      icon: Icon(Icons.home_outlined),
+                      selectedIcon: Icon(Icons.home),
+                      label: '主页',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.grid_view_outlined),
+                      selectedIcon: Icon(Icons.grid_view),
+                      label: '功能',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.notifications_outlined),
+                      selectedIcon: Icon(Icons.notifications),
+                      label: '通知',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.assignment_outlined),
+                      selectedIcon: Icon(Icons.assignment),
+                      label: '作业',
+                    ),
+                  ],
+                  labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+                ),
         );
       },
     );

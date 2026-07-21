@@ -128,6 +128,7 @@ class FunctionPage extends StatelessWidget {
                   Icons.calendar_month_outlined,
                   '电子校历',
                   '查看学校校历安排',
+                  requiresLogin: false,
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -337,8 +338,10 @@ class FunctionPage extends StatelessWidget {
   }) {
     return InkWell(
       onTap: () async {
-        final result = await AuthGuard.ensureLoggedIn(context);
-        if (!result.allowed || !context.mounted) return;
+        if (item.requiresLogin) {
+          final result = await AuthGuard.ensureLoggedIn(context);
+          if (!result.allowed || !context.mounted) return;
+        }
 
         item.onTap?.call();
       },
@@ -416,6 +419,13 @@ class _FunctionItem {
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
+  final bool requiresLogin;
 
-  _FunctionItem(this.icon, this.title, this.subtitle, {this.onTap});
+  _FunctionItem(
+    this.icon,
+    this.title,
+    this.subtitle, {
+    this.onTap,
+    this.requiresLogin = true,
+  });
 }

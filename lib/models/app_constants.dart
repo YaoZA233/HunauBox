@@ -56,7 +56,7 @@ class AppConstants {
   static const String dormServiceUrl =
       'https://webvpn.hunau.edu.cn/http/77777776706e697374686562657374211a090679eb63a5f66ca21f55f190c1/content/menu/gygl/ssap/client/stu/wyDorm?*t_s*=1784472144908';
   static const String schoolCalendarUrl =
-      'https://webvpn.hunau.edu.cn/https/77777776706e697374686562657374210a075f3ff678aae237e91e44aaddcc6d/yqlj/cyfw/202303/t20230308_128089.html?wfw_token=ZkcoLRHarHUuzoIxoA_1K&fidEnc=a915b52ee0aa18ad&uid=404133638&mappId=4340941&formid=&roleid=&rolename=&topMenu=&mappIdEnc=c56110c8646353365ceb9be2c4d7337c&wfwEnc=0066FF5CE4A7BFCFEC61368637FDB92E&appId=bfcf7c47187142f0a20984b8e577d976&appKey=0B364h2yLDi%2FC842&code=RbybGy3Q&state=128516';
+      'https://www.hunau.edu.cn/yqlj/cyfw/202303/t20230308_128089.html';
   static const String bookRecommendationUrl =
       'http://office.chaoxing.com/apps/forms/web/apply.html?id=5260&formAppId=&enc=ff82ce28562d6256b80efd1fb5fd0078&fidEnc=a915b52ee0aa18ad&defaultUid=173679788&uuid=6b89acea8e7f4a9491960962416fe2e7&checkCode=10dac51ef1854e29bac29f1d833d0cd2';
 
