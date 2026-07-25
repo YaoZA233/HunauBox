@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/quick_action_item.dart';
 import '../services/navigation_settings_store.dart';
+import '../services/course_notification_service.dart';
+import '../services/course_notification_settings_store.dart';
 import '../services/quick_action_store.dart';
 import '../providers/theme_provider.dart';
 
@@ -16,6 +18,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final _store = QuickActionStore.instance;
   final _navStore = NavigationSettingsStore.instance;
+  final _courseNotificationStore = CourseNotificationSettingsStore.instance;
   static const int _maxSelected = 8;
   
   final List<Color> _themeColors = [
@@ -36,6 +39,7 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     _store.load();
     _navStore.load();
+    _courseNotificationStore.load();
   }
 
   @override
@@ -54,9 +58,40 @@ class _SettingsPageState extends State<SettingsPage> {
               Consumer(
                 builder: (context, ref, child) {
                   final currentColor = ref.watch(themeColorProvider);
+                  final currentMode = ref.watch(themeModeProvider);
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: Text('显示模式', style: TextStyle(fontSize: 16)),
+                      ),
+                      SegmentedButton<ThemeMode>(
+                        segments: const [
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            icon: Icon(Icons.light_mode_outlined),
+                            label: Text('白天'),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            icon: Icon(Icons.dark_mode_outlined),
+                            label: Text('黑夜'),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.system,
+                            icon: Icon(Icons.brightness_auto_outlined),
+                            label: Text('跟随系统'),
+                          ),
+                        ],
+                        selected: {currentMode},
+                        onSelectionChanged: (selection) {
+                          ref
+                              .read(themeModeProvider.notifier)
+                              .updateThemeMode(selection.first);
+                        },
+                      ),
+                      const SizedBox(height: 24),
                       const Padding(
                         padding: EdgeInsets.only(bottom: 12.0),
                         child: Text('主题配色', style: TextStyle(fontSize: 16)),
@@ -94,6 +129,83 @@ class _SettingsPageState extends State<SettingsPage> {
                           );
                         }).toList(),
                       ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              const Divider(height: 1),
+              const SizedBox(height: 16),
+              const Text('上课通知', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ValueListenableBuilder<CourseNotificationSettings>(
+                valueListenable: _courseNotificationStore.settings,
+                builder: (context, settings, _) {
+                  return Column(
+                    children: [
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('下一节课提醒'),
+                        subtitle: Text(
+                          settings.enabled
+                              ? '将在上课前${settings.minutesBefore}分钟通知你'
+                              : '开启后将按已导入课表发送提醒',
+                        ),
+                        value: settings.enabled,
+                        onChanged: (enabled) async {
+                          if (enabled) {
+                            final granted = await CourseNotificationService.instance
+                                .requestPermission();
+                            if (!granted) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('请在系统设置中允许通知权限')),
+                                );
+                              }
+                              return;
+                            }
+                          }
+
+                          final updated = settings.copyWith(enabled: enabled);
+                          await _courseNotificationStore.save(updated);
+                          if (enabled) {
+                            await CourseNotificationService.instance.reschedule(
+                              minutesBefore: updated.minutesBefore,
+                            );
+                          } else {
+                            await CourseNotificationService.instance.cancelAll();
+                          }
+                        },
+                      ),
+                      if (settings.enabled)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: DropdownButtonFormField<int>(
+                            value: settings.minutesBefore,
+                            decoration: const InputDecoration(
+                              labelText: '提前通知时间',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: const [10, 15, 20, 30]
+                                .map(
+                                  (minutes) => DropdownMenuItem(
+                                    value: minutes,
+                                    child: Text('提前$minutes分钟'),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (minutes) async {
+                              if (minutes == null) return;
+                              final updated =
+                                  settings.copyWith(minutesBefore: minutes);
+                              await _courseNotificationStore.save(updated);
+                              await CourseNotificationService.instance.reschedule(
+                                minutesBefore: minutes,
+                              );
+                            },
+                          ),
+                        ),
                     ],
                   );
                 },
@@ -166,11 +278,17 @@ class CommonServicesSettingsPage extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('选择常用服务', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text('${selected.length}/$_maxSelected', style: const TextStyle(color: Colors.black54)),
+                  Text(
+                    '${selected.length}/$_maxSelected',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
-              const Text('最多选择 8 个功能显示在首页。', style: TextStyle(color: Colors.black54)),
+              Text(
+                '最多选择 8 个功能显示在首页。',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
               const SizedBox(height: 12),
               ...QuickActionCatalog.items.map((item) {
                 final isChecked = selected.contains(item.id);

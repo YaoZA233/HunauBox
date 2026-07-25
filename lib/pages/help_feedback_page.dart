@@ -9,8 +9,8 @@ class HelpFeedbackPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('帮助与反馈'),
         elevation: 0,
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Colors.transparent,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
@@ -36,7 +36,7 @@ class HelpFeedbackPage extends StatelessWidget {
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.grey.shade200),
+              side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
             ),
             child: Column(
               children: [

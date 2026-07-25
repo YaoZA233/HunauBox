@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../providers/homework_provider.dart';
 import '../providers/notice_provider.dart';
 import '../services/auth_service.dart';
 import '../services/auth_guard.dart';
+import '../services/course_schedule_service.dart';
 import '../services/secure_storage_helper.dart';
 import '../services/quick_action_store.dart';
 import '../services/timetable_storage.dart';
@@ -52,11 +54,11 @@ class _HomePageState extends ConsumerState<HomePage> {
   bool _attemptedAutoLogin = false;
 
   bool _isLoadingTimetable = false;
-  bool _isShowingTomorrow = false;
   bool _hasTimetable = false;
-  List<CourseModel> _todayCourses = [];
+  List<CourseModel> _allCourses = [];
   CourseModel? _currentCourse;
   CourseModel? _nextCourse;
+  DateTime? _nextCourseStart;
 
   DateTime? _firstWeekMonday;
   int _currentWeek = 0;
@@ -67,6 +69,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   String _hitokotoText = '';
   String _hitokotoFrom = '';
   bool _wasActive = true;
+  Timer? _courseRefreshTimer;
 
   @override
   void initState() {
@@ -74,6 +77,11 @@ class _HomePageState extends ConsumerState<HomePage> {
     _wasActive = widget.isActive;
     _quickActionStore.load();
     _loadPreviewCourses();
+    _courseRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted && widget.isActive) {
+        _updateDisplayedCourses(DateTime.now());
+      }
+    });
     _loadSemesterProgress();
     _loadHitokoto();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -92,6 +100,12 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
 
     _wasActive = widget.isActive;
+  }
+
+  @override
+  void dispose() {
+    _courseRefreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _attemptAutoLogin() async {
@@ -306,9 +320,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   Widget build(BuildContext context) {
     final CourseModel? displayCourse = _currentCourse ?? _nextCourse;
     final bool hasCourse = displayCourse != null;
-    final String statusLabel = _currentCourse != null
-        ? '正在上课'
-        : (_isShowingTomorrow ? '明天第一节课' : '下一节课');
+    final String statusLabel = _courseStatusLabel();
 
     return ListView(
       padding: const EdgeInsets.symmetric(
@@ -545,10 +557,10 @@ class _HomePageState extends ConsumerState<HomePage> {
         borderRadius: BorderRadius.circular(8),
         border: Border(left: BorderSide(color: colors.primary, width: 4)),
       ),
-      child: SizedBox(
-        height: 108,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 146),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
           Expanded(
             flex: 6,
@@ -575,7 +587,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   Text('正在同步课表...', style: _overviewTitleStyle(colors))
                 else if (!hasCourse)
                   Text(
-                    _hasTimetable ? '今天没有课' : '尚未导入课表',
+                    _hasTimetable ? '暂无后续课程' : '尚未导入课表',
                     style: _overviewTitleStyle(colors),
                   )
                 else ...[
@@ -585,19 +597,38 @@ class _HomePageState extends ConsumerState<HomePage> {
                     overflow: TextOverflow.ellipsis,
                     style: _overviewTitleStyle(colors),
                   ),
-                  const SizedBox(height: 5),
-                  Text(
-                    '${_formatCourseTime(displayCourse)}  ${displayCourse.classroom}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
+                  const SizedBox(height: 8),
+                  _buildCourseDetail(
+                    icon: Icons.schedule_outlined,
+                    text: _formatCourseTime(displayCourse),
                   ),
+                  const SizedBox(height: 5),
+                  _buildCourseDetail(
+                    icon: Icons.location_on_outlined,
+                    text: displayCourse.classroom.trim().isEmpty
+                        ? '教室待定'
+                        : displayCourse.classroom,
+                  ),
+                  if (_currentCourse != null && _nextCourse != null) ...[
+                    const SizedBox(height: 9),
+                    _buildCourseDetail(
+                      icon: Icons.skip_next_rounded,
+                      text: '下一节：${_nextCourse!.name} · ${_formatCourseTime(_nextCourse!)}',
+                    ),
+                  ],
                 ],
               ],
             ),
           ),
           const SizedBox(width: 16),
-          Container(width: 1, color: colors.outlineVariant),
+          SizedBox(
+            height: 112,
+            child: VerticalDivider(
+              width: 1,
+              thickness: 1,
+              color: colors.outlineVariant,
+            ),
+          ),
           const SizedBox(width: 16),
           SizedBox(
             width: 92,
@@ -644,6 +675,31 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
+  Widget _buildCourseDetail({
+    required IconData icon,
+    required String text,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 15, color: colors.onSurfaceVariant),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            softWrap: true,
+            style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
+          ),
+        ),
+      ],
+    );
+  }
+
   TextStyle _overviewTitleStyle(ColorScheme colors) {
     return TextStyle(
       fontSize: 20,
@@ -665,81 +721,36 @@ class _HomePageState extends ConsumerState<HomePage> {
       if (hasTimetable) {
         final icsContent = await storage.readTimetable();
         final metadata = await storage.readMetadata();
+        final firstWeekMondayValue = metadata?['firstWeekMonday'];
+        final firstWeekMonday = firstWeekMondayValue is String
+            ? DateTime.tryParse(firstWeekMondayValue)
+            : null;
 
-        if (icsContent != null) {
-          final allCourses = IcsParser.parse(icsContent);
-
-          final now = DateTime.now();
-          final bool isAfter10PM = now.hour >= 22;
-          final DateTime targetDate = isAfter10PM
-              ? now.add(const Duration(days: 1))
-              : now;
-          DateTime? firstWeekMonday;
-          int targetWeek = 0;
-
-          if (metadata != null && metadata['firstWeekMonday'] != null) {
-            firstWeekMonday = DateTime.parse(
-              metadata['firstWeekMonday'] as String,
-            );
-            targetWeek = DateCalculator.getCurrentWeekNumber(
-              firstWeekMonday,
-              targetDate,
-            );
-          }
-
-          final todayCourses = _filterCoursesForDate(
-            allCourses,
-            targetDate,
-            targetWeek,
-          )..sort((a, b) => a.startPeriod.compareTo(b.startPeriod));
-
-          final selection = _selectCurrentAndNext(todayCourses, targetDate);
-          CourseModel? current = selection.$1;
-          CourseModel? next = selection.$2;
-          bool showTomorrow = isAfter10PM;
-          List<CourseModel> visibleCourses = todayCourses;
-
-          if (current == null && next == null) {
-            final tomorrow = targetDate.add(const Duration(days: 1));
-            final tomorrowWeek = firstWeekMonday == null
-                ? 0
-                : DateCalculator.getCurrentWeekNumber(
-                    firstWeekMonday,
-                    tomorrow,
-                  );
-            final tomorrowCourses = _filterCoursesForDate(
-              allCourses,
-              tomorrow,
-              tomorrowWeek,
-            )..sort((a, b) => a.startPeriod.compareTo(b.startPeriod));
-
-            if (tomorrowCourses.isNotEmpty) {
-              visibleCourses = tomorrowCourses;
-              current = null;
-              next = tomorrowCourses.first;
-              showTomorrow = true;
-            }
-          }
-
-          if (mounted) {
-            setState(() {
-              _hasTimetable = true;
-              _firstWeekMonday = firstWeekMonday;
-              _todayCourses = visibleCourses;
-              _currentCourse = current;
-              _nextCourse = next;
-              _isShowingTomorrow = showTomorrow;
-            });
-          }
+        if (icsContent != null && firstWeekMonday != null && mounted) {
+          setState(() {
+            _hasTimetable = true;
+            _allCourses = IcsParser.parse(icsContent);
+            _firstWeekMonday = firstWeekMonday;
+          });
+          _updateDisplayedCourses(DateTime.now());
+        } else if (mounted) {
+          setState(() {
+            _hasTimetable = hasTimetable;
+            _allCourses = [];
+            _firstWeekMonday = null;
+            _currentCourse = null;
+            _nextCourse = null;
+            _nextCourseStart = null;
+          });
         }
       } else {
         if (mounted) {
           setState(() {
             _hasTimetable = false;
-            _todayCourses = [];
+            _allCourses = [];
             _currentCourse = null;
             _nextCourse = null;
-            _isShowingTomorrow = false;
+            _nextCourseStart = null;
           });
         }
       }
@@ -754,59 +765,33 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
   }
 
-  List<CourseModel> _filterCoursesForDate(
-    List<CourseModel> courses,
-    DateTime date,
-    int targetWeek,
-  ) {
-    final dayOfWeek = date.weekday;
-    return courses.where((course) {
-      if (course.dayOfWeek != dayOfWeek) return false;
-      if (targetWeek > 0) {
-        final courseWeeks = WeekParser.parseWeeks(course.weeks);
-        return courseWeeks.contains(targetWeek);
-      }
-      return true;
-    }).toList();
+  void _updateDisplayedCourses(DateTime now) {
+    if (!mounted) return;
+    final selection = CourseScheduleService.currentAndNext(
+      courses: _allCourses,
+      firstWeekMonday: _firstWeekMonday,
+      now: now,
+    );
+    setState(() {
+      _currentCourse = selection.current?.course;
+      _nextCourse = selection.next?.course;
+      _nextCourseStart = selection.next?.start;
+    });
   }
 
-  (CourseModel?, CourseModel?) _selectCurrentAndNext(
-    List<CourseModel> courses,
-    DateTime targetDate,
-  ) {
-    if (courses.isEmpty) return (null, null);
+  String _courseStatusLabel() {
+    if (_currentCourse != null) return '正在上课';
+    final nextStart = _nextCourseStart;
+    if (nextStart == null) return '下一节课';
 
-    final nowMinutes = targetDate.hour * 60 + targetDate.minute;
-    CourseModel? current;
-    CourseModel? next;
-
-    for (final course in courses) {
-      final startTime = DateCalculator.getSectionTime(
-        course.startPeriod,
-      )['start']!;
-      final endTime = DateCalculator.getSectionTime(course.endPeriod)['end']!;
-      final startMinutes = _toMinutes(startTime);
-      final endMinutes = _toMinutes(endTime);
-
-      if (nowMinutes >= startMinutes && nowMinutes <= endMinutes) {
-        current = course;
-      } else if (nowMinutes < startMinutes) {
-        next = course;
-        break;
-      }
-    }
-
-    if (current != null) {
-      final currentIndex = courses.indexOf(current);
-      if (currentIndex >= 0 && currentIndex < courses.length - 1) {
-        next = courses[currentIndex + 1];
-      }
-    }
-
-    return (current, next);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final nextDate = DateTime(nextStart.year, nextStart.month, nextStart.day);
+    final dayDifference = nextDate.difference(today).inDays;
+    if (dayDifference == 0) return '下一节课';
+    if (dayDifference == 1) return '明天第一节课';
+    return '${nextStart.month}月${nextStart.day}日下一节课';
   }
-
-  int _toMinutes(TimeOfDay time) => time.hour * 60 + time.minute;
 
   String _formatCourseTime(CourseModel course) {
     final start = DateCalculator.getSectionTime(course.startPeriod)['start']!;

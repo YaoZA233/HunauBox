@@ -51,12 +51,12 @@ class _BusTrackingPageState extends State<BusTrackingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           Container(
             height: MediaQuery.of(context).padding.top,
-            color: const Color(0xFFF4F4F4),
+            color: Theme.of(context).colorScheme.surface,
           ),
           Expanded(
             child: PopScope(

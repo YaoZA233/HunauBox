@@ -12,13 +12,13 @@ class ScorePage extends ConsumerWidget {
     final state = ref.watch(scoreProvider);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('成绩查询'),
         centerTitle: false,
         elevation: 0,
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
             onPressed: () => ref.read(scoreProvider.notifier).fetchInitialData(),

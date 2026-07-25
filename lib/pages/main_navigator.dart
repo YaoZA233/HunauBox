@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'home_page.dart';
-import 'function_page.dart';
-import 'notice_page.dart';
-import 'homework_page.dart';
+
 import '../providers/homework_provider.dart';
 import '../providers/notice_provider.dart';
 import '../services/auth_guard.dart';
 import '../services/navigation_settings_store.dart';
+import 'function_page.dart';
+import 'home_page.dart';
+import 'homework_page.dart';
+import 'notice_page.dart';
 
 class MainNavigator extends ConsumerStatefulWidget {
   const MainNavigator({super.key});
+
   @override
   ConsumerState<MainNavigator> createState() => _MainNavigatorState();
 }
@@ -20,7 +22,7 @@ class _MainNavigatorState extends ConsumerState<MainNavigator> {
   final _navStore = NavigationSettingsStore.instance;
 
   static const _destinations = [
-    (Icons.home_outlined, Icons.home, '主页'),
+    (Icons.home_outlined, Icons.home, '首页'),
     (Icons.grid_view_outlined, Icons.grid_view, '功能'),
     (Icons.notifications_outlined, Icons.notifications, '通知'),
     (Icons.assignment_outlined, Icons.assignment, '作业'),
@@ -93,33 +95,12 @@ class _MainNavigatorState extends ConsumerState<MainNavigator> {
           ),
           bottomNavigationBar: useFloatingNav
               ? null
-              : NavigationBar(
-                  height: 60,
+              : _BottomNavBar(
                   selectedIndex: _index,
-                  onDestinationSelected: _handleDestinationSelected,
-                  destinations: const [
-                    NavigationDestination(
-                      icon: Icon(Icons.home_outlined),
-                      selectedIcon: Icon(Icons.home),
-                      label: '主页',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.grid_view_outlined),
-                      selectedIcon: Icon(Icons.grid_view),
-                      label: '功能',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.notifications_outlined),
-                      selectedIcon: Icon(Icons.notifications),
-                      label: '通知',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.assignment_outlined),
-                      selectedIcon: Icon(Icons.assignment),
-                      label: '作业',
-                    ),
-                  ],
-                  labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+                  onChanged: _handleDestinationSelected,
+                  surfaceColor: theme.colorScheme.surface,
+                  primaryColor: theme.colorScheme.primary,
+                  onSurfaceVariant: theme.colorScheme.onSurfaceVariant,
                 ),
         );
       },
@@ -148,27 +129,63 @@ class _FloatingNavBar extends StatelessWidget {
       height: 64,
       decoration: BoxDecoration(
         color: surfaceColor,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         child: _NavBarContent(
           selectedIndex: selectedIndex,
           onChanged: onChanged,
           primaryColor: primaryColor,
           onSurfaceVariant: onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomNavBar extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+  final Color surfaceColor;
+  final Color primaryColor;
+  final Color onSurfaceVariant;
+
+  const _BottomNavBar({
+    required this.selectedIndex,
+    required this.onChanged,
+    required this.surfaceColor,
+    required this.primaryColor,
+    required this.onSurfaceVariant,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border(
+          top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 64,
+          child: _NavBarContent(
+            selectedIndex: selectedIndex,
+            onChanged: onChanged,
+            primaryColor: primaryColor,
+            onSurfaceVariant: onSurfaceVariant,
+          ),
         ),
       ),
     );
@@ -190,66 +207,57 @@ class _NavBarContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final itemWidth = constraints.maxWidth / 4;
-        return Stack(
-          children: [
-            // Animated sliding indicator
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeInOutCubic,
-              left: selectedIndex * itemWidth + 8,
-              top: 8,
-              width: itemWidth - 16,
-              bottom: 8,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(16),
+    return Row(
+      children: List.generate(4, (index) {
+        final isSelected = selectedIndex == index;
+        final destination = _MainNavigatorState._destinations[index];
+
+        return Expanded(
+          child: Semantics(
+            button: true,
+            selected: isSelected,
+            label: destination.$3,
+            child: InkWell(
+              onTap: () => onChanged(index),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? primaryColor.withValues(alpha: 0.10)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        isSelected ? destination.$2 : destination.$1,
+                        size: 22,
+                        color: isSelected ? primaryColor : onSurfaceVariant,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        destination.$3,
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.1,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: isSelected ? primaryColor : onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-            // Navigation items
-            Row(
-              children: List.generate(4, (i) {
-                final isSelected = selectedIndex == i;
-                return Expanded(
-                  child: InkWell(
-                    onTap: () => onChanged(i),
-                    borderRadius: BorderRadius.circular(20),
-                    splashColor: primaryColor.withValues(alpha: 0.08),
-                    highlightColor: primaryColor.withValues(alpha: 0.04),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          isSelected
-                              ? _MainNavigatorState._destinations[i].$2
-                              : _MainNavigatorState._destinations[i].$1,
-                          size: 24,
-                          color: isSelected ? primaryColor : onSurfaceVariant,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _MainNavigatorState._destinations[i].$3,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            color: isSelected ? primaryColor : onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ],
+          ),
         );
-      },
+      }),
     );
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart' as webview;
 import '../models/app_constants.dart';
 import '../models/course_model.dart';
 import '../services/app_logger.dart';
+import '../services/course_notification_service.dart';
 import '../services/secure_storage_helper.dart';
 import '../services/timetable_storage.dart';
 import '../utils/ics_generator.dart';
@@ -38,6 +39,7 @@ class TimetableService {
       semester: semester,
       firstWeekMonday: firstWeekMonday,
     );
+    await CourseNotificationService.instance.rescheduleIfEnabled();
 
     return courses;
   }

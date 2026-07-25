@@ -1,10 +1,12 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
-import '../services/secure_storage_helper.dart';
+
 import '../services/app_cookie_manager.dart';
+import '../services/secure_storage_helper.dart';
 import 'about_page.dart';
-import 'settings_page.dart';
 import 'help_feedback_page.dart';
+import 'settings_page.dart';
 
 class ProfilePage extends StatelessWidget {
   final String? realName;
@@ -34,82 +36,63 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final hasAvatar = avatarUrl != null && avatarUrl!.isNotEmpty;
+    final displayName = realName?.trim().isNotEmpty == true ? realName! : '校园用户';
+    final displayStudentId = studentId?.trim().isNotEmpty == true
+        ? studentId!
+        : '暂未获取';
+
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: colors.surface,
       appBar: AppBar(
         title: const Text('个人中心'),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
+        centerTitle: false,
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: [
-          // 顶部用户信息卡片
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.primary.withOpacity(0.8),
-                  Theme.of(context).colorScheme.primary,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              color: colors.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.outlineVariant),
             ),
             child: Row(
               children: [
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3),
-                  ),
-                  child: CircleAvatar(
-                    radius: 40,
-                    backgroundColor: Colors.white.withOpacity(0.2),
-                    backgroundImage: avatarUrl != null
-                        ? FileImage(File(avatarUrl!)) as ImageProvider
-                        : null,
-                    child: avatarUrl == null
-                        ? const Icon(Icons.person, size: 40, color: Colors.white)
-                        : null,
-                  ),
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: colors.primaryContainer,
+                  backgroundImage:
+                      hasAvatar ? FileImage(File(avatarUrl!)) : null,
+                  child: hasAvatar
+                      ? null
+                      : Icon(
+                          Icons.person_outline_rounded,
+                          size: 30,
+                          color: colors.onPrimaryContainer,
+                        ),
                 ),
-                const SizedBox(width: 20),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        realName ?? '未命名用户',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                        displayName,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: colors.onSurface,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '学号: ${studentId ?? "未知"}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.white,
-                          ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '学号 $displayStudentId',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colors.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -118,52 +101,40 @@ class ProfilePage extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 32),
-
-          // 功能操作组
-          const Padding(
-            padding: EdgeInsets.only(left: 8, bottom: 12),
-            child: Text(
-              '服务与设置',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+          const SizedBox(height: 28),
+          Text(
+            '账户与服务',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: colors.onSurface,
             ),
           ),
+          const SizedBox(height: 10),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              color: colors.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.outlineVariant),
             ),
             child: Column(
               children: [
-                _buildItem(
-                  context,
-                  icon: Icons.settings_rounded,
-                  iconColor: Colors.blueAccent,
+                _ProfileMenuItem(
+                  icon: Icons.settings_outlined,
                   title: '设置',
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const SettingsPage()),
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsPage(),
+                      ),
                     );
                   },
                 ),
-                const Divider(height: 1, indent: 56, endIndent: 24, color: Color(0xFFEEEEEE)),
-                _buildItem(
-                  context,
-                  icon: Icons.info_rounded,
-                  iconColor: Colors.orangeAccent,
-                  title: '关于',
+                Divider(height: 1, indent: 60, color: colors.outlineVariant),
+                _ProfileMenuItem(
+                  icon: Icons.info_outline_rounded,
+                  title: '关于应用',
                   onTap: () {
                     Navigator.push(
                       context,
@@ -171,67 +142,75 @@ class ProfilePage extends StatelessWidget {
                     );
                   },
                 ),
-                const Divider(height: 1, indent: 56, endIndent: 24, color: Color(0xFFEEEEEE)),
-                _buildItem(
-                  context,
-                  icon: Icons.help_rounded,
-                  iconColor: Colors.green,
+                Divider(height: 1, indent: 60, color: colors.outlineVariant),
+                _ProfileMenuItem(
+                  icon: Icons.help_outline_rounded,
                   title: '帮助与反馈',
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const HelpFeedbackPage()),
+                      MaterialPageRoute(
+                        builder: (context) => const HelpFeedbackPage(),
+                      ),
                     );
                   },
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 48),
-
-          // 退出登录按钮
-          ElevatedButton(
+          const SizedBox(height: 36),
+          OutlinedButton.icon(
             onPressed: () => _handleLogout(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.errorContainer,
-              foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
-              elevation: 0,
+            icon: const Icon(Icons.logout_rounded, size: 19),
+            label: const Text('退出登录'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: colors.error,
+              side: BorderSide(color: colors.error.withValues(alpha: 0.45)),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: const Text(
-              '退出登录',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
         ],
       ),
     );
   }
+}
 
-  Widget _buildItem(BuildContext context, {required IconData icon, required Color iconColor, required String title, required VoidCallback onTap}) {
+class _ProfileMenuItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  const _ProfileMenuItem({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: iconColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, color: iconColor, size: 22),
-      ),
+      leading: Icon(icon, color: colors.onSurfaceVariant, size: 22),
       title: Text(
-        title, 
-        style: const TextStyle(
-          fontSize: 16, 
+        title,
+        style: TextStyle(
+          fontSize: 16,
           fontWeight: FontWeight.w500,
+          color: colors.onSurface,
         ),
       ),
-      trailing: const Icon(Icons.chevron_right_rounded, size: 20, color: Colors.grey),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        size: 20,
+        color: colors.onSurfaceVariant,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       onTap: onTap,
     );
   }
