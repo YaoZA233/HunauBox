@@ -26,7 +26,6 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('作业'),
-        centerTitle: false,
       ),
       body: homeworkState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -51,13 +50,13 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             sliver: SliverToBoxAdapter(
               child: _buildOverview(pending.length, completed.length),
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
             sliver: SliverToBoxAdapter(child: _buildSegmentedControl()),
           ),
           if (visibleItems.isEmpty)
@@ -91,7 +90,7 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
       children: [
         Text(
           pendingCount == 0 ? '今天的安排已完成' : '还有 $pendingCount 项任务待处理',
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+          style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 6),
         Text(
@@ -125,7 +124,7 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -142,7 +141,7 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: colors.surfaceContainerLowest,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(9),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.08),
@@ -158,7 +157,7 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
                   final selected = _selectedTab == index;
                   return Expanded(
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(9),
                       onTap: () => setState(() => _selectedTab = index),
                       child: Center(
                         child: Text(
@@ -295,14 +294,14 @@ class _HomeworkItem extends StatelessWidget {
 
     return Material(
       color: colors.surfaceContainerLowest,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.fromLTRB(15, 14, 14, 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             border: Border(left: BorderSide(color: accent, width: 3)),
           ),
           child: Column(

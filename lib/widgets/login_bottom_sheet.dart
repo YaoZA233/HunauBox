@@ -69,40 +69,43 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> with SingleTickerPr
     // 获取键盘高度，以便弹起键盘时把底部内容顶起
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
+    final colors = Theme.of(context).colorScheme;
     return FadeTransition(
       opacity: _fadeAnimation,
-      child: Container(
-        padding: EdgeInsets.only(
-          bottom: bottomInset > 0 ? bottomInset + 20 : 40,
-          top: 30,
-          left: 30,
-          right: 30,
-        ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            14,
+            24,
+            bottomInset > 0 ? bottomInset + 18 : 28,
+          ),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Center(
               child: Container(
                 width: 40,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: colors.outlineVariant,
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
             Text(
               "欢迎登录",
               style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.green[800],
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                color: colors.onSurface,
               ),
             ),
             const SizedBox(height: 8),
@@ -110,10 +113,10 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> with SingleTickerPr
               "连接农大智慧校园服务",
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey[600],
+                color: colors.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 36),
+            const SizedBox(height: 28),
             
             // 学号输入框
             TextField(
@@ -122,16 +125,10 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> with SingleTickerPr
               decoration: InputDecoration(
                 labelText: "学号",
                 hintText: "请输入您的学号",
-                prefixIcon: Icon(Icons.person_outline, color: Colors.green[700]),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Colors.grey[100],
+                prefixIcon: Icon(Icons.person_outline, color: colors.primary),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 14),
             
             // 密码输入框
             TextField(
@@ -140,11 +137,11 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> with SingleTickerPr
               decoration: InputDecoration(
                 labelText: "密码",
                 hintText: "统一身份认证密码",
-                prefixIcon: Icon(Icons.lock_outline, color: Colors.green[700]),
+                prefixIcon: Icon(Icons.lock_outline, color: colors.primary),
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                    color: Colors.grey,
+                    color: colors.onSurfaceVariant,
                   ),
                   onPressed: () {
                     setState(() {
@@ -152,15 +149,9 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> with SingleTickerPr
                     });
                   },
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Colors.grey[100],
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 28),
             
             // 登录按钮 (带动画)
             SizedBox(
@@ -169,11 +160,11 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> with SingleTickerPr
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _performLogin,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[700],
-                  foregroundColor: Colors.white,
+                  backgroundColor: colors.primary,
+                  foregroundColor: colors.onPrimary,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 child: _isLoading
@@ -186,12 +177,13 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> with SingleTickerPr
                         ),
                       )
                     : const Text(
-                        "立 即 登 录",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 2),
+                        "立即登录",
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                       ),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

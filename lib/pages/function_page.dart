@@ -29,18 +29,27 @@ class FunctionPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(title: const Text('功能')),
       body: CustomScrollView(
         slivers: [
-          const SliverToBoxAdapter(
+          SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.fromLTRB(24, 60, 24, 32),
-              child: Text(
-                '全部功能',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
-                ),
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '全部功能',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    '校园服务、教务与生活工具',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -282,33 +291,30 @@ class FunctionPage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
           child: Builder(
             builder: (context) {
               return Text(
                 title,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Theme.of(context).colorScheme.primary,
-                  letterSpacing: 0.5,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               );
             },
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Builder(
             builder: (context) {
               return Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerLowest,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outlineVariant.withOpacity(0.4),
+                    color: Theme.of(context).colorScheme.outlineVariant,
                   ),
                 ),
                 child: Column(
@@ -326,7 +332,7 @@ class FunctionPage extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 18),
       ],
     );
   }
@@ -345,9 +351,9 @@ class FunctionPage extends StatelessWidget {
 
         item.onTap?.call();
       },
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           border: isLast
               ? null
@@ -355,7 +361,7 @@ class FunctionPage extends StatelessWidget {
                   bottom: BorderSide(
                     color: Theme.of(
                       context,
-                    ).colorScheme.outlineVariant.withOpacity(0.3),
+                    ).colorScheme.outlineVariant.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
@@ -363,17 +369,20 @@ class FunctionPage extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: Theme.of(
                   context,
-                ).colorScheme.primaryContainer.withOpacity(0.4),
+                ).colorScheme.primaryContainer.withValues(alpha: 0.4),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                item.icon,
-                size: 22,
-                color: Theme.of(context).colorScheme.primary,
+              child: Center(
+                child: Icon(
+                  item.icon,
+                  size: 22,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ),
             const SizedBox(width: 16),
@@ -389,11 +398,12 @@ class FunctionPage extends StatelessWidget {
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Text(
                     item.subtitle,
                     style: TextStyle(
                       fontSize: 13,
+                      height: 1.32,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -405,7 +415,7 @@ class FunctionPage extends StatelessWidget {
               size: 20,
               color: Theme.of(
                 context,
-              ).colorScheme.onSurfaceVariant.withOpacity(0.5),
+              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
             ),
           ],
         ),

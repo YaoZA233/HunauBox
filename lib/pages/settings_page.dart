@@ -1,8 +1,12 @@
+import 'dart:io';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/quick_action_item.dart';
-import '../services/navigation_settings_store.dart';
+import '../providers/background_provider.dart';
 import '../services/course_notification_service.dart';
 import '../services/course_notification_settings_store.dart';
 import '../services/quick_action_store.dart';
@@ -17,10 +21,10 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final _store = QuickActionStore.instance;
-  final _navStore = NavigationSettingsStore.instance;
   final _courseNotificationStore = CourseNotificationSettingsStore.instance;
+  final _imagePicker = ImagePicker();
   static const int _maxSelected = 8;
-  
+
   final List<Color> _themeColors = [
     const Color(0xFF1A73E8), // Google Blue (Default)
     const Color(0xFFE53935), // Google Red
@@ -38,8 +42,23 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _store.load();
-    _navStore.load();
     _courseNotificationStore.load();
+  }
+
+  Future<void> _pickBackground(WidgetRef ref) async {
+    try {
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 95,
+      );
+      if (image == null) return;
+      await ref.read(appBackgroundProvider.notifier).importImage(image.path);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('无法读取所选图片，请检查相册权限')));
+    }
   }
 
   @override
@@ -53,12 +72,16 @@ class _SettingsPageState extends State<SettingsPage> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const Text('主题设置', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text(
+                '主题设置',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
               Consumer(
                 builder: (context, ref, child) {
                   final currentColor = ref.watch(themeColorProvider);
                   final currentMode = ref.watch(themeModeProvider);
+                  final background = ref.watch(appBackgroundProvider);
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -103,7 +126,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           final isSelected = currentColor.value == color.value;
                           return GestureDetector(
                             onTap: () {
-                              ref.read(themeColorProvider.notifier).updateThemeColor(color);
+                              ref
+                                  .read(themeColorProvider.notifier)
+                                  .updateThemeColor(color);
                             },
                             child: Container(
                               width: 48,
@@ -111,9 +136,15 @@ class _SettingsPageState extends State<SettingsPage> {
                               decoration: BoxDecoration(
                                 color: color,
                                 shape: BoxShape.circle,
-                                border: isSelected 
-                                    ? Border.all(color: Colors.black87, width: 3)
-                                    : Border.all(color: Colors.transparent, width: 0),
+                                border: isSelected
+                                    ? Border.all(
+                                        color: Colors.black87,
+                                        width: 3,
+                                      )
+                                    : Border.all(
+                                        color: Colors.transparent,
+                                        width: 0,
+                                      ),
                                 boxShadow: [
                                   BoxShadow(
                                     color: color.withOpacity(0.4),
@@ -129,6 +160,89 @@ class _SettingsPageState extends State<SettingsPage> {
                           );
                         }).toList(),
                       ),
+                      const SizedBox(height: 24),
+                      const Text('自定义背景', style: TextStyle(fontSize: 16)),
+                      const SizedBox(height: 12),
+                      if (background.hasImage) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: 150,
+                            child: ImageFiltered(
+                              imageFilter: ImageFilter.blur(
+                                sigmaX: background.blurSigma,
+                                sigmaY: background.blurSigma,
+                              ),
+                              child: Transform.scale(
+                                scale: 1.04,
+                                child: Image.file(
+                                  File(background.imagePath!),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => ColoredBox(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerHighest,
+                                    child: const Center(
+                                      child: Icon(Icons.broken_image_outlined),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _pickBackground(ref),
+                              icon: const Icon(Icons.image_outlined),
+                              label: Text(
+                                background.hasImage ? '更换图片' : '选择图片',
+                              ),
+                            ),
+                          ),
+                          if (background.hasImage) ...[
+                            const SizedBox(width: 10),
+                            IconButton.outlined(
+                              onPressed: () => ref
+                                  .read(appBackgroundProvider.notifier)
+                                  .clear(),
+                              tooltip: '清除背景',
+                              icon: const Icon(Icons.delete_outline_rounded),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (background.hasImage) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            const Expanded(child: Text('高斯模糊')),
+                            Text(
+                              background.blurSigma.toStringAsFixed(0),
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Slider(
+                          value: background.blurSigma,
+                          min: 0,
+                          max: 30,
+                          divisions: 30,
+                          label: background.blurSigma.toStringAsFixed(0),
+                          onChanged: (value) => ref
+                              .read(appBackgroundProvider.notifier)
+                              .updateBlur(value),
+                        ),
+                      ],
                     ],
                   );
                 },
@@ -136,7 +250,10 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 16),
               const Divider(height: 1),
               const SizedBox(height: 16),
-              const Text('上课通知', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text(
+                '上课通知',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 8),
               ValueListenableBuilder<CourseNotificationSettings>(
                 valueListenable: _courseNotificationStore.settings,
@@ -154,12 +271,15 @@ class _SettingsPageState extends State<SettingsPage> {
                         value: settings.enabled,
                         onChanged: (enabled) async {
                           if (enabled) {
-                            final granted = await CourseNotificationService.instance
+                            final granted = await CourseNotificationService
+                                .instance
                                 .requestPermission();
                             if (!granted) {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('请在系统设置中允许通知权限')),
+                                  const SnackBar(
+                                    content: Text('请在系统设置中允许通知权限'),
+                                  ),
                                 );
                               }
                               return;
@@ -173,7 +293,8 @@ class _SettingsPageState extends State<SettingsPage> {
                               minutesBefore: updated.minutesBefore,
                             );
                           } else {
-                            await CourseNotificationService.instance.cancelAll();
+                            await CourseNotificationService.instance
+                                .cancelAll();
                           }
                         },
                       ),
@@ -197,12 +318,12 @@ class _SettingsPageState extends State<SettingsPage> {
                                 .toList(),
                             onChanged: (minutes) async {
                               if (minutes == null) return;
-                              final updated =
-                                  settings.copyWith(minutesBefore: minutes);
-                              await _courseNotificationStore.save(updated);
-                              await CourseNotificationService.instance.reschedule(
+                              final updated = settings.copyWith(
                                 minutesBefore: minutes,
                               );
+                              await _courseNotificationStore.save(updated);
+                              await CourseNotificationService.instance
+                                  .reschedule(minutesBefore: minutes);
                             },
                           ),
                         ),
@@ -213,26 +334,10 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 16),
               const Divider(height: 1),
               const SizedBox(height: 16),
-              const Text('导航栏', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              ValueListenableBuilder<bool>(
-                valueListenable: _navStore.useFloatingNav,
-                builder: (context, useFloatingNav, __) {
-                  return SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('使用悬浮导航栏'),
-                    subtitle: const Text('仿 Telegram 的悬浮样式'),
-                    value: useFloatingNav,
-                    onChanged: (value) async {
-                      await _navStore.save(value);
-                    },
-                  );
-                },
+              const Text(
+                '主页设置',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 16),
-              const Divider(height: 1),
-              const SizedBox(height: 16),
-              const Text('主页设置', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -277,17 +382,24 @@ class CommonServicesSettingsPage extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('选择常用服务', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text(
+                    '选择常用服务',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                   Text(
                     '${selected.length}/$_maxSelected',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
                 '最多选择 8 个功能显示在首页。',
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 12),
               ...QuickActionCatalog.items.map((item) {

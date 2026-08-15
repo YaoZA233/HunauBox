@@ -54,7 +54,7 @@ class _NoticePageState extends ConsumerState<NoticePage>
     final noticeState = ref.watch(noticeProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('通知'), centerTitle: false),
+      appBar: AppBar(title: const Text('通知')),
       body: _buildBody(noticeState),
     );
   }
@@ -79,7 +79,7 @@ class _NoticePageState extends ConsumerState<NoticePage>
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             sliver: SliverToBoxAdapter(
               child: _buildOverview(
                 unreadCount: unread.length,
@@ -88,7 +88,7 @@ class _NoticePageState extends ConsumerState<NoticePage>
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
             sliver: SliverToBoxAdapter(child: _buildFilterControl()),
           ),
           if (noticeState.isLoading)
@@ -109,7 +109,7 @@ class _NoticePageState extends ConsumerState<NoticePage>
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.only(bottom: 8),
                     child: _NoticeItem(
                       message: visibleMessages[index],
                       onTap: () => _openNotice(visibleMessages[index]),
@@ -134,7 +134,7 @@ class _NoticePageState extends ConsumerState<NoticePage>
       children: [
         Text(
           unreadCount == 0 ? '消息已全部查看' : '有 $unreadCount 条消息未读',
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+          style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 6),
         Text(
@@ -153,7 +153,7 @@ class _NoticePageState extends ConsumerState<NoticePage>
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -170,7 +170,7 @@ class _NoticePageState extends ConsumerState<NoticePage>
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: colors.surfaceContainerLowest,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(9),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.08),
@@ -186,7 +186,7 @@ class _NoticePageState extends ConsumerState<NoticePage>
                   final selected = _selectedFilter == index;
                   return Expanded(
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(9),
                       onTap: () => setState(() => _selectedFilter = index),
                       child: Center(
                         child: Text(
@@ -331,14 +331,14 @@ class _NoticeItem extends StatelessWidget {
       color: unread
           ? colors.surfaceContainerLowest
           : colors.surfaceContainerHighest.withValues(alpha: 0.26),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.fromLTRB(15, 14, 14, 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             border: Border(left: BorderSide(color: accent, width: 3)),
           ),
           child: Row(
@@ -352,7 +352,7 @@ class _NoticeItem extends StatelessWidget {
                   color: unread
                       ? colors.primaryContainer
                       : colors.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(9),
                 ),
                 child: Text(
                   sender[0],

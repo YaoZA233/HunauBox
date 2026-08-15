@@ -63,7 +63,6 @@ class _HomePageState extends ConsumerState<HomePage> {
   DateTime? _firstWeekMonday;
   int _currentWeek = 0;
   int _totalWeeks = 20;
-  int _elapsedDays = 0;
   int _remainingDays = 0;
   int _progressPercent = 0;
   String _hitokotoText = '';
@@ -318,27 +317,416 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final displayCourse = _currentCourse ?? _nextCourse;
+    final colors = Theme.of(context).colorScheme;
+
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            18,
+            MediaQuery.paddingOf(context).top + 22,
+            18,
+            36,
+          ),
+          sliver: SliverList.list(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _greeting,
+                          style: TextStyle(
+                            color: colors.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _realName?.trim().isNotEmpty == true
+                              ? '${_realName!.trim()}，今天好'
+                              : 'Life at HUNAU',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                fontSize: 25,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildProfileButton(),
+                ],
+              ),
+              const SizedBox(height: 22),
+              _buildScheduleHero(displayCourse),
+              if (_hitokotoText.isNotEmpty) ...[
+                const SizedBox(height: 26),
+                _buildStatement(),
+              ],
+              const SizedBox(height: 30),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '常用服务',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      if (!await _ensureLoggedInForFeature() ||
+                          !context.mounted) {
+                        return;
+                      }
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const FunctionPage()),
+                      );
+                    },
+                    child: const Text('全部'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ValueListenableBuilder<List<String>>(
+                valueListenable: _quickActionStore.selectedIds,
+                builder: (context, ids, _) {
+                  final selectedIds = ids.isEmpty
+                      ? QuickActionCatalog.defaultIds
+                      : ids.take(8).toList();
+                  final items = selectedIds
+                      .map(QuickActionCatalog.byId)
+                      .whereType<QuickActionItem>()
+                      .toList();
+
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: items.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 4,
+                          mainAxisSpacing: 6,
+                          crossAxisSpacing: 6,
+                          childAspectRatio: 0.72,
+                        ),
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      return _buildQuickAction(
+                        item.icon,
+                        item.label,
+                        onTap: () => _handleQuickActionTap(item.id),
+                      );
+                    },
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour < 6) return '夜深了';
+    if (hour < 11) return '早上好';
+    if (hour < 14) return '中午好';
+    if (hour < 18) return '下午好';
+    return '晚上好';
+  }
+
+  Widget _buildProfileButton() {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: _isLoggedIn ? '个人中心' : '登录',
+      child: InkWell(
+        onTap: _isLoading ? null : _handleLogin,
+        customBorder: const CircleBorder(),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: colors.primaryContainer,
+                border: Border.all(color: colors.outlineVariant),
+                image: _isLoggedIn && _avatarUrl != null
+                    ? DecorationImage(
+                        image: FileImage(File(_avatarUrl!)),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: _isLoggedIn && _avatarUrl != null
+                  ? null
+                  : Icon(
+                      Icons.person_outline_rounded,
+                      color: colors.onPrimaryContainer,
+                    ),
+            ),
+            if (_isLoading)
+              Positioned.fill(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colors.primary,
+                ),
+              ),
+            if (_showLoginSuccessBadge)
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: Icon(
+                  Icons.verified_rounded,
+                  size: 18,
+                  color: colors.primary,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScheduleHero(CourseModel? course) {
+    final colors = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasSemester = _firstWeekMonday != null;
+    final progress = (_progressPercent / 100).clamp(0.0, 1.0);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF18251F) : const Color(0xFFE5F0E9),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark ? const Color(0xFF35483E) : const Color(0xFFC8D9CF),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(7),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -42,
+              top: -54,
+              child: Container(
+                width: 176,
+                height: 176,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    width: 28,
+                    color: colors.primary.withValues(alpha: 0.08),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: colors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _courseStatusLabel(),
+                        style: TextStyle(
+                          color: colors.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  if (_isLoadingTimetable)
+                    const Text('正在同步课表...')
+                  else ...[
+                    Text(
+                      course?.name ?? (_hasTimetable ? '今天没有后续课程' : '从导入课表开始'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontSize: 28,
+                            height: 1.15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (course != null) ...[
+                      _buildCourseDetail(
+                        icon: Icons.schedule_outlined,
+                        text: _formatCourseTime(course),
+                      ),
+                      const SizedBox(height: 6),
+                      _buildCourseDetail(
+                        icon: Icons.location_on_outlined,
+                        text: course.classroom.trim().isEmpty
+                            ? '教室待定'
+                            : course.classroom,
+                      ),
+                    ] else
+                      Text(
+                        _hasTimetable ? '留一点时间给自己' : '导入后将在这里显示下一节课',
+                        style: TextStyle(color: colors.onSurfaceVariant),
+                      ),
+                  ],
+                  const SizedBox(height: 30),
+                  Container(
+                    padding: const EdgeInsets.only(top: 16),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: colors.outlineVariant),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                hasSemester ? '第 $_currentWeek 周' : '学期进度',
+                                style: TextStyle(
+                                  color: colors.onSurfaceVariant,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 7),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(2),
+                                child: LinearProgressIndicator(
+                                  minHeight: 6,
+                                  value: hasSemester ? progress : 0,
+                                  backgroundColor: colors.surface.withValues(
+                                    alpha: 0.7,
+                                  ),
+                                  color: colors.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 7),
+                              Text(
+                                hasSemester
+                                    ? '还剩 $_remainingDays 天 · 共 $_totalWeeks 周'
+                                    : '导入课表后自动计算',
+                                style: TextStyle(
+                                  color: colors.onSurfaceVariant,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 18),
+                        Text(
+                          hasSemester ? '$_progressPercent%' : '--',
+                          style: TextStyle(
+                            color: colors.primary,
+                            fontSize: 31,
+                            height: 1,
+                            fontWeight: FontWeight.w300,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _handleQuickActionTap('timetable'),
+                      icon: const Icon(Icons.calendar_month_outlined, size: 19),
+                      label: Text(_hasTimetable ? '查看课表' : '导入课表'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatement() {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '一言',
+          style: TextStyle(
+            color: colors.primary,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 9),
+        Text(
+          _hitokotoText,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontSize: 20,
+            height: 1.45,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        if (_hitokotoFrom.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            '— $_hitokotoFrom',
+            style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // Kept temporarily as a reference while the new home is refined.
+  // ignore: unused_element
+  Widget _buildLegacyHome(BuildContext context) {
     final CourseModel? displayCourse = _currentCourse ?? _nextCourse;
     final bool hasCourse = displayCourse != null;
     final String statusLabel = _courseStatusLabel();
 
     return ListView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 24,
-        vertical: 60,
-      ), // 防止顶部被遮挡，加大 padding
+      padding: const EdgeInsets.fromLTRB(20, 56, 20, 116),
       children: [
         // 问候语 + 右上角头像
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               "Life@HUNAU",
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                height: 1.2,
-                letterSpacing: -1.0,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
               ),
             ),
             GestureDetector(
@@ -348,16 +736,18 @@ class _HomePageState extends ConsumerState<HomePage> {
                 children: [
                   AnimatedScale(
                     scale: _isLoading ? 0.92 : 1.0,
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOut,
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
+                      duration: const Duration(milliseconds: 180),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         boxShadow: _isLoading
                             ? [
                                 BoxShadow(
-                                  color: Colors.green.withOpacity(0.18),
+                                  color: Colors.green.withValues(alpha: 0.18),
                                   blurRadius: 14,
                                   spreadRadius: 2,
                                 ),
@@ -427,22 +817,19 @@ class _HomePageState extends ConsumerState<HomePage> {
           const SizedBox(height: 14),
           _buildQuoteLine(),
         ],
-        const SizedBox(height: 26),
+        const SizedBox(height: 24),
         _buildCampusOverview(
           displayCourse: displayCourse,
           statusLabel: statusLabel,
           hasCourse: hasCourse,
         ),
-        const SizedBox(height: 36),
+        const SizedBox(height: 32),
 
         // 功能入口标题
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              "常用服务",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
+            Text("常用服务", style: Theme.of(context).textTheme.titleLarge),
             InkWell(
               onTap: () async {
                 if (!await _ensureLoggedInForFeature() || !context.mounted) {
@@ -452,7 +839,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   context,
                 ).push(MaterialPageRoute(builder: (_) => const FunctionPage()));
               },
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Text(
@@ -467,7 +854,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           ],
         ),
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
 
         // 功能按钮组
         ValueListenableBuilder<List<String>>(
@@ -488,9 +875,9 @@ class _HomePageState extends ConsumerState<HomePage> {
               itemCount: items.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 4,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childAspectRatio: 1.0,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.92,
               ),
               itemBuilder: (context, index) {
                 final item = items[index];
@@ -562,123 +949,133 @@ class _HomePageState extends ConsumerState<HomePage> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-          Expanded(
-            flex: 6,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.schedule_rounded, size: 17, color: colors.primary),
-                    const SizedBox(width: 7),
-                    Text(
-                      statusLabel,
-                      style: TextStyle(
+            Expanded(
+              flex: 6,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.schedule_rounded,
+                        size: 17,
                         color: colors.primary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
                       ),
+                      const SizedBox(width: 7),
+                      Text(
+                        statusLabel,
+                        style: TextStyle(
+                          color: colors.primary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (_isLoadingTimetable)
+                    Text('正在同步课表...', style: _overviewTitleStyle(colors))
+                  else if (!hasCourse)
+                    Text(
+                      _hasTimetable ? '暂无后续课程' : '尚未导入课表',
+                      style: _overviewTitleStyle(colors),
+                    )
+                  else ...[
+                    Text(
+                      displayCourse!.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: _overviewTitleStyle(colors),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (_isLoadingTimetable)
-                  Text('正在同步课表...', style: _overviewTitleStyle(colors))
-                else if (!hasCourse)
-                  Text(
-                    _hasTimetable ? '暂无后续课程' : '尚未导入课表',
-                    style: _overviewTitleStyle(colors),
-                  )
-                else ...[
-                  Text(
-                    displayCourse!.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: _overviewTitleStyle(colors),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildCourseDetail(
-                    icon: Icons.schedule_outlined,
-                    text: _formatCourseTime(displayCourse),
-                  ),
-                  const SizedBox(height: 5),
-                  _buildCourseDetail(
-                    icon: Icons.location_on_outlined,
-                    text: displayCourse.classroom.trim().isEmpty
-                        ? '教室待定'
-                        : displayCourse.classroom,
-                  ),
-                  if (_currentCourse != null && _nextCourse != null) ...[
-                    const SizedBox(height: 9),
+                    const SizedBox(height: 8),
                     _buildCourseDetail(
-                      icon: Icons.skip_next_rounded,
-                      text: '下一节：${_nextCourse!.name} · ${_formatCourseTime(_nextCourse!)}',
+                      icon: Icons.schedule_outlined,
+                      text: _formatCourseTime(displayCourse),
                     ),
+                    const SizedBox(height: 5),
+                    _buildCourseDetail(
+                      icon: Icons.location_on_outlined,
+                      text: displayCourse.classroom.trim().isEmpty
+                          ? '教室待定'
+                          : displayCourse.classroom,
+                    ),
+                    if (_currentCourse != null && _nextCourse != null) ...[
+                      const SizedBox(height: 9),
+                      _buildCourseDetail(
+                        icon: Icons.skip_next_rounded,
+                        text:
+                            '下一节：${_nextCourse!.name} · ${_formatCourseTime(_nextCourse!)}',
+                      ),
+                    ],
                   ],
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            height: 112,
-            child: VerticalDivider(
-              width: 1,
-              thickness: 1,
-              color: colors.outlineVariant,
+            const SizedBox(width: 16),
+            SizedBox(
+              height: 112,
+              child: VerticalDivider(
+                width: 1,
+                thickness: 1,
+                color: colors.outlineVariant,
+              ),
             ),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 92,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  hasSemester ? '第$_currentWeek周' : '学期进度',
-                  style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  hasSemester ? '$_progressPercent%' : '--',
-                  style: TextStyle(
-                    fontSize: 25,
-                    fontWeight: FontWeight.w800,
-                    color: colors.secondary,
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 92,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    hasSemester ? '第$_currentWeek周' : '学期进度',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colors.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 9),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    minHeight: 5,
-                    value: hasSemester ? progress : 0,
-                    backgroundColor: colors.surfaceContainerHighest,
-                    valueColor: AlwaysStoppedAnimation(colors.secondary),
+                  const SizedBox(height: 4),
+                  Text(
+                    hasSemester ? '$_progressPercent%' : '--',
+                    style: TextStyle(
+                      fontSize: 25,
+                      fontWeight: FontWeight.w800,
+                      color: colors.secondary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  hasSemester ? '余$_remainingDays天 / $_totalWeeks周' : '导入课表后显示',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
-                ),
-              ],
+                  const SizedBox(height: 9),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      minHeight: 5,
+                      value: hasSemester ? progress : 0,
+                      backgroundColor: colors.surfaceContainerHighest,
+                      valueColor: AlwaysStoppedAnimation(colors.secondary),
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    hasSemester
+                        ? '余$_remainingDays天 / $_totalWeeks周'
+                        : '导入课表后显示',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCourseDetail({
-    required IconData icon,
-    required String text,
-  }) {
+  Widget _buildCourseDetail({required IconData icon, required String text}) {
     final colors = Theme.of(context).colorScheme;
 
     return Row(
@@ -865,7 +1262,6 @@ class _HomePageState extends ConsumerState<HomePage> {
             _firstWeekMonday = firstWeekMonday;
             _currentWeek = currentWeek <= 0 ? 1 : currentWeek;
             _totalWeeks = totalWeeks;
-            _elapsedDays = elapsedDays;
             _remainingDays = remainingDays;
             _progressPercent = progressPercent;
           });
@@ -895,36 +1291,36 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildQuickAction(IconData icon, String label, {VoidCallback? onTap}) {
-    return InkWell(
+    final colors = Theme.of(context).colorScheme;
+    return InkResponse(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      radius: 34,
+      customBorder: const CircleBorder(),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.primaryContainer.withOpacity(0.4),
+              color: colors.primaryContainer.withValues(alpha: 0.72),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              size: 24,
-              color: Theme.of(context).colorScheme.primary,
+            child: Center(
+              child: Icon(icon, size: 22, color: colors.onPrimaryContainer),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 5),
           Text(
             label,
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurface,
+              fontSize: 10,
+              height: 1.2,
+              color: colors.onSurface,
               fontWeight: FontWeight.w500,
             ),
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
         ],

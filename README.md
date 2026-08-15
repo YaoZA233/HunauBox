@@ -1,21 +1,28 @@
 # Life@HUNAU
 
-基于 Flutter 开发的湖南农业大学校园生活服务 App，将校园卡、教务、通知、作业和常用校园服务集中到一个移动端入口中。
+基于 Flutter 开发的 HUNAU 校园生活服务 App。应用通过侧边导航整合首页、校园功能、通知、作业和设置，将校园卡、教务与常用校园服务集中到一个移动端入口中。
 
-项目当前使用学校统一身份认证登录，并通过网络请求、WebView 和本地缓存连接校园相关服务。适合在 Android 真机或模拟器上运行，也保留了 Flutter 对 iOS、Web 和桌面端的工程支持。
+项目当前使用学校统一身份认证登录，并通过网络请求、WebView 和本地缓存连接校园相关服务。
 
 ## 界面预览
 
-以下截图来自 Android 运行效果，保存在 [`screenimg`](./screenimg) 目录中。
+以下截图来自 Android 运行效果，保存在 [`screenimg`](./screenimg) 目录中。当前界面支持主题色、明暗模式和自定义背景。
 
 <table>
   <tr>
-    <td align="center"><img src="./screenimg/Screenshot_20260721_215344_com_example_smart_hunan_agri_MainActivity.jpg" width="240" alt="Life@HUNAU 首页" /><br />首页</td>
-    <td align="center"><img src="./screenimg/Screenshot_20260721_215348_com_example_smart_hunan_agri_MainActivity.jpg" width="240" alt="Life@HUNAU 全部功能" /><br />全部功能</td>
+    <td align="center"><img src="./screenimg/Screenshot_20260815_174716_com_example_smart_huna.jpg" width="240" alt="Life at HUNAU 首页" /><br />首页</td>
+    <td align="center"><img src="./screenimg/Screenshot_20260815_174721_com_example_smart_huna.jpg" width="240" alt="Life at HUNAU 通知" /><br />通知</td>
   </tr>
   <tr>
-    <td align="center"><img src="./screenimg/Screenshot_20260721_215354_com_example_smart_hunan_agri_MainActivity.jpg" width="240" alt="Life@HUNAU 通知" /><br />通知</td>
-    <td align="center"><img src="./screenimg/Screenshot_20260721_215408_com_example_smart_hunan_agri_MainActivity.jpg" width="240" alt="Life@HUNAU 作业" /><br />作业</td>
+    <td align="center"><img src="./screenimg/Screenshot_20260815_174654_com_example_smart_huna.jpg" width="240" alt="Life at HUNAU 作业" /><br />作业</td>
+    <td align="center"><img src="./screenimg/Screenshot_20260815_174731_com_example_smart_huna.jpg" width="240" alt="Life at HUNAU 设置" /><br />设置</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="./screenimg/Image_1786787361018_419.jpg" width="240" alt="Life at HUNAU 自定义背景效果一" /><br />自定义背景效果（一）</td>
+    <td align="center"><img src="./screenimg/Image_1786787383930_160.jpg" width="240" alt="Life at HUNAU 自定义背景效果二" /><br />自定义背景效果（二）</td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="./screenimg/Image_1786787386735_96.jpg" width="240" alt="Life at HUNAU 自定义背景通知页" /><br />自定义背景下的通知页</td>
   </tr>
 </table>
 
@@ -26,7 +33,8 @@
 - 展示今日课程或下一节课程，以及上课时间和地点
 - 展示学期周次、学期进度和剩余时间
 - 提供校园卡、校园卡充值、电费充值、空教室、学工系统、成绩查询、课程表和报修平台等常用入口
-- 支持自定义常用服务入口
+- 支持选择最多 8 个常用服务入口
+- 展示每日一句，并提供个人资料入口
 
 ### 校园服务
 
@@ -44,9 +52,16 @@
 - 获取课程作业，按待完成/已完成查看并打开作业详情
 - 登录后可手动刷新通知和作业数据
 
+### 课表与个性化
+
+- 从教务系统导入课表，以周视图查看课程，并可快速回到当天
+- 根据已导入课表发送下一节课提醒，可选择提前 10、15、20 或 30 分钟通知
+- 支持白天、黑夜与跟随系统三种显示模式，以及 10 种主题配色
+- 支持从相册选择首页背景，并调整背景模糊程度
+
 ### 登录与本地数据
 
-- 使用湖南农业大学统一身份认证登录
+- 使用 HUNAU 统一身份认证登录
 - 登录凭据使用 `flutter_secure_storage` 保存，支持下次启动自动登录
 - Cookie、课表、通知、作业和部分页面数据会根据功能需要进行本地缓存
 - 需要登录的功能会在进入时自动进行登录校验
@@ -59,7 +74,7 @@
 - **网页服务**：`flutter_inappwebview`、`webview_flutter`
 - **数据解析**：`html`
 - **本地存储与安全**：Shared Preferences、Path Provider、Flutter Secure Storage、Crypto、Pointy Castle
-- **系统能力**：定位、二维码扫描、通知、图片选择、分享、URL 调起
+- **系统能力**：定位、二维码扫描、课程通知、图片选择、分享、URL 调起
 - **界面与工具**：Material 3、Flutter SVG、Intl、Flutter Native Splash
 
 ## 项目结构
@@ -95,7 +110,6 @@ smart_hunan_agri/
 - Dart SDK `^3.11.4`，由 Flutter SDK 提供
 - Android Studio、Android SDK 和 Android 模拟器，或已开启 USB 调试的 Android 真机
 - Android 工程使用 Java 17 编译
-- 构建 iOS 需要 macOS、Xcode 和有效的 Apple 签名配置
 
 先检查本机 Flutter 环境：
 
@@ -196,9 +210,14 @@ flutter analyze
 flutter test
 ```
 
+## 致谢
+
+- 本项目的部分源码实现参考了 [SoilZhu/ChillEast](https://github.com/SoilZhu/ChillEast)，感谢原作者的开源分享。
+- 首页 UI 的设计灵感来自 [YumeYucca/YumeBox](https://github.com/YumeYucca/YumeBox)，感谢原作者提供的优秀设计思路。
+
 ## 注意事项
 
-- 本项目依赖湖南农业大学校园系统及相关外部服务，服务地址、认证流程或页面结构变化可能影响登录和数据获取。
+- 本项目依赖 HUNAU 校园系统及相关外部服务，服务地址、认证流程或页面结构变化可能影响登录和数据获取。
 - 使用成绩、课表、通知、作业、校园卡等功能时，请使用本人校园账号，并妥善保护账号信息。
 - 当前 Android `applicationId` 为 `com.example.smart_hunan_agri`，正式发布前建议修改为自己的正式包名。
 - 当前 Android Release 构建配置使用 debug 签名，仅适合本地测试；正式发布前必须配置 release keystore 和签名信息。
