@@ -31,6 +31,15 @@ class AppConstants {
   static String jwxtTimetableUrl(String semester) =>
       'https://webvpn.hunau.edu.cn/http/77777776706e6973746865626573742117075065b065b1ed23b25545bb868160e0/jsxsd/xskb/xskb_list.do?xnxq01id=$semester';
 
+  // 移动教务系统（超星 OAuth）
+  static const String ydjwxtOAuthUrl =
+      'https://auth.chaoxing.com/connect/oauth2/authorize?appid=ccf57937af7e40dcbdef0523e05e5ddd&redirect_uri=https%3A%2F%2Fydjwxt.hunau.edu.cn%2Fnjwhd%2Flogin%2Foauth2%3FappId%3Dccf57937af7e40dcbdef0523e05e5ddd%26appKey%3D1D13d6neUcz6c20f%26uid%3D22073114%26fidEnc%3Da915b52ee0aa18ad%26mappId%3D6127153%26formid%3D&response_type=code&scope=snsapi_base&state=128516';
+  static const String ydjwxtSemesterListUrl =
+      'https://ydjwxt.hunau.edu.cn/njwhd/semesterList';
+  static const String ydjwxtScoreUrl =
+      'https://ydjwxt.hunau.edu.cn/njwhd/student/termGPA';
+  static const String ydjwxtUA = campusCardUA;
+
   static const String casLoginUrl = 'https://cas.hunau.edu.cn/cas/login';
   static const String casServiceForJwxt = jwxtSsoUrl;
 
@@ -73,6 +82,10 @@ class AppConstants {
       'https://auth.chaoxing.com/connect/oauth2/authorize?appid=a78d8ada07784074a6ae839eb187d649&redirect_uri=https%3A%2F%2Flibseat.hunau.edu.cn%2Fappindex.aspx%3Funitcode%3Dhunau%26appId%3Da78d8ada07784074a6ae839eb187d649%26appKey%3D6z2PCy8Jr1eAD72j%26uid%3D67661390%26fidEnc%3Da915b52ee0aa18ad%26formid%3Dnull%26mappId%3D8234750&response_type=code&scope=snsapi_base&state=128516';
   static const String campusCardUrl =
       'https://auth.chaoxing.com/connect/oauth2/authorize?appid=5f1cdbd2506748a8a1d7cbe737e40d32&redirect_uri=http%3A%2F%2Ffin-serv.hunau.edu.cn%2Fhomecx%2FopenCXOAuthPage%3Furltype%3D1%26appId%3D5f1cdbd2506748a8a1d7cbe737e40d32%26appKey%3D8VT2Ov83Vv12M8ZC%26uid%3D22073114%26fidEnc%3Da915b52ee0aa18ad%26mappId%3D4556968%26formid%3Dnull&response_type=code&scope=snsapi_base&state=128516';
+  static const String campusCardLossUrl =
+      'https://webvpn.hunau.edu.cn/https/77777776706e6973746865626573742112164e78fd68eae02aa61458b69dc82d78803b/apps/forms/web/apply.html?formType=1&id=307174&aprvAppId=307174&pageEnc=2d1dfbe32cdb51db2e4a610f5d2dab01&fidEnc=a915b52ee0aa18ad&uid=404133638&mappId=20838914&formid=307174&roleid=&rolename=&topMenu=&mappIdEnc=f92c5fd5c2c2758d75b82520143e0c70&wfwEnc=C3E6480F264E73395F9537F76CC6916D&appId=bc13d9afc8f7447cafc9854abcea92ae&code=u69LPe4Z&state=128516&uuid=d088de9915004abd9755a894a23200d1';
+  static const String deepSeekUrl =
+      'https://webvpn.hunau.edu.cn/https/77777776706e6973746865626573742119154d61ed68a1e86caf0e4ebe86816665d438af2e/chat/8y4GujZpuEo3A2bX';
   static const String paymentCodeUrl = campusCardUrl;
   static const String campusCardUA =
       'Mozilla/5.0 (Linux; Android 16; MEIZU 20 Build/BQ2A.251110.001-BP2A.250605.031.A3; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/147.0.7727.55 Mobile Safari/537.36 (device:MEIZU 20) Language/zh_CN com.chaoxing.mobile.hunannongyedaxue/ChaoXingStudy_1000257_5.3_android_phone_53_234 (Kalimdor)';
@@ -89,5 +102,5 @@ class AppConstants {
   static const String storageAuthStateKey = 'auth_state';
 
   static const String defaultSemester = '2025-2026-2';
-  static const int primaryColorValue = 0xFF09C489;
+  static const int primaryColorValue = 0xFF486A5A;
 }

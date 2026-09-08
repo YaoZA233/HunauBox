@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart' as dio_cookie;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_constants.dart';
 import '../models/electricity_model.dart';
@@ -19,6 +20,7 @@ class ElectricityService {
   final _logger = AppLogger.instance;
   late final Dio _dio;
   final String _factoryCode = 'E013';
+  static const String _savedRoomKey = 'saved_electricity_room';
 
   bool _cookiesReady = false;
 
@@ -28,7 +30,9 @@ class ElectricityService {
     if (!_cookiesReady) {
       await AppCookieManager().initialize();
       if (_dio.interceptors.whereType<dio_cookie.CookieManager>().isEmpty) {
-        _dio.interceptors.add(dio_cookie.CookieManager(AppCookieManager().dioCookieJar));
+        _dio.interceptors.add(
+          dio_cookie.CookieManager(AppCookieManager().dioCookieJar),
+        );
       }
       _cookiesReady = true;
     }
@@ -42,14 +46,8 @@ class ElectricityService {
     try {
       await _dio.get(
         'https://fin-serv.hunau.edu.cn/elepay/openElePay',
-        queryParameters: {
-          'openid': openid,
-          'displayflag': '1',
-          'id': '30',
-        },
-        options: Options(
-          headers: {'User-Agent': AppConstants.campusCardUA},
-        ),
+        queryParameters: {'openid': openid, 'displayflag': '1', 'id': '30'},
+        options: Options(headers: {'User-Agent': AppConstants.campusCardUA}),
       );
     } catch (e) {
       _logger.w('openElePay initial call failed: $e');
@@ -65,10 +63,7 @@ class ElectricityService {
     try {
       final response = await _dio.post(
         'https://fin-serv.hunau.edu.cn/channel/getXiaoQuList',
-        queryParameters: {
-          'openid': openid,
-          'connect_redirect': '1',
-        },
+        queryParameters: {'openid': openid, 'connect_redirect': '1'},
         data: {'factorycode': _factoryCode},
         options: Options(
           headers: {
@@ -79,7 +74,9 @@ class ElectricityService {
       );
 
       if (response.data != null) {
-        final data = response.data is String ? jsonDecode(response.data) : response.data;
+        final data = response.data is String
+            ? jsonDecode(response.data)
+            : response.data;
         final List list;
         if (data is List) {
           list = data;
@@ -88,9 +85,13 @@ class ElectricityService {
             data['resultData'] is Map &&
             data['resultData'].containsKey('schoolList')) {
           list = data['resultData']['schoolList'];
-        } else if (data is Map && data.containsKey('resultData') && data['resultData'] is List) {
+        } else if (data is Map &&
+            data.containsKey('resultData') &&
+            data['resultData'] is List) {
           list = data['resultData'];
-        } else if (data is Map && data.containsKey('data') && data['data'] is List) {
+        } else if (data is Map &&
+            data.containsKey('data') &&
+            data['data'] is List) {
           list = data['data'];
         } else {
           _logger.w('Unexpected response format for getAreas: $data');
@@ -113,14 +114,8 @@ class ElectricityService {
     try {
       final response = await _dio.post(
         'https://fin-serv.hunau.edu.cn/channel/queryBuildingList',
-        queryParameters: {
-          'openid': openid,
-          'connect_redirect': '1',
-        },
-        data: {
-          'factorycode': _factoryCode,
-          'schoolid': areaName,
-        },
+        queryParameters: {'openid': openid, 'connect_redirect': '1'},
+        data: {'factorycode': _factoryCode, 'schoolid': areaName},
         options: Options(
           headers: {
             'User-Agent': AppConstants.campusCardUA,
@@ -130,18 +125,27 @@ class ElectricityService {
       );
 
       if (response.data != null) {
-        final data = response.data is String ? jsonDecode(response.data) : response.data;
+        final data = response.data is String
+            ? jsonDecode(response.data)
+            : response.data;
         final List list;
         if (data is List) {
           list = data;
         } else if (data is Map &&
             data.containsKey('resultData') &&
             data['resultData'] is Map &&
-            (data['resultData'].containsKey('buildingList') || data['resultData'].containsKey('buildinglist'))) {
-          list = data['resultData']['buildingList'] ?? data['resultData']['buildinglist'];
-        } else if (data is Map && data.containsKey('resultData') && data['resultData'] is List) {
+            (data['resultData'].containsKey('buildingList') ||
+                data['resultData'].containsKey('buildinglist'))) {
+          list =
+              data['resultData']['buildingList'] ??
+              data['resultData']['buildinglist'];
+        } else if (data is Map &&
+            data.containsKey('resultData') &&
+            data['resultData'] is List) {
           list = data['resultData'];
-        } else if (data is Map && data.containsKey('data') && data['data'] is List) {
+        } else if (data is Map &&
+            data.containsKey('data') &&
+            data['data'] is List) {
           list = data['data'];
         } else {
           _logger.w('Unexpected response format for getBuildings: $data');
@@ -157,17 +161,17 @@ class ElectricityService {
     }
   }
 
-  Future<List<ElectricityRoom>> getRooms(String areaName, String buildingName) async {
+  Future<List<ElectricityRoom>> getRooms(
+    String areaName,
+    String buildingName,
+  ) async {
     final openid = _cardService.openid;
     if (openid == null) throw Exception('未授权');
 
     try {
       final response = await _dio.post(
         'https://fin-serv.hunau.edu.cn/channel/queryRoomList',
-        queryParameters: {
-          'openid': openid,
-          'connect_redirect': '1',
-        },
+        queryParameters: {'openid': openid, 'connect_redirect': '1'},
         data: {
           'factorycode': _factoryCode,
           'schoolid': areaName,
@@ -182,18 +186,26 @@ class ElectricityService {
       );
 
       if (response.data != null) {
-        final data = response.data is String ? jsonDecode(response.data) : response.data;
+        final data = response.data is String
+            ? jsonDecode(response.data)
+            : response.data;
         final List list;
         if (data is List) {
           list = data;
         } else if (data is Map &&
             data.containsKey('resultData') &&
             data['resultData'] is Map &&
-            (data['resultData'].containsKey('roomList') || data['resultData'].containsKey('roomlist'))) {
-          list = data['resultData']['roomList'] ?? data['resultData']['roomlist'];
-        } else if (data is Map && data.containsKey('resultData') && data['resultData'] is List) {
+            (data['resultData'].containsKey('roomList') ||
+                data['resultData'].containsKey('roomlist'))) {
+          list =
+              data['resultData']['roomList'] ?? data['resultData']['roomlist'];
+        } else if (data is Map &&
+            data.containsKey('resultData') &&
+            data['resultData'] is List) {
           list = data['resultData'];
-        } else if (data is Map && data.containsKey('data') && data['data'] is List) {
+        } else if (data is Map &&
+            data.containsKey('data') &&
+            data['data'] is List) {
           list = data['data'];
         } else {
           _logger.w('Unexpected response format for getRooms: $data');
@@ -221,10 +233,7 @@ class ElectricityService {
     try {
       final response = await _dio.post(
         'https://fin-serv.hunau.edu.cn/channel/queryEleAccDetail',
-        queryParameters: {
-          'openid': openid,
-          'connect_redirect': '1',
-        },
+        queryParameters: {'openid': openid, 'connect_redirect': '1'},
         data: {
           'schoolid': areaName,
           'buildingid': buildingName,
@@ -241,9 +250,13 @@ class ElectricityService {
       );
 
       if (response.data != null) {
-        final data = response.data is String ? jsonDecode(response.data) : response.data;
+        final data = response.data is String
+            ? jsonDecode(response.data)
+            : response.data;
         final Map<String, dynamic> result;
-        if (data is Map && data.containsKey('resultData') && data['resultData'] is Map) {
+        if (data is Map &&
+            data.containsKey('resultData') &&
+            data['resultData'] is Map) {
           result = data['resultData'];
         } else if (data is Map<String, dynamic>) {
           result = data;
@@ -273,10 +286,7 @@ class ElectricityService {
     try {
       await _dio.post(
         'https://fin-serv.hunau.edu.cn/myaccount/userlastbind',
-        queryParameters: {
-          'openid': openid,
-          'connect_redirect': '1',
-        },
+        queryParameters: {'openid': openid, 'connect_redirect': '1'},
         data: {
           'payinfo': {'elepayWay': '2'},
           'eleinfo': {
@@ -297,10 +307,7 @@ class ElectricityService {
 
       final response = await _dio.post(
         'https://fin-serv.hunau.edu.cn/elepay/createPreThirdTrade',
-        queryParameters: {
-          'openid': openid,
-          'connect_redirect': '1',
-        },
+        queryParameters: {'openid': openid, 'connect_redirect': '1'},
         data: {
           'payamt': amount.toStringAsFixed(0),
           'openid': openid,
@@ -321,13 +328,52 @@ class ElectricityService {
       );
 
       if (response.data != null) {
-        final data = response.data is String ? jsonDecode(response.data) : response.data;
+        final data = response.data is String
+            ? jsonDecode(response.data)
+            : response.data;
         return data['success'] == true;
       }
       return false;
     } catch (e) {
       _logger.e('recharge failed: $e');
       rethrow;
+    }
+  }
+
+  /// 获取上次选择的房间。
+  Future<SavedElectricityRoom?> getSavedRoom() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_savedRoomKey);
+      if (raw == null || raw.isEmpty) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return SavedElectricityRoom.fromJson(
+          Map<String, dynamic>.from(decoded),
+        );
+      }
+    } catch (e) {
+      _logger.w('读取已保存电费房间失败: $e');
+    }
+    return null;
+  }
+
+  /// 保存当前房间，进入电费页面时自动恢复。
+  Future<void> saveSavedRoom(SavedElectricityRoom room) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_savedRoomKey, jsonEncode(room.toJson()));
+    } catch (e) {
+      _logger.w('保存电费房间失败: $e');
+    }
+  }
+
+  Future<void> clearSavedRoom() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_savedRoomKey);
+    } catch (e) {
+      _logger.w('清除已保存电费房间失败: $e');
     }
   }
 }

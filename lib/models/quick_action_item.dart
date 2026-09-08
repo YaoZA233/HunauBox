@@ -15,6 +15,11 @@ class QuickActionItem {
 class QuickActionCatalog {
   static const items = <QuickActionItem>[
     QuickActionItem(
+      id: 'payment_code',
+      label: '校园卡付款码',
+      icon: Icons.qr_code_scanner_outlined,
+    ),
+    QuickActionItem(
       id: 'campus_card_recharge',
       label: '校园卡充值',
       icon: Icons.add_card_outlined,
@@ -28,6 +33,11 @@ class QuickActionCatalog {
       id: 'campus_card',
       label: '校园卡',
       icon: Icons.credit_card_outlined,
+    ),
+    QuickActionItem(
+      id: 'campus_card_loss',
+      label: '校园卡挂失',
+      icon: Icons.report_problem_outlined,
     ),
     QuickActionItem(
       id: 'empty_classroom',
@@ -85,6 +95,11 @@ class QuickActionCatalog {
       label: '图书荐购',
       icon: Icons.library_books_outlined,
     ),
+    QuickActionItem(
+      id: 'deepseek',
+      label: 'DeepSeek大模型',
+      icon: Icons.auto_awesome_outlined,
+    ),
     QuickActionItem(id: 'vpn', label: 'VPN转换', icon: Icons.vpn_lock_outlined),
     QuickActionItem(
       id: 'speed_test',
@@ -99,6 +114,7 @@ class QuickActionCatalog {
   ];
 
   static const defaultIds = <String>[
+    'payment_code',
     'campus_card',
     'campus_card_recharge',
     'ele_recharge',

@@ -34,7 +34,10 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
   Future<void> _launchExternal(Uri uri, String source) async {
     _logger.i('🚀 [校园卡支付] 外部拉起尝试($source): $uri');
     try {
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
       if (launched) {
         _logger.i('✅ [校园卡支付] 外部拉起结果($source): $launched');
         return;
@@ -48,7 +51,10 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
           final intentUri = _buildAlipayIntentUri(uri);
           if (intentUri != null) {
             _logger.i('🧭 [校园卡支付] 尝试 intent 兜底($source): $intentUri');
-            final intentLaunched = await launchUrl(intentUri, mode: LaunchMode.externalApplication);
+            final intentLaunched = await launchUrl(
+              intentUri,
+              mode: LaunchMode.externalApplication,
+            );
             _logger.i('✅ [校园卡支付] intent 兜底结果($source): $intentLaunched');
             return;
           }
@@ -61,12 +67,15 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
 
   Uri? _buildAlipayIntentUri(Uri uri) {
     if (uri.scheme.isEmpty || uri.host.isEmpty) return null;
-    final intentString = 'intent://${uri.host}${uri.path}${uri.hasQuery ? '?${uri.query}' : ''}#Intent;scheme=${uri.scheme};package=com.eg.android.AlipayGphone;end';
+    final intentString =
+        'intent://${uri.host}${uri.path}${uri.hasQuery ? '?${uri.query}' : ''}#Intent;scheme=${uri.scheme};package=com.eg.android.AlipayGphone;end';
     return Uri.tryParse(intentString);
   }
 
   Future<void> _startPayment() async {
-    _logger.i('🚀 [校园卡支付] 开始提交支付，amount=${widget.amount}, card=${widget.info.idserial}');
+    _logger.i(
+      '🚀 [校园卡支付] 开始提交支付，amount=${widget.amount}, card=${widget.info.idserial}',
+    );
     setState(() {
       _isConfirming = false;
       _isPaying = true;
@@ -75,7 +84,9 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
     try {
       final service = CampusCardService.instance;
       _htmlForm = await service.getAlipayForm(double.parse(widget.amount));
-      _logger.i('📄 [校园卡支付] 支付表单返回，length=${_htmlForm?.length ?? 0}, containsAlipayScheme=${_htmlForm?.contains('alipays://') == true || _htmlForm?.contains('alipay://') == true}');
+      _logger.i(
+        '📄 [校园卡支付] 支付表单返回，length=${_htmlForm?.length ?? 0}, containsAlipayScheme=${_htmlForm?.contains('alipays://') == true || _htmlForm?.contains('alipay://') == true}',
+      );
 
       if (mounted) {
         setState(() {});
@@ -103,7 +114,7 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const themeColor = Color(0xFF1677FF);
+    final themeColor = Theme.of(context).colorScheme.secondary;
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Container(
@@ -125,7 +136,9 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
               Icon(
                 _isSuccess
                     ? Icons.check_circle_outline
-                    : (_isPaying ? Icons.hourglass_empty : Icons.payment_outlined),
+                    : (_isPaying
+                          ? Icons.hourglass_empty
+                          : Icons.payment_outlined),
                 size: 20,
                 color: _isSuccess ? primaryColor : themeColor,
               ),
@@ -169,9 +182,15 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
             Center(
               child: Column(
                 children: [
-                  const CircularProgressIndicator(color: themeColor),
+                  CircularProgressIndicator(color: themeColor),
                   const SizedBox(height: 16),
-                  const Text('请在跳转后的支付宝中完成支付', style: TextStyle(fontSize: 14, color: Colors.black54)),
+                  Text(
+                    '请在跳转后的支付宝中完成支付',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -182,18 +201,37 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
               if (_isConfirming)
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text('取消', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                  child: Text(
+                    '取消',
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
                 ),
               if (_isConfirming) const SizedBox(width: 16),
               if (_isConfirming)
                 TextButton(
                   onPressed: _startPayment,
-                  child: const Text('确认支付', style: TextStyle(color: themeColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: Text(
+                    '确认支付',
+                    style: TextStyle(
+                      color: themeColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
               if (_isSuccess || _error != null)
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('确定', style: TextStyle(color: themeColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: Text(
+                    '确定',
+                    style: TextStyle(
+                      color: themeColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -227,22 +265,26 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
                       _handleSuccess();
                     }
                   },
-                  shouldOverrideUrlLoading: (controller, navigationAction) async {
-                    final uri = navigationAction.request.url;
-                    final url = uri?.toString() ?? '';
-                    _logger.i('🔀 [校园卡支付] shouldOverrideUrlLoading: $url');
+                  shouldOverrideUrlLoading:
+                      (controller, navigationAction) async {
+                        final uri = navigationAction.request.url;
+                        final url = uri?.toString() ?? '';
+                        _logger.i('🔀 [校园卡支付] shouldOverrideUrlLoading: $url');
 
-                    if (uri == null) {
-                      return NavigationActionPolicy.ALLOW;
-                    }
+                        if (uri == null) {
+                          return NavigationActionPolicy.ALLOW;
+                        }
 
-                    final scheme = uri.scheme.toLowerCase();
-                    if (scheme != 'http' && scheme != 'https') {
-                      await _launchExternal(uri, 'shouldOverrideUrlLoading');
-                      return NavigationActionPolicy.CANCEL;
-                    }
-                    return NavigationActionPolicy.ALLOW;
-                  },
+                        final scheme = uri.scheme.toLowerCase();
+                        if (scheme != 'http' && scheme != 'https') {
+                          await _launchExternal(
+                            uri,
+                            'shouldOverrideUrlLoading',
+                          );
+                          return NavigationActionPolicy.CANCEL;
+                        }
+                        return NavigationActionPolicy.ALLOW;
+                      },
                   onCreateWindow: (controller, createWindowAction) async {
                     final uri = createWindowAction.request.url;
                     final url = uri?.toString() ?? '';
@@ -253,7 +295,9 @@ class _CampusCardPaymentSheetState extends State<CampusCardPaymentSheet> {
                         await _launchExternal(uri, 'onCreateWindow');
                         return false;
                       }
-                      await controller.loadUrl(urlRequest: URLRequest(url: uri));
+                      await controller.loadUrl(
+                        urlRequest: URLRequest(url: uri),
+                      );
                     }
                     return false;
                   },

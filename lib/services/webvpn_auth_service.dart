@@ -19,7 +19,9 @@ class WebVpnAuthService {
         AppConstants.webvpnBaseUrl,
       );
 
-      if (await _hasWebVpnSession()) return true;
+      if (await _hasWebVpnSession() && await _isWebVpnSessionValid()) {
+        return true;
+      }
 
       final storage = SecureStorageHelper();
       final username = await storage.getUsername();
@@ -46,7 +48,8 @@ class WebVpnAuthService {
         final jsUsername = jsonEncode(username);
         final jsPassword = jsonEncode(password);
         final result = await controller.evaluateJavascript(
-          source: '''
+          source:
+              '''
             (async function() {
               const sleep = (ms) => new Promise(r => setTimeout(r, ms));
               for (let i = 0; i < 20; i++) {
@@ -112,7 +115,9 @@ class WebVpnAuthService {
           final urlString = url?.toString() ?? '';
           await AppCookieManager().syncMultiDomainCookiesFromWebView(urlString);
 
-          if (await _hasWebVpnSession()) {
+          if (await _hasWebVpnSession() &&
+              (_isAuthenticatedWebVpnUrl(urlString) || loginInjected) &&
+              await _isWebVpnSessionValid()) {
             completed = true;
             if (!completer.isCompleted) completer.complete(true);
             return;
@@ -155,6 +160,68 @@ class WebVpnAuthService {
     return _containsWebVpnSessionCookie(
       dioCookies.map((cookie) => cookie.name),
     );
+  }
+
+  Future<bool> _isWebVpnSessionValid() async {
+    final completer = Completer<bool>();
+    late final webview.HeadlessInAppWebView webView;
+
+    webView = webview.HeadlessInAppWebView(
+      initialSize: const Size(1080, 1920),
+      initialUrlRequest: webview.URLRequest(
+        url: webview.WebUri(AppConstants.webvpnPortalUrl),
+      ),
+      initialSettings: webview.InAppWebViewSettings(
+        javaScriptEnabled: true,
+        domStorageEnabled: true,
+        sharedCookiesEnabled: true,
+        thirdPartyCookiesEnabled: true,
+      ),
+      onLoadStop: (controller, url) async {
+        if (!completer.isCompleted) {
+          final hasLoginForm = await controller.evaluateJavascript(
+            source: '''
+              Boolean(document.querySelector(
+                'input[type="password"], input[name="username"], input.email-username'
+              ))
+            ''',
+          );
+          final isLoginForm =
+              hasLoginForm == true ||
+              hasLoginForm?.toString().toLowerCase() == 'true';
+          completer.complete(
+            _isAuthenticatedWebVpnUrl(url?.toString() ?? '') && !isLoginForm,
+          );
+        }
+      },
+      onReceivedError: (controller, request, error) {
+        if (request.isForMainFrame == true && !completer.isCompleted) {
+          completer.complete(false);
+        }
+      },
+    );
+
+    await webView.run();
+    try {
+      return await completer.future.timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => false,
+      );
+    } finally {
+      webView.dispose();
+    }
+  }
+
+  bool _isAuthenticatedWebVpnUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri?.host != Uri.parse(AppConstants.webvpnBaseUrl).host) {
+      return false;
+    }
+
+    final lowerUrl = url.toLowerCase();
+    return !lowerUrl.contains('/login') &&
+        !lowerUrl.contains('/cas/login') &&
+        !lowerUrl.contains('/authn/login');
   }
 
   bool _containsWebVpnSessionCookie(Iterable<String> names) {

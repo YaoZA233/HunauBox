@@ -26,16 +26,16 @@ class _SettingsPageState extends State<SettingsPage> {
   static const int _maxSelected = 8;
 
   final List<Color> _themeColors = [
-    const Color(0xFF1A73E8), // Google Blue (Default)
-    const Color(0xFFE53935), // Google Red
-    const Color(0xFF43A047), // Google Green
-    const Color(0xFFFB8C00), // Google Orange
-    const Color(0xFFD81B60), // Pink
-    const Color(0xFF8E24AA), // Purple
-    const Color(0xFF3949AB), // Deep Purple
-    const Color(0xFF039BE5), // Indigo
-    const Color(0xFF00ACC1), // Light Blue
-    const Color(0xFF00897B), // Teal
+    const Color(0xFF486A5A), // Fern
+    const Color(0xFF7A5C46), // Cedar
+    const Color(0xFFB05C4D), // Brick
+    const Color(0xFF9A6A3A), // Ochre
+    const Color(0xFF7A667C), // Plum
+    const Color(0xFF536C7A), // Slate blue
+    const Color(0xFF6F7B59), // Olive
+    const Color(0xFF8A5363), // Berry
+    const Color(0xFF4D7071), // Mineral
+    const Color(0xFF6C6A62), // Graphite
   ];
 
   @override
@@ -251,7 +251,7 @@ class _SettingsPageState extends State<SettingsPage> {
               const Divider(height: 1),
               const SizedBox(height: 16),
               const Text(
-                '上课通知',
+                '通知设置',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
@@ -294,7 +294,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             );
                           } else {
                             await CourseNotificationService.instance
-                                .cancelAll();
+                                .rescheduleIfEnabled();
                           }
                         },
                       ),
@@ -324,6 +324,93 @@ class _SettingsPageState extends State<SettingsPage> {
                               await _courseNotificationStore.save(updated);
                               await CourseNotificationService.instance
                                   .reschedule(minutesBefore: minutes);
+                            },
+                          ),
+                        ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('新消息通知'),
+                        subtitle: const Text('有新的校园通知时提醒你'),
+                        value: settings.messageEnabled,
+                        onChanged: (enabled) async {
+                          if (enabled) {
+                            final granted = await CourseNotificationService
+                                .instance
+                                .requestPermission();
+                            if (!granted) return;
+                          }
+                          await _courseNotificationStore.save(
+                            settings.copyWith(messageEnabled: enabled),
+                          );
+                        },
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('新作业通知'),
+                        subtitle: const Text('有新的待完成作业时提醒你'),
+                        value: settings.homeworkEnabled,
+                        onChanged: (enabled) async {
+                          if (enabled) {
+                            final granted = await CourseNotificationService
+                                .instance
+                                .requestPermission();
+                            if (!granted) return;
+                          }
+                          await _courseNotificationStore.save(
+                            settings.copyWith(homeworkEnabled: enabled),
+                          );
+                        },
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('作业截止提醒'),
+                        subtitle: Text(
+                          settings.homeworkDeadlineEnabled
+                              ? '将在截止前${settings.homeworkMinutesBefore}分钟通知你'
+                              : '开启后提醒待完成作业的截止时间',
+                        ),
+                        value: settings.homeworkDeadlineEnabled,
+                        onChanged: (enabled) async {
+                          if (enabled) {
+                            final granted = await CourseNotificationService
+                                .instance
+                                .requestPermission();
+                            if (!granted) return;
+                          }
+                          await _courseNotificationStore.save(
+                            settings.copyWith(homeworkDeadlineEnabled: enabled),
+                          );
+                          await CourseNotificationService.instance
+                              .rescheduleIfEnabled();
+                        },
+                      ),
+                      if (settings.homeworkDeadlineEnabled)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: DropdownButtonFormField<int>(
+                            value: settings.homeworkMinutesBefore,
+                            decoration: const InputDecoration(
+                              labelText: '作业截止提前提醒时间',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: const [10, 15, 20, 30]
+                                .map(
+                                  (minutes) => DropdownMenuItem(
+                                    value: minutes,
+                                    child: Text('提前$minutes分钟'),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (minutes) async {
+                              if (minutes == null) return;
+                              await _courseNotificationStore.save(
+                                settings.copyWith(
+                                  homeworkMinutesBefore: minutes,
+                                ),
+                              );
+                              await CourseNotificationService.instance
+                                  .rescheduleIfEnabled();
                             },
                           ),
                         ),

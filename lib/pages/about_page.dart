@@ -14,9 +14,9 @@ class AboutPage extends StatelessWidget {
       mode: LaunchMode.externalApplication,
     );
     if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('无法打开项目仓库链接')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('无法打开项目仓库链接')));
     }
   }
 
@@ -43,13 +43,21 @@ class AboutPage extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Icon(Icons.school_rounded, size: 48, color: colors.primary),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: Image.asset(
+                  'assets/icon.png',
+                  width: 88,
+                  height: 88,
+                  fit: BoxFit.cover,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 20),
           const Center(
             child: Text(
-              'Life@HUNAU',
+              'HunauBox',
               style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
             ),
           ),
@@ -71,7 +79,10 @@ class AboutPage extends StatelessWidget {
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('让校园事务更简单', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                Text(
+                  '让校园事务更简单',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
                 SizedBox(height: 10),
                 Text('聚合课表、成绩、校园服务和常用工具，让信息随手可得。'),
               ],
@@ -81,7 +92,7 @@ class AboutPage extends StatelessWidget {
           _AboutRow(
             icon: Icons.info_outline_rounded,
             label: '当前版本',
-            value: '1.0.0',
+            value: '1.0.1',
           ),
           const SizedBox(height: 10),
           _AboutRow(
@@ -92,7 +103,7 @@ class AboutPage extends StatelessWidget {
           ),
           const SizedBox(height: 32),
           Text(
-            'Life@HUNAU',
+            'HunauBox',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
           ),
@@ -134,11 +145,20 @@ class _AboutRow extends StatelessWidget {
             children: [
               Icon(icon, color: colors.primary),
               const SizedBox(width: 14),
-              Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
               Text(value, style: TextStyle(color: colors.onSurfaceVariant)),
               if (onTap != null) ...[
                 const SizedBox(width: 4),
-                Icon(Icons.open_in_new_rounded, size: 18, color: colors.onSurfaceVariant),
+                Icon(
+                  Icons.open_in_new_rounded,
+                  size: 18,
+                  color: colors.onSurfaceVariant,
+                ),
               ],
             ],
           ),

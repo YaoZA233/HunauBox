@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/score_model.dart';
 import '../providers/score_provider.dart';
+import 'score_analysis_page.dart';
 
 class ScorePage extends ConsumerWidget {
   const ScorePage({super.key});
@@ -21,7 +22,17 @@ class ScorePage extends ConsumerWidget {
         surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
-            onPressed: () => ref.read(scoreProvider.notifier).fetchInitialData(),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ScoreAnalysisPage()),
+              );
+            },
+            icon: const Icon(Icons.insights_rounded),
+            tooltip: '成绩分析',
+          ),
+          IconButton(
+            onPressed: () =>
+                ref.read(scoreProvider.notifier).fetchInitialData(),
             icon: const Icon(Icons.refresh),
             tooltip: '重新加载',
           ),
@@ -31,15 +42,17 @@ class ScorePage extends ConsumerWidget {
         children: [
           _buildSemesterPicker(context, ref, state),
           const Divider(height: 1),
-          Expanded(
-            child: _buildScoreList(context, ref, state),
-          ),
+          Expanded(child: _buildScoreList(context, ref, state)),
         ],
       ),
     );
   }
 
-  Widget _buildSemesterPicker(BuildContext context, WidgetRef ref, ScoreState state) {
+  Widget _buildSemesterPicker(
+    BuildContext context,
+    WidgetRef ref,
+    ScoreState state,
+  ) {
     if (state.semesters.isEmpty && !state.isLoading) {
       return const SizedBox.shrink();
     }
@@ -74,7 +87,10 @@ class ScorePage extends ConsumerWidget {
                         child: Text(
                           semester.name,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     )
@@ -91,7 +107,11 @@ class ScorePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildScoreList(BuildContext context, WidgetRef ref, ScoreState state) {
+  Widget _buildScoreList(
+    BuildContext context,
+    WidgetRef ref,
+    ScoreState state,
+  ) {
     if (state.isLoading && state.scores.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -110,7 +130,8 @@ class ScorePage extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             FilledButton.tonalIcon(
-              onPressed: () => ref.read(scoreProvider.notifier).fetchInitialData(),
+              onPressed: () =>
+                  ref.read(scoreProvider.notifier).fetchInitialData(),
               icon: const Icon(Icons.refresh),
               label: const Text('重试'),
             ),
@@ -121,10 +142,7 @@ class ScorePage extends ConsumerWidget {
 
     if (state.scores.isEmpty) {
       return Center(
-        child: Text(
-          '本学期暂无成绩数据',
-          style: TextStyle(color: Colors.grey[500]),
-        ),
+        child: Text('本学期暂无成绩数据', style: TextStyle(color: Colors.grey[500])),
       );
     }
 
@@ -165,7 +183,9 @@ class ScorePage extends ConsumerWidget {
       leading: CircleAvatar(
         backgroundColor: scoreColor.withOpacity(0.12),
         foregroundColor: scoreColor,
-        child: Icon(isFailed ? Icons.warning_amber_rounded : Icons.menu_book_rounded),
+        child: Icon(
+          isFailed ? Icons.warning_amber_rounded : Icons.menu_book_rounded,
+        ),
       ),
       title: Text(
         score.courseName,

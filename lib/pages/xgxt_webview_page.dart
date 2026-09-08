@@ -183,6 +183,7 @@ class _XgxtWebViewPageState extends State<XgxtWebViewPage> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Scaffold(
       body: _isPreparing
           ? Stack(
@@ -196,113 +197,118 @@ class _XgxtWebViewPageState extends State<XgxtWebViewPage> {
               ],
             )
           : _loginRequired
-              ? Stack(
+          ? Stack(
+              children: [
+                _buildLoginRequired(),
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  right: 16,
+                  child: _buildFloatingButtons(),
+                ),
+              ],
+            )
+          : Stack(
+              children: [
+                Column(
                   children: [
-                    _buildLoginRequired(),
-                    Positioned(
-                      top: MediaQuery.of(context).padding.top + 8,
-                      right: 16,
-                      child: _buildFloatingButtons(),
+                    Container(
+                      height: MediaQuery.of(context).padding.top,
+                      color: accent,
                     ),
-                  ],
-                )
-              : Stack(
-                  children: [
-                    Column(
-                      children: [
-                        Container(
-                          height: MediaQuery.of(context).padding.top,
-                          color: const Color(0xFF80CBC4),
-                        ),
-                        if (_progress < 1)
-                          LinearProgressIndicator(
-                            value: _progress,
-                            backgroundColor: Colors.grey[200],
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              Color(0xFF80CBC4),
-                            ),
+                    if (_progress < 1)
+                      LinearProgressIndicator(
+                        value: _progress,
+                        backgroundColor: Colors.grey[200],
+                        valueColor: AlwaysStoppedAnimation<Color>(accent),
+                      ),
+                    Expanded(
+                      child: InAppWebView(
+                        key: ValueKey('xgxt-webview-$_webViewKey'),
+                        initialUserScripts: UnmodifiableListView<UserScript>([
+                          UserScript(
+                            source:
+                                "try { localStorage.setItem('token', 'flutter_xgxt'); sessionStorage.setItem('token', 'flutter_xgxt'); } catch(e) {}",
+                            injectionTime:
+                                UserScriptInjectionTime.AT_DOCUMENT_START,
                           ),
-                        Expanded(
-                          child: InAppWebView(
-                            key: ValueKey('xgxt-webview-$_webViewKey'),
-                            initialUserScripts: UnmodifiableListView<UserScript>([
-                              UserScript(
-                                source: "try { localStorage.setItem('token', 'flutter_xgxt'); sessionStorage.setItem('token', 'flutter_xgxt'); } catch(e) {}",
-                                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-                              ),
-                            ]),
-                            initialSettings: InAppWebViewSettings(
-                              mixedContentMode:
-                                  MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
-                              javaScriptEnabled: true,
-                              domStorageEnabled: true,
-                              javaScriptCanOpenWindowsAutomatically: true,
-                              mediaPlaybackRequiresUserGesture: false,
-                              allowsInlineMediaPlayback: true,
-                              useShouldOverrideUrlLoading: true,
-                              supportZoom: true,
-                              builtInZoomControls: true,
-                              displayZoomControls: false,
-                              loadWithOverviewMode: true,
-                              useWideViewPort: true,
-                              thirdPartyCookiesEnabled: true,
-                              sharedCookiesEnabled: true,
-                              allowFileAccess: true,
-                              allowContentAccess: true,
-                              allowFileAccessFromFileURLs: true,
-                              allowUniversalAccessFromFileURLs: true,
-                              userAgent:
-                                  'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36',
-                              cacheMode: CacheMode.LOAD_DEFAULT,
-                            ),
-                            shouldOverrideUrlLoading:
-                                (controller, navigationAction) async {
-                                  final uri = navigationAction.request.url;
-                                  if (uri == null) return NavigationActionPolicy.ALLOW;
-                                  final urlString = uri.toString();
-                                  final scheme = uri.scheme;
-                                  if (scheme != 'http' && scheme != 'https') {
-                                    return NavigationActionPolicy.CANCEL;
-                                  }
-                                  final whiteList = [
-                                    'hunau.edu.cn',
-                                    'chaoxing.com',
-                                    'authorize',
-                                    'login',
-                                  ];
-                                  final isAllowed = whiteList.any((d) => urlString.contains(d));
-                                  if (!isAllowed) {
-                                    return NavigationActionPolicy.CANCEL;
-                                  }
-                                  return NavigationActionPolicy.ALLOW;
-                                },
-                            onWebViewCreated: (controller) async {
-                              _webViewController = controller;
-                              await AppCookieManager().syncMultiDomainCookiesToWebView(
+                        ]),
+                        initialSettings: InAppWebViewSettings(
+                          mixedContentMode:
+                              MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+                          javaScriptEnabled: true,
+                          domStorageEnabled: true,
+                          javaScriptCanOpenWindowsAutomatically: true,
+                          mediaPlaybackRequiresUserGesture: false,
+                          allowsInlineMediaPlayback: true,
+                          useShouldOverrideUrlLoading: true,
+                          supportZoom: true,
+                          builtInZoomControls: true,
+                          displayZoomControls: false,
+                          loadWithOverviewMode: true,
+                          useWideViewPort: true,
+                          thirdPartyCookiesEnabled: true,
+                          sharedCookiesEnabled: true,
+                          allowFileAccess: true,
+                          allowContentAccess: true,
+                          allowFileAccessFromFileURLs: true,
+                          allowUniversalAccessFromFileURLs: true,
+                          userAgent:
+                              'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36',
+                          cacheMode: CacheMode.LOAD_DEFAULT,
+                        ),
+                        shouldOverrideUrlLoading:
+                            (controller, navigationAction) async {
+                              final uri = navigationAction.request.url;
+                              if (uri == null)
+                                return NavigationActionPolicy.ALLOW;
+                              final urlString = uri.toString();
+                              final scheme = uri.scheme;
+                              if (scheme != 'http' && scheme != 'https') {
+                                return NavigationActionPolicy.CANCEL;
+                              }
+                              final whiteList = [
+                                'hunau.edu.cn',
+                                'chaoxing.com',
+                                'authorize',
+                                'login',
+                              ];
+                              final isAllowed = whiteList.any(
+                                (d) => urlString.contains(d),
+                              );
+                              if (!isAllowed) {
+                                return NavigationActionPolicy.CANCEL;
+                              }
+                              return NavigationActionPolicy.ALLOW;
+                            },
+                        onWebViewCreated: (controller) async {
+                          _webViewController = controller;
+                          await AppCookieManager()
+                              .syncMultiDomainCookiesToWebView(
                                 AppConstants.xgxtBaseUrl,
                               );
-                              if (_initialUrl.isNotEmpty) {
-                                await controller.loadUrl(
-                                  urlRequest: URLRequest(url: WebUri(_initialUrl)),
-                                );
-                              }
-                            },
-                            onLoadStart: (controller, url) {
-                              if (!mounted) return;
-                              _startLoadTimeout();
-                              setState(() {
-                                _isPreparing = false;
-                                _errorMessage = null;
-                                _progress = 0;
-                              });
-                            },
-                            onLoadStop: (controller, url) async {
-                              _cancelLoadTimeout();
-                              final urlString = url?.toString() ?? '';
-                              if (urlString.contains('authorize') ||
-                                  urlString.contains('login') ||
-                                  urlString.contains('ticket=')) {
-                                await controller.evaluateJavascript(source: """
+                          if (_initialUrl.isNotEmpty) {
+                            await controller.loadUrl(
+                              urlRequest: URLRequest(url: WebUri(_initialUrl)),
+                            );
+                          }
+                        },
+                        onLoadStart: (controller, url) {
+                          if (!mounted) return;
+                          _startLoadTimeout();
+                          setState(() {
+                            _isPreparing = false;
+                            _errorMessage = null;
+                            _progress = 0;
+                          });
+                        },
+                        onLoadStop: (controller, url) async {
+                          _cancelLoadTimeout();
+                          final urlString = url?.toString() ?? '';
+                          if (urlString.contains('authorize') ||
+                              urlString.contains('login') ||
+                              urlString.contains('ticket=')) {
+                            await controller.evaluateJavascript(
+                              source: """
                                   (function() {
                                     const keywords = ['授权', '同意', '进入', '确认', 'Continue', 'Authorize', 'Confirm'];
                                     const btns = Array.from(document.querySelectorAll('button, a, input[type="button"]'));
@@ -312,107 +318,111 @@ class _XgxtWebViewPageState extends State<XgxtWebViewPage> {
                                     });
                                     if (target) target.click();
                                   })();
-                                """);
-                              }
+                                """,
+                            );
+                          }
+                          if (!mounted) return;
+                          setState(() {
+                            _errorMessage = null;
+                          });
+                        },
+                        onProgressChanged: (controller, progress) {
+                          setState(() {
+                            _progress = progress / 100.0;
+                          });
+                        },
+                        onLoadError: (controller, url, code, message) {
+                          if (!mounted) return;
+                          _handleLoadError('加载失败: $message');
+                        },
+                        onLoadHttpError:
+                            (controller, url, statusCode, description) {
                               if (!mounted) return;
-                              setState(() {
-                                _errorMessage = null;
-                              });
+                              _handleHttpError(statusCode, description);
                             },
-                            onProgressChanged: (controller, progress) {
-                              setState(() {
-                                _progress = progress / 100.0;
-                              });
-                            },
-                            onLoadError: (controller, url, code, message) {
-                              if (!mounted) return;
-                              _handleLoadError('加载失败: $message');
-                            },
-                            onLoadHttpError:
-                                (controller, url, statusCode, description) {
-                                  if (!mounted) return;
-                                  _handleHttpError(statusCode, description);
-                                },
-                            onReceivedError: (controller, request, error) {
-                              if (!mounted) return;
-                              _handleLoadError('WebView错误: ${error.description}');
-                            },
-                            onPermissionRequest: (controller, request) async {
-                              return PermissionResponse(
-                                resources: request.resources,
-                                action: PermissionResponseAction.GRANT,
-                              );
-                            },
-                            onCreateWindow: (controller, createWindowAction) async {
-                              if (createWindowAction.request.url != null) {
-                                await controller.loadUrl(
-                                  urlRequest: createWindowAction.request,
-                                );
-                              }
-                              return true;
-                            },
-                            onJsPrompt: (controller, jsPromptRequest) async {
-                              return JsPromptResponse(handledByClient: false);
-                            },
-                            onConsoleMessage: (controller, consoleMessage) {
-                              // 调试用，生产环境可移除
-                            },
-                            onReceivedHttpAuthRequest: (controller, request) async {
-                              return HttpAuthResponse(
-                                username: '',
-                                password: '',
-                                action: HttpAuthResponseAction.PROCEED,
-                              );
-                            },
-                            onReceivedServerTrustAuthRequest: (controller, challenge) async {
+                        onReceivedError: (controller, request, error) {
+                          if (!mounted) return;
+                          _handleLoadError('WebView错误: ${error.description}');
+                        },
+                        onPermissionRequest: (controller, request) async {
+                          return PermissionResponse(
+                            resources: request.resources,
+                            action: PermissionResponseAction.GRANT,
+                          );
+                        },
+                        onCreateWindow: (controller, createWindowAction) async {
+                          if (createWindowAction.request.url != null) {
+                            await controller.loadUrl(
+                              urlRequest: createWindowAction.request,
+                            );
+                          }
+                          return true;
+                        },
+                        onJsPrompt: (controller, jsPromptRequest) async {
+                          return JsPromptResponse(handledByClient: false);
+                        },
+                        onConsoleMessage: (controller, consoleMessage) {
+                          // 调试用，生产环境可移除
+                        },
+                        onReceivedHttpAuthRequest: (controller, request) async {
+                          return HttpAuthResponse(
+                            username: '',
+                            password: '',
+                            action: HttpAuthResponseAction.PROCEED,
+                          );
+                        },
+                        onReceivedServerTrustAuthRequest:
+                            (controller, challenge) async {
                               return ServerTrustAuthResponse(
                                 action: ServerTrustAuthResponseAction.PROCEED,
                               );
                             },
-                          ),
+                      ),
+                    ),
+                    if (_errorMessage != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
                         ),
-                        if (_errorMessage != null)
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                        color: const Color(0xFFFFF4F4),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              color: Color(0xFFC62828),
                             ),
-                            color: const Color(0xFFFFF4F4),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.error_outline,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: const TextStyle(
                                   color: Color(0xFFC62828),
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _errorMessage!,
-                                    style: const TextStyle(color: Color(0xFFC62828)),
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _errorMessage = null;
-                                      _webViewKey += 1;
-                                    });
-                                  },
-                                  child: const Text('重试'),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
-                      ],
-                    ),
-                    Positioned(
-                      top: MediaQuery.of(context).padding.top + 8,
-                      right: 16,
-                      child: _buildFloatingButtons(),
-                    ),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _errorMessage = null;
+                                  _webViewKey += 1;
+                                });
+                              },
+                              child: const Text('重试'),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  right: 16,
+                  child: _buildFloatingButtons(),
+                ),
+              ],
+            ),
     );
   }
 
@@ -517,7 +527,11 @@ class _XgxtWebViewPageState extends State<XgxtWebViewPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.lock_outline, size: 48, color: Color(0xFF80CBC4)),
+            Icon(
+              Icons.lock_outline,
+              size: 48,
+              color: Theme.of(context).colorScheme.primary,
+            ),
             const SizedBox(height: 12),
             const Text(
               '登录后可进入学工系统',
@@ -527,7 +541,7 @@ class _XgxtWebViewPageState extends State<XgxtWebViewPage> {
               const SizedBox(height: 8),
               Text(
                 _errorMessage!,
-                style: const TextStyle(color: Colors.redAccent),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
             const SizedBox(height: 16),
@@ -537,7 +551,7 @@ class _XgxtWebViewPageState extends State<XgxtWebViewPage> {
               child: ElevatedButton(
                 onPressed: _openLoginSheet,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF80CBC4),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
                 ),
                 child: const Text('去登录'),

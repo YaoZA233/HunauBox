@@ -19,7 +19,8 @@ class DownloadTimetableScreen extends StatefulWidget {
   const DownloadTimetableScreen({super.key});
 
   @override
-  State<DownloadTimetableScreen> createState() => _DownloadTimetableScreenState();
+  State<DownloadTimetableScreen> createState() =>
+      _DownloadTimetableScreenState();
 }
 
 class _DownloadTimetableScreenState extends State<DownloadTimetableScreen> {
@@ -67,38 +68,54 @@ class _DownloadTimetableScreenState extends State<DownloadTimetableScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    InputDecoration md2InputDecoration(String label, IconData icon) => InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(
-        color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF5F6368),
-        fontWeight: FontWeight.w400,
-        fontSize: 14,
-      ),
-      floatingLabelStyle: TextStyle(color: theme.primaryColor, fontWeight: FontWeight.bold, fontSize: 16),
-      floatingLabelBehavior: FloatingLabelBehavior.auto,
-      prefixIcon: Icon(icon, size: 20),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: BorderSide(
-          color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : const Color(0xFFDADCE0),
-          width: 1,
-        ),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: BorderSide(
-          color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : const Color(0xFFDADCE0),
-          width: 1,
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: BorderSide(color: theme.primaryColor, width: 2),
-      ),
-      filled: true,
-      fillColor: Theme.of(context).brightness == Brightness.dark ? Colors.white.withOpacity(0.05) : Colors.white,
-    );
+    InputDecoration md2InputDecoration(String label, IconData icon) =>
+        InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white70
+                : const Color(0xFF5F6368),
+            fontWeight: FontWeight.w400,
+            fontSize: 14,
+          ),
+          floatingLabelStyle: TextStyle(
+            color: theme.primaryColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+          floatingLabelBehavior: FloatingLabelBehavior.auto,
+          prefixIcon: Icon(icon, size: 20),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 14,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white24
+                  : const Color(0xFFDADCE0),
+              width: 1,
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white24
+                  : const Color(0xFFDADCE0),
+              width: 1,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: theme.primaryColor, width: 2),
+          ),
+          filled: true,
+          fillColor: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white.withOpacity(0.05)
+              : Colors.white,
+        );
 
     return PopScope(
       canPop: !_isLoading,
@@ -113,8 +130,12 @@ class _DownloadTimetableScreenState extends State<DownloadTimetableScreen> {
             icon: Icon(
               Icons.close,
               color: _isLoading
-                  ? (Theme.of(context).brightness == Brightness.dark ? Colors.grey[800] : Colors.grey[300])
-                  : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF5F6368)),
+                  ? (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[800]
+                        : Colors.grey[300])
+                  : (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white70
+                        : const Color(0xFF5F6368)),
             ),
             onPressed: _isLoading ? null : () => Navigator.pop(context),
           ),
@@ -126,11 +147,16 @@ class _DownloadTimetableScreenState extends State<DownloadTimetableScreen> {
               const SizedBox(height: 24),
               DropdownButtonFormField<String>(
                 value: _selectedSemester,
-                decoration: md2InputDecoration('学年学期', Icons.calendar_today_outlined),
+                decoration: md2InputDecoration(
+                  '学年学期',
+                  Icons.calendar_today_outlined,
+                ),
                 isExpanded: true,
                 icon: Icon(
                   Icons.arrow_drop_down,
-                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF5F6368),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white70
+                      : const Color(0xFF5F6368),
                 ),
                 dropdownColor: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(6),
@@ -159,10 +185,17 @@ class _DownloadTimetableScreenState extends State<DownloadTimetableScreen> {
                           ? '${_selectedDate!.year}年${_selectedDate!.month}月${_selectedDate!.day}日'
                           : '',
                     ),
-                    decoration: md2InputDecoration('第一周周一', Icons.date_range_outlined).copyWith(
-                      hintText: '请选择日期',
-                      suffixIcon: const Icon(Icons.edit_calendar_outlined, size: 18),
-                    ),
+                    decoration:
+                        md2InputDecoration(
+                          '第一周周一',
+                          Icons.date_range_outlined,
+                        ).copyWith(
+                          hintText: '请选择日期',
+                          suffixIcon: const Icon(
+                            Icons.edit_calendar_outlined,
+                            size: 18,
+                          ),
+                        ),
                     readOnly: true,
                   ),
                 ),
@@ -190,11 +223,20 @@ class _DownloadTimetableScreenState extends State<DownloadTimetableScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.primaryColor,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor: theme.primaryColor.withOpacity(0.12),
-                    disabledForegroundColor: theme.primaryColor.withOpacity(0.38),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    disabledBackgroundColor: theme.primaryColor.withOpacity(
+                      0.12,
+                    ),
+                    disabledForegroundColor: theme.primaryColor.withOpacity(
+                      0.38,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     minimumSize: const Size(88, 36),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                     elevation: 0,
                   ),
                   icon: const Icon(Icons.download_rounded, size: 18),
@@ -225,18 +267,7 @@ class _DownloadTimetableScreenState extends State<DownloadTimetableScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             useMaterial3: true,
-            colorScheme: Theme.of(context).brightness == Brightness.dark
-                ? const ColorScheme.dark(
-                    primary: Colors.orange,
-                    onPrimary: Colors.black,
-                    surface: Color(0xFF1E1E1E),
-                  )
-                : ColorScheme.light(
-                    primary: Theme.of(context).primaryColor,
-                    onPrimary: Colors.white,
-                    surface: Colors.white,
-                    onSurface: const Color(0xFF202124),
-                  ),
+            colorScheme: Theme.of(context).colorScheme,
           ),
           child: child!,
         );
@@ -259,7 +290,9 @@ class _DownloadTimetableScreenState extends State<DownloadTimetableScreen> {
   Future<void> _confirm() async {
     if (_selectedSemester == null || _selectedDate == null) return;
 
-    setState(() { _isLoading = true; });
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
       final courses = await _timetableService.downloadAndSaveTimetable(
@@ -277,11 +310,17 @@ class _DownloadTimetableScreenState extends State<DownloadTimetableScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('导入失败: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('导入失败: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     } finally {
-      if (mounted) setState(() { _isLoading = false; });
+      if (mounted)
+        setState(() {
+          _isLoading = false;
+        });
     }
   }
 }

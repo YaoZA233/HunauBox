@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/message_model.dart';
 import '../services/notice_service.dart';
 import '../services/app_logger.dart';
+import '../services/course_notification_service.dart';
 
 class NoticeState {
   final List<MessageModel> messages;
@@ -51,7 +52,12 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
   Future<void> refresh() async {
     if (state.isLoading) return;
 
-    state = state.copyWith(isLoading: true, errorMessage: null, nextLastValue: null, hasMore: true);
+    state = state.copyWith(
+      isLoading: true,
+      errorMessage: null,
+      nextLastValue: null,
+      hasMore: true,
+    );
 
     try {
       final result = await _service.fetchMessageList();
@@ -60,6 +66,9 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
         nextLastValue: result.nextLastValue,
         hasMore: result.hasMore,
         isLoading: false,
+      );
+      await CourseNotificationService.instance.notifyNewMessages(
+        result.messages,
       );
       _logger.i('Notice refreshed: ${result.messages.length} messages');
     } catch (e) {
@@ -74,7 +83,9 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
     state = state.copyWith(isLoadingMore: true);
 
     try {
-      final result = await _service.fetchMessageList(lastValue: state.nextLastValue);
+      final result = await _service.fetchMessageList(
+        lastValue: state.nextLastValue,
+      );
       state = state.copyWith(
         messages: [...state.messages, ...result.messages],
         nextLastValue: result.nextLastValue,
@@ -87,7 +98,7 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
       _logger.e('Failed to load more notices: $e');
     }
   }
-  
+
   void markAsRead(String idCode) {
     state = state.copyWith(
       messages: state.messages.map((m) {
@@ -109,12 +120,14 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
       }).toList(),
     );
   }
-  
+
   void clear() {
     state = NoticeState();
   }
 }
 
-final noticeProvider = StateNotifierProvider<NoticeNotifier, NoticeState>((ref) {
+final noticeProvider = StateNotifierProvider<NoticeNotifier, NoticeState>((
+  ref,
+) {
   return NoticeNotifier();
 });

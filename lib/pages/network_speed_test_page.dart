@@ -9,11 +9,14 @@ class NetworkSpeedTestPage extends StatefulWidget {
   State<NetworkSpeedTestPage> createState() => _NetworkSpeedTestPageState();
 }
 
-class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with SingleTickerProviderStateMixin {
-  final Dio _dio = Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 30),
-  ));
+class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage>
+    with SingleTickerProviderStateMixin {
+  final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 30),
+    ),
+  );
   CancelToken? _cancelToken;
 
   bool _isTesting = false;
@@ -30,7 +33,10 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat(reverse: true);
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat(reverse: true);
     _scaleAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
     );
@@ -45,6 +51,7 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
   }
 
   Future<void> _startTest() async {
+    final colors = Theme.of(context).colorScheme;
     if (_isTesting) {
       _cancelToken?.cancel("用户取消测速");
       setState(() {
@@ -52,7 +59,7 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
         _progress = 0;
         _currentSpeedMbps = 0;
         _networkQuality = '已取消';
-        _qualityColor = Colors.orange;
+        _qualityColor = colors.tertiary;
       });
       return;
     }
@@ -64,7 +71,7 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
       _progress = 0.0;
       _networkQuality = '测速中...';
       _qualityIcon = Icons.sensors;
-      _qualityColor = Colors.blue;
+      _qualityColor = colors.primary;
     });
 
     _cancelToken = CancelToken();
@@ -101,7 +108,8 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
             if (timePassed >= 200 || (total > 0 && received == total)) {
               final int bytesPassed = received - lastReceivedBytes;
               if (bytesPassed > 0 && timePassed > 0) {
-                final double speedBytesPerSec = bytesPassed / (timePassed / 1000.0);
+                final double speedBytesPerSec =
+                    bytesPassed / (timePassed / 1000.0);
                 final double speedMbps = (speedBytesPerSec * 8) / (1024 * 1024);
 
                 if (speedMbps > 0) {
@@ -114,7 +122,10 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
                     if (total > 0) {
                       _progress = received / total;
                     } else {
-                      _progress = (received / (10 * 1024 * 1024)).clamp(0.0, 0.99);
+                      _progress = (received / (10 * 1024 * 1024)).clamp(
+                        0.0,
+                        0.99,
+                      );
                     }
                   });
                 }
@@ -145,7 +156,7 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
           _isTesting = false;
           _networkQuality = '测速失败';
           _qualityIcon = Icons.error_outline;
-          _qualityColor = Colors.red;
+          _qualityColor = colors.error;
         });
       }
     }
@@ -153,13 +164,17 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
 
   void _calculateFinalResult(List<double> samples) {
     if (!mounted) return;
+    final colors = Theme.of(context).colorScheme;
 
     double avg = 0;
     if (samples.isNotEmpty) {
       // 排除极端抖动的数据（去掉最高和最低的一部分，取稳定的平均值）
       samples.sort();
       int dropCount = (samples.length * 0.1).floor(); // 丢弃前后 10%
-      final validSamples = samples.sublist(dropCount, samples.length - dropCount);
+      final validSamples = samples.sublist(
+        dropCount,
+        samples.length - dropCount,
+      );
       if (validSamples.isNotEmpty) {
         avg = validSamples.reduce((a, b) => a + b) / validSamples.length;
       } else {
@@ -168,24 +183,24 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
     }
 
     String desc = '--';
-    Color color = Colors.grey;
+    Color color = colors.outline;
     IconData icon = Icons.wifi;
 
     if (avg >= 50) {
       desc = '极佳';
-      color = Colors.green;
+      color = colors.primary;
       icon = Icons.network_wifi_3_bar;
     } else if (avg >= 20) {
       desc = '流畅';
-      color = Colors.lightBlue;
+      color = colors.secondary;
       icon = Icons.network_wifi_2_bar;
     } else if (avg >= 5) {
       desc = '一般';
-      color = Colors.orange;
+      color = colors.tertiary;
       icon = Icons.network_wifi_1_bar;
     } else {
       desc = '较差';
-      color = Colors.red;
+      color = colors.error;
       icon = Icons.network_wifi_1_bar;
     }
 
@@ -202,13 +217,20 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: colors.surface,
       appBar: AppBar(
-        title: const Text('测速工具', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        title: Text(
+          '测速工具',
+          style: TextStyle(
+            color: colors.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
+        iconTheme: IconThemeData(color: colors.onSurface),
       ),
       body: SafeArea(
         child: Padding(
@@ -217,7 +239,7 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 40),
-              
+
               // 测速仪表盘 UI
               Center(
                 child: SizedBox(
@@ -233,11 +255,11 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
                           child: Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.blue.withValues(alpha: 0.15),
+                              color: colors.primary.withValues(alpha: 0.15),
                             ),
                           ),
                         ),
-                      
+
                       // 进度环
                       SizedBox(
                         width: 240,
@@ -246,22 +268,30 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
                           value: _isTesting ? _progress : 1.0,
                           strokeWidth: 8,
                           backgroundColor: Colors.grey[300],
-                          valueColor: AlwaysStoppedAnimation<Color>(_isTesting ? Colors.blue : _qualityColor),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            _isTesting ? colors.primary : _qualityColor,
+                          ),
                         ),
                       ),
-                      
+
                       // 内部数值展示
                       Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(_qualityIcon, size: 36, color: _isTesting ? Colors.blue : _qualityColor),
+                          Icon(
+                            _qualityIcon,
+                            size: 36,
+                            color: _isTesting ? colors.primary : _qualityColor,
+                          ),
                           const SizedBox(height: 12),
                           Text(
                             _currentSpeedMbps.toStringAsFixed(1),
                             style: TextStyle(
-                              fontSize: 48, 
+                              fontSize: 48,
                               fontWeight: FontWeight.w900,
-                              color: _isTesting ? Colors.black87 : _qualityColor,
+                              color: _isTesting
+                                  ? colors.onSurface
+                                  : _qualityColor,
                             ),
                           ),
                           const Text(
@@ -284,10 +314,14 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
               // 测速信息卡片
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: colors.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4)),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
                   ],
                 ),
                 padding: const EdgeInsets.all(24),
@@ -295,8 +329,16 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _buildInfoColumn('网络质量', _networkQuality, _qualityColor),
-                    Container(height: 40, width: 1, color: Colors.grey.withValues(alpha: 0.2)),
-                    _buildInfoColumn('平均网速', '${_avgSpeedMbps.toStringAsFixed(1)} M', Colors.black87),
+                    Container(
+                      height: 40,
+                      width: 1,
+                      color: Colors.grey.withValues(alpha: 0.2),
+                    ),
+                    _buildInfoColumn(
+                      '平均网速',
+                      '${_avgSpeedMbps.toStringAsFixed(1)} M',
+                      colors.onSurface,
+                    ),
                   ],
                 ),
               ),
@@ -310,13 +352,19 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
                 child: ElevatedButton(
                   onPressed: _startTest,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _isTesting ? Colors.redAccent : Colors.blueAccent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                    backgroundColor: _isTesting ? colors.error : colors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
                     elevation: 0,
                   ),
                   child: Text(
                     _isTesting ? '停止测速' : '开始测速',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -331,14 +379,15 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage> with Single
   Widget _buildInfoColumn(String title, String value, Color valueColor) {
     return Column(
       children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 14, color: Colors.grey),
-        ),
+        Text(title, style: const TextStyle(fontSize: 14, color: Colors.grey)),
         const SizedBox(height: 8),
         Text(
           value,
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: valueColor),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: valueColor,
+          ),
         ),
       ],
     );

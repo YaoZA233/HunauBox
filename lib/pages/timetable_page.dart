@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/course_model.dart';
 import '../services/timetable_storage.dart';
 import '../utils/ics_parser.dart';
+import '../utils/ics_generator.dart';
 import '../widgets/download_timetable_screen.dart';
 import '../widgets/empty_timetable_state.dart';
 import '../widgets/weekly_calendar_view.dart';
@@ -39,6 +44,15 @@ class _TimetablePageState extends State<TimetablePage> {
           IconButton(
             onPressed: _isLoading ? null : _openDownload,
             icon: const Icon(Icons.download_outlined),
+            tooltip: '导入课表',
+          ),
+          IconButton(
+            onPressed:
+                _isLoading || _courses.isEmpty || _firstWeekMonday == null
+                ? null
+                : _exportIcs,
+            icon: const Icon(Icons.ios_share_outlined),
+            tooltip: '导出 ICS',
           ),
           IconButton(
             onPressed: _isLoading ? null : _handleTodayClick,
@@ -92,7 +106,9 @@ class _TimetablePageState extends State<TimetablePage> {
           final courses = IcsParser.parse(icsContent);
           DateTime? firstWeekMonday;
           if (metadata != null && metadata['firstWeekMonday'] != null) {
-            firstWeekMonday = DateTime.parse(metadata['firstWeekMonday'] as String);
+            firstWeekMonday = DateTime.parse(
+              metadata['firstWeekMonday'] as String,
+            );
           }
 
           setState(() {
@@ -138,6 +154,29 @@ class _TimetablePageState extends State<TimetablePage> {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _exportIcs() async {
+    final firstWeekMonday = _firstWeekMonday;
+    if (_courses.isEmpty || firstWeekMonday == null) return;
+
+    try {
+      final directory = await getTemporaryDirectory();
+      final file = File('${directory.path}/hunau_timetable.ics');
+      final ics = IcsGenerator.generate(_courses, firstWeekMonday);
+      await file.writeAsString(ics, flush: true);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'text/calendar')],
+          subject: '湖南农业大学课表',
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('导出课表失败：$e')));
     }
   }
 }

@@ -64,8 +64,8 @@ class MainNavigator extends ConsumerWidget {
       backgroundColor: hasBackground
           ? Colors.transparent
           : isDark
-          ? const Color(0xFF202623)
-          : const Color(0xFFDCE5E0),
+          ? const Color(0xFF18221D)
+          : const Color(0xFFE2E8E1),
       body: Row(
         children: [
           SizedBox(
@@ -102,8 +102,8 @@ class _SideRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final foreground = isDark
-        ? const Color(0xFFE6ECE8)
-        : const Color(0xFF33423A);
+        ? const Color(0xFFE8EEE8)
+        : const Color(0xFF3D5145);
 
     return SafeArea(
       child: Padding(

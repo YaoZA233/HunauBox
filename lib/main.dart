@@ -37,12 +37,12 @@ class SmartHunanAgriApp extends ConsumerWidget {
         dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
       );
       final surface = isDark
-          ? const Color(0xFF101412)
-          : const Color(0xFFF5F7F4);
-      final card = isDark ? const Color(0xFF1A201C) : const Color(0xFFFFFFFF);
+          ? const Color(0xFF121716)
+          : const Color(0xFFF7F8F5);
+      final card = isDark ? const Color(0xFF1D2522) : const Color(0xFFFFFEFA);
       final outline = isDark
-          ? const Color(0xFF3E4941)
-          : const Color(0xFFDCE4DD);
+          ? const Color(0xFF45534D)
+          : const Color(0xFFD9E1DA);
       final textTheme = ThemeData(brightness: brightness).textTheme.apply(
         bodyColor: scheme.onSurface,
         displayColor: scheme.onSurface,
@@ -110,7 +110,7 @@ class SmartHunanAgriApp extends ConsumerWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: isDark ? const Color(0xFF202720) : const Color(0xFFF0F3F0),
+          fillColor: isDark ? const Color(0xFF252F2B) : const Color(0xFFF0F3EE),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 16,
@@ -150,8 +150,8 @@ class SmartHunanAgriApp extends ConsumerWidget {
         snackBarTheme: SnackBarThemeData(
           behavior: SnackBarBehavior.floating,
           backgroundColor: isDark
-              ? const Color(0xFF283129)
-              : const Color(0xFF253127),
+              ? const Color(0xFF2B3832)
+              : const Color(0xFF30483B),
           contentTextStyle: TextStyle(
             color: isDark ? scheme.onSurface : Colors.white,
           ),

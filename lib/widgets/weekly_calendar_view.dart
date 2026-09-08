@@ -26,7 +26,9 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
   @override
   void initState() {
     super.initState();
-    final initialWeek = DateCalculator.getCurrentWeekNumber(widget.firstWeekMonday);
+    final initialWeek = DateCalculator.getCurrentWeekNumber(
+      widget.firstWeekMonday,
+    );
     _currentWeekNumber = initialWeek.clamp(1, 20);
     _pageController = PageController(initialPage: _currentWeekNumber - 1);
   }
@@ -71,7 +73,10 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
             },
             itemBuilder: (context, index) {
               final weekNum = index + 1;
-              final monday = DateCalculator.getWeekMonday(widget.firstWeekMonday, weekNum);
+              final monday = DateCalculator.getWeekMonday(
+                widget.firstWeekMonday,
+                weekNum,
+              );
               return _buildTimetableGrid(monday, weekNum);
             },
           ),
@@ -80,7 +85,11 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
     );
   }
 
-  Widget _buildWeekNavigation(int weekNumber, DateTime monday, DateTime sunday) {
+  Widget _buildWeekNavigation(
+    int weekNumber,
+    DateTime monday,
+    DateTime sunday,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -96,7 +105,7 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
               fontWeight: FontWeight.bold,
               color: Theme.of(context).brightness == Brightness.dark
                   ? Colors.white
-                  : const Color(0xFF2D3436),
+                  : Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const Spacer(),
@@ -106,7 +115,7 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
               fontSize: 12,
               color: Theme.of(context).brightness == Brightness.dark
                   ? Colors.white54
-                  : const Color(0xFF636E72),
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -123,7 +132,8 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
         const double sectionHeight = 100.0;
         const double targetGap = 4.0;
         const int totalBigSections = 6;
-        final double totalHeight = totalBigSections * (sectionHeight + targetGap) + 40.0;
+        final double totalHeight =
+            totalBigSections * (sectionHeight + targetGap) + 40.0;
 
         return SingleChildScrollView(
           scrollDirection: Axis.vertical,
@@ -140,8 +150,17 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
                   width: screenWidth,
                   child: Stack(
                     children: [
-                      _buildFixedTimeAxis(totalBigSections, sectionHeight, targetGap),
-                      ..._buildFixedCourseBlocks(weekCourses, screenWidth, sectionHeight, targetGap),
+                      _buildFixedTimeAxis(
+                        totalBigSections,
+                        sectionHeight,
+                        targetGap,
+                      ),
+                      ..._buildFixedCourseBlocks(
+                        weekCourses,
+                        screenWidth,
+                        sectionHeight,
+                        targetGap,
+                      ),
                     ],
                   ),
                 ),
@@ -170,7 +189,13 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(labels[index], style: const TextStyle(fontSize: 11)),
-                  Text('${day.month}/${day.day}', style: const TextStyle(fontSize: 10, color: Color(0xFF636E72))),
+                  Text(
+                    '${day.month}/${day.day}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
             );
@@ -198,7 +223,7 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
           margin: EdgeInsets.only(bottom: gap),
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 times[index][0],
@@ -206,8 +231,17 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
                   fontSize: 11,
                   color: Theme.of(context).brightness == Brightness.dark
                       ? Colors.white54
-                      : const Color(0xFF636E72),
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                times[index][1],
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white54
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -217,7 +251,12 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
     );
   }
 
-  List<Widget> _buildFixedCourseBlocks(List<CourseModel> courses, double screenWidth, double blockHeight, double gap) {
+  List<Widget> _buildFixedCourseBlocks(
+    List<CourseModel> courses,
+    double screenWidth,
+    double blockHeight,
+    double gap,
+  ) {
     final blocks = <Widget>[];
     const timeColumnWidth = 55.0;
     final columnWidth = (screenWidth - timeColumnWidth) / 7.0;
@@ -292,7 +331,7 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
   void _showCourseDetail(CourseModel course) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -312,7 +351,13 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
-              Text(course.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                course.name,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 12),
               _detailRow('教室', course.classroom),
               _detailRow('教师', course.teacher),

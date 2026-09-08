@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../services/app_cookie_manager.dart';
+import '../services/electricity_service.dart';
 import '../services/secure_storage_helper.dart';
 import 'about_page.dart';
 import 'help_feedback_page.dart';
@@ -25,6 +26,7 @@ class ProfilePage extends StatelessWidget {
   Future<void> _handleLogout(BuildContext context) async {
     final storage = SecureStorageHelper();
     await storage.clearAll();
+    await ElectricityService.instance.clearSavedRoom();
     try {
       await AppCookieManager().clearAllCookies();
     } catch (_) {}
@@ -38,17 +40,16 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final hasAvatar = avatarUrl != null && avatarUrl!.isNotEmpty;
-    final displayName = realName?.trim().isNotEmpty == true ? realName! : '校园用户';
+    final displayName = realName?.trim().isNotEmpty == true
+        ? realName!
+        : '校园用户';
     final displayStudentId = studentId?.trim().isNotEmpty == true
         ? studentId!
         : '暂未获取';
 
     return Scaffold(
       backgroundColor: colors.surface,
-      appBar: AppBar(
-        title: const Text('个人中心'),
-        centerTitle: false,
-      ),
+      appBar: AppBar(title: const Text('个人中心'), centerTitle: false),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: [
@@ -64,8 +65,9 @@ class ProfilePage extends StatelessWidget {
                 CircleAvatar(
                   radius: 30,
                   backgroundColor: colors.primaryContainer,
-                  backgroundImage:
-                      hasAvatar ? FileImage(File(avatarUrl!)) : null,
+                  backgroundImage: hasAvatar
+                      ? FileImage(File(avatarUrl!))
+                      : null,
                   child: hasAvatar
                       ? null
                       : Icon(

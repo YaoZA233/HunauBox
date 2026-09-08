@@ -25,6 +25,7 @@ import 'timetable_page.dart';
 import 'profile_page.dart';
 import 'campus_card_recharge_page.dart';
 import 'campus_card_webview_page.dart';
+import 'payment_code_page.dart';
 import 'electricity_recharge_page.dart';
 import 'xgxt_webview_page.dart';
 import 'vpn_converter_page.dart';
@@ -242,7 +243,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           SnackBar(
             content: Text('自动登录失败，请手动登录后再试'),
             behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.redAccent,
+            backgroundColor: Theme.of(context).colorScheme.error,
             duration: const Duration(seconds: 3),
           ),
         );
@@ -269,7 +270,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         duration: const Duration(seconds: 3),
         margin: const EdgeInsets.only(left: 16, right: 16, bottom: 24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        backgroundColor: Colors.green[700],
+        backgroundColor: Theme.of(context).colorScheme.primary,
       ),
     );
   }
@@ -350,7 +351,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                         Text(
                           _realName?.trim().isNotEmpty == true
                               ? '${_realName!.trim()}，今天好'
-                              : 'Life at HUNAU',
+                              : 'HunauBox',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.headlineSmall
@@ -510,10 +511,10 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF18251F) : const Color(0xFFE5F0E9),
+        color: isDark ? const Color(0xFF1B2A22) : const Color(0xFFE8F0E8),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isDark ? const Color(0xFF35483E) : const Color(0xFFC8D9CF),
+          color: isDark ? const Color(0xFF41594A) : const Color(0xFFC8D9C9),
         ),
       ),
       child: ClipRRect(
@@ -711,6 +712,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   // Kept temporarily as a reference while the new home is refined.
   // ignore: unused_element
   Widget _buildLegacyHome(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final CourseModel? displayCourse = _currentCourse ?? _nextCourse;
     final bool hasCourse = displayCourse != null;
     final String statusLabel = _courseStatusLabel();
@@ -723,7 +725,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              "Life@HUNAU",
+              "HunauBox",
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontSize: 30,
                 fontWeight: FontWeight.w800,
@@ -747,7 +749,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                         boxShadow: _isLoading
                             ? [
                                 BoxShadow(
-                                  color: Colors.green.withValues(alpha: 0.18),
+                                  color: colors.primary.withValues(alpha: 0.18),
                                   blurRadius: 14,
                                   spreadRadius: 2,
                                 ),
@@ -1329,8 +1331,11 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Future<void> _handleQuickActionTap(String id) async {
-    // The calendar is a public web page and should remain usable before login.
-    if (id != 'school_calendar' && !await _ensureLoggedInForFeature()) return;
+    // WebVPN pages establish/reuse their own session when they open.
+    const webVpnFeatures = {'school_calendar', 'campus_card_loss', 'deepseek'};
+    if (!webVpnFeatures.contains(id) && !await _ensureLoggedInForFeature()) {
+      return;
+    }
     if (!mounted) return;
 
     if (id == 'timetable') {
@@ -1364,6 +1369,13 @@ class _HomePageState extends ConsumerState<HomePage> {
       return;
     }
 
+    if (id == 'payment_code') {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const PaymentCodePage()));
+      return;
+    }
+
     if (id == 'ele_recharge') {
       await Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const ElectricityRechargePage()),
@@ -1375,6 +1387,19 @@ class _HomePageState extends ConsumerState<HomePage> {
       await Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const CampusCardWebViewPage()));
+      return;
+    }
+
+    if (id == 'campus_card_loss') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const WebViewDetailPage(
+            title: '校园卡挂失登记',
+            url: AppConstants.campusCardLossUrl,
+            showWebBack: true,
+          ),
+        ),
+      );
       return;
     }
 
@@ -1417,6 +1442,19 @@ class _HomePageState extends ConsumerState<HomePage> {
           builder: (_) => const WebViewDetailPage(
             title: '图书荐购',
             url: AppConstants.bookRecommendationUrl,
+            showWebBack: true,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (id == 'deepseek') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const WebViewDetailPage(
+            title: '湖南农业大学DeepSeek大模型',
+            url: AppConstants.deepSeekUrl,
             showWebBack: true,
           ),
         ),

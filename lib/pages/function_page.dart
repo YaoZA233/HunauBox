@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'empty_classroom_page.dart';
 import 'campus_card_recharge_page.dart';
 import 'campus_card_webview_page.dart';
+import 'payment_code_page.dart';
 import 'electricity_recharge_page.dart';
 import 'network_speed_test_page.dart';
 import 'xgxt_webview_page.dart';
@@ -57,6 +58,14 @@ class FunctionPage extends StatelessWidget {
             delegate: SliverChildListDelegate([
               _buildCategorySection('校卡服务', [
                 _FunctionItem(
+                  Icons.qr_code_scanner_outlined,
+                  '校园卡付款码',
+                  '出示付款二维码消费',
+                  onTap: () {
+                    _openProtectedPage(context, const PaymentCodePage());
+                  },
+                ),
+                _FunctionItem(
                   Icons.add_card_outlined,
                   '校园卡充值',
                   '校园卡在线充值',
@@ -81,6 +90,23 @@ class FunctionPage extends StatelessWidget {
                   '查看校园卡信息',
                   onTap: () {
                     _openProtectedPage(context, const CampusCardWebViewPage());
+                  },
+                ),
+                _FunctionItem(
+                  Icons.report_problem_outlined,
+                  '校园卡挂失登记',
+                  '校园卡遗失后在线登记挂失',
+                  requiresLogin: false,
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const WebViewDetailPage(
+                          title: '校园卡挂失登记',
+                          url: AppConstants.campusCardLossUrl,
+                          showWebBack: true,
+                        ),
+                      ),
+                    );
                   },
                 ),
               ]),
@@ -160,6 +186,23 @@ class FunctionPage extends StatelessWidget {
                         builder: (_) => const WebViewDetailPage(
                           title: '图书荐购',
                           url: AppConstants.bookRecommendationUrl,
+                          showWebBack: true,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _FunctionItem(
+                  Icons.auto_awesome_outlined,
+                  '湖南农业大学DeepSeek大模型',
+                  '使用学校提供的 DeepSeek 智能问答服务',
+                  requiresLogin: false,
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const WebViewDetailPage(
+                          title: '湖南农业大学DeepSeek大模型',
+                          url: AppConstants.deepSeekUrl,
                           showWebBack: true,
                         ),
                       ),

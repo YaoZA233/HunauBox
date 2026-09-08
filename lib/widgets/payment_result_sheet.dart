@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum PaymentResultType {
-  success,
-  failure,
-  notice,
-  confirm,
-}
+enum PaymentResultType { success, failure, notice, confirm }
 
 class PaymentResultSheet extends StatelessWidget {
   final PaymentResultType type;
@@ -42,17 +37,17 @@ class PaymentResultSheet extends StatelessWidget {
         statusTitle = '支付成功';
         break;
       case PaymentResultType.failure:
-        themeColor = Colors.red;
+        themeColor = Theme.of(context).colorScheme.error;
         statusIcon = Icons.cancel_outlined;
         statusTitle = '支付失败';
         break;
       case PaymentResultType.notice:
-        themeColor = Colors.orange;
+        themeColor = Theme.of(context).colorScheme.tertiary;
         statusIcon = Icons.info_outline;
         statusTitle = '付款提示';
         break;
       case PaymentResultType.confirm:
-        themeColor = const Color(0xFF09C489);
+        themeColor = Theme.of(context).colorScheme.secondary;
         statusIcon = Icons.payment_outlined;
         statusTitle = '支付确认';
         break;
@@ -89,7 +84,8 @@ class PaymentResultSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          if ((type == PaymentResultType.success || type == PaymentResultType.confirm) &&
+          if ((type == PaymentResultType.success ||
+                  type == PaymentResultType.confirm) &&
               amount != null &&
               amount!.isNotEmpty)
             Text(
@@ -113,7 +109,8 @@ class PaymentResultSheet extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 8),
-          if ((type == PaymentResultType.success || type == PaymentResultType.confirm) &&
+          if ((type == PaymentResultType.success ||
+                  type == PaymentResultType.confirm) &&
               merchantName != null &&
               merchantName!.isNotEmpty)
             Text(
@@ -132,7 +129,10 @@ class PaymentResultSheet extends StatelessWidget {
                   onPressed: () => Navigator.pop(context),
                   child: Text(
                     '取消',
-                    style: TextStyle(fontSize: 15, color: isDark ? Colors.white70 : Colors.black54),
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
                   ),
                 ),
               if (type == PaymentResultType.confirm) const SizedBox(width: 16),
@@ -144,11 +144,11 @@ class PaymentResultSheet extends StatelessWidget {
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  child: const Text(
+                  child: Text(
                     '继续支付',
                     style: TextStyle(
                       fontSize: 15,
-                      color: Color(0xFF1677FF),
+                      color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -161,7 +161,9 @@ class PaymentResultSheet extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: type == PaymentResultType.confirm
                       ? onConfirm
-                      : () => Navigator.of(context).popUntil((route) => route.isFirst),
+                      : () => Navigator.of(
+                          context,
+                        ).popUntil((route) => route.isFirst),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: themeColor,
                     shape: RoundedRectangleBorder(
@@ -171,8 +173,14 @@ class PaymentResultSheet extends StatelessWidget {
                     padding: EdgeInsets.zero,
                   ),
                   child: Text(
-                    type == PaymentResultType.confirm ? (confirmText ?? '确认支付') : '完成',
-                    style: const TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.w500),
+                    type == PaymentResultType.confirm
+                        ? (confirmText ?? '确认支付')
+                        : '完成',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ),

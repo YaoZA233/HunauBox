@@ -6,11 +6,8 @@ import '../services/app_logger.dart';
 
 class NoticeDetailScreen extends ConsumerStatefulWidget {
   final String noticeId;
-  
-  const NoticeDetailScreen({
-    super.key,
-    required this.noticeId,
-  });
+
+  const NoticeDetailScreen({super.key, required this.noticeId});
 
   @override
   ConsumerState<NoticeDetailScreen> createState() => _NoticeDetailScreenState();
@@ -19,23 +16,23 @@ class NoticeDetailScreen extends ConsumerStatefulWidget {
 class _NoticeDetailScreenState extends ConsumerState<NoticeDetailScreen> {
   final _logger = AppLogger.instance;
   final NoticeService _noticeService = NoticeService();
-  
+
   bool _isLoading = true;
   Map<String, dynamic>? _detailData;
   String? _errorMessage;
-  
+
   @override
   void initState() {
     super.initState();
     _loadDetail();
   }
-  
+
   Future<void> _loadDetail() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
-    
+
     try {
       final data = await _noticeService.fetchNoticeDetail(widget.noticeId);
       if (mounted) {
@@ -43,7 +40,7 @@ class _NoticeDetailScreenState extends ConsumerState<NoticeDetailScreen> {
           _detailData = data;
           _isLoading = false;
         });
-        
+
         _noticeService.setNoticeRead(widget.noticeId);
         ref.read(noticeProvider.notifier).markAsRead(widget.noticeId);
       }
@@ -61,10 +58,7 @@ class _NoticeDetailScreenState extends ConsumerState<NoticeDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('通知详情'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('通知详情'), elevation: 0),
       body: _buildBody(),
     );
   }
@@ -73,13 +67,17 @@ class _NoticeDetailScreenState extends ConsumerState<NoticeDetailScreen> {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-    
+
     if (_errorMessage != null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.orange),
+            Icon(
+              Icons.error_outline,
+              size: 48,
+              color: Theme.of(context).colorScheme.tertiary,
+            ),
             const SizedBox(height: 16),
             Text(_errorMessage!, textAlign: TextAlign.center),
             const SizedBox(height: 16),
@@ -96,7 +94,7 @@ class _NoticeDetailScreenState extends ConsumerState<NoticeDetailScreen> {
     final String title = _detailData!['title'] ?? '无标题';
     final String sender = _detailData!['createrName'] ?? '系统';
     final String time = _detailData!['sendTime'] ?? '';
-    
+
     final String rawContent = _detailData!['content'] ?? '';
     final String cleanText = rawContent.replaceAll('\r', '\n');
 
@@ -116,18 +114,27 @@ class _NoticeDetailScreenState extends ConsumerState<NoticeDetailScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           Row(
             children: [
               CircleAvatar(
                 radius: 12,
-                backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-                child: Icon(Icons.person, size: 14, color: Theme.of(context).primaryColor),
+                backgroundColor: Theme.of(
+                  context,
+                ).primaryColor.withOpacity(0.1),
+                child: Icon(
+                  Icons.person,
+                  size: 14,
+                  color: Theme.of(context).primaryColor,
+                ),
               ),
               const SizedBox(width: 8),
               Text(
                 sender,
-                style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
               ),
               const Spacer(),
               Text(
@@ -140,13 +147,15 @@ class _NoticeDetailScreenState extends ConsumerState<NoticeDetailScreen> {
             padding: EdgeInsets.symmetric(vertical: 20),
             child: Divider(thickness: 1, height: 1),
           ),
-          
+
           Text(
             cleanText.trim(),
             style: TextStyle(
               fontSize: 17,
               height: 1.7,
-              color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF2C3E50),
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white70
+                  : const Color(0xFF2C3E50),
             ),
           ),
           const SizedBox(height: 40),

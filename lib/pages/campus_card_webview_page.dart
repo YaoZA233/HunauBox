@@ -18,6 +18,7 @@ class _CampusCardWebViewPageState extends State<CampusCardWebViewPage> {
   @override
   Widget build(BuildContext context) {
     final url = CampusCardService.instance.getCampusCardHomeUrl();
+    final accent = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
       body: Stack(
@@ -26,13 +27,13 @@ class _CampusCardWebViewPageState extends State<CampusCardWebViewPage> {
             children: [
               Container(
                 height: MediaQuery.of(context).padding.top,
-                color: const Color(0xFF80CBC4),
+                color: accent,
               ),
               if (_progress < 1)
                 LinearProgressIndicator(
                   value: _progress,
                   backgroundColor: Colors.grey[200],
-                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF80CBC4)),
+                  valueColor: AlwaysStoppedAnimation<Color>(accent),
                 ),
               Expanded(
                 child: InAppWebView(

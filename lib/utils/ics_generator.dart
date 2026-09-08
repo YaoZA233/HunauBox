@@ -8,7 +8,7 @@ class IcsGenerator {
 
     buffer.writeln('BEGIN:VCALENDAR');
     buffer.writeln('VERSION:2.0');
-    buffer.writeln('PRODID:-//Live@HUNAU//Timetable//CN');
+    buffer.writeln('PRODID:-//HunauBox//Timetable//CN');
     buffer.writeln('CALSCALE:GREGORIAN');
     buffer.writeln('METHOD:PUBLISH');
     buffer.writeln('X-WR-CALNAME:湖南农业大学课表');
