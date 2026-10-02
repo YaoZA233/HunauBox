@@ -1,196 +1,260 @@
-import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter_inappwebview/flutter_inappwebview.dart' as webview;
+import 'package:dio/dio.dart';
 
 import '../models/app_constants.dart';
 import '../models/course_model.dart';
-import '../services/app_logger.dart';
-import '../services/course_notification_service.dart';
-import '../services/secure_storage_helper.dart';
-import '../services/timetable_storage.dart';
+import '../models/timetable_adjustment.dart';
 import '../utils/ics_generator.dart';
-import '../utils/timetable_html_parser.dart';
+import '../utils/ydjwxt_json_parser.dart';
+import 'app_logger.dart';
+import 'course_notification_service.dart';
+import 'dio_client.dart';
+import 'timetable_storage.dart';
+import 'ydjwxt_auth_service.dart';
 
+class TimetableSyncResult {
+  const TimetableSyncResult({
+    required this.courses,
+    required this.firstWeekMonday,
+    required this.semester,
+  });
+
+  final List<CourseModel> courses;
+  final DateTime firstWeekMonday;
+  final String semester;
+}
+
+/// 通过移动教务 JSON 接口同步当前学期课表。
 class TimetableService {
   final _logger = AppLogger.instance;
+  final _authService = YdjwxtAuthService();
 
-  Future<List<CourseModel>> fetchTimetable(String semester) async {
-    final html = await _fetchTimetableHtml(semester);
-    return TimetableHtmlParser.parseTimetable(html);
-  }
-
-  Future<List<CourseModel>> downloadAndSaveTimetable({
-    required String semester,
-    required DateTime firstWeekMonday,
+  Future<TimetableSyncResult> downloadAndSaveTimetable({
+    void Function(String progress)? onProgress,
   }) async {
-    final html = await _fetchTimetableHtml(semester);
-    final courses = TimetableHtmlParser.parseTimetable(html);
+    onProgress?.call('正在验证移动教务身份…');
+    await DioClient().initialize();
 
-    if (courses.isEmpty) {
-      throw Exception('未解析到任何课程');
+    var token = await _authService.getToken();
+    List<Map<String, dynamic>> weeks;
+    try {
+      weeks = await _fetchAllWeeks(token, onProgress);
+    } on _YdjwxtAuthException {
+      _logger.w('移动教务 token 已失效，刷新后重试');
+      _authService.clearToken();
+      token = await _authService.getToken(forceRefresh: true);
+      weeks = await _fetchAllWeeks(token, onProgress);
     }
 
+    onProgress?.call('正在整理课程数据…');
+    final firstWeekMonday = weeks
+        .map(YdjwxtJsonParser.extractFirstWeekMonday)
+        .whereType<DateTime>()
+        .firstOrNull;
+    if (firstWeekMonday == null) {
+      throw Exception('移动教务未返回本学期日期，暂时无法生成课表');
+    }
+
+    final courses = YdjwxtJsonParser.mergeWeeks(
+      weeks.map(YdjwxtJsonParser.parseWeekJson),
+    );
+    if (courses.isEmpty) {
+      throw Exception('当前学期未获取到课程，请确认移动教务中已有课表');
+    }
+
+    final semester = await _fetchCurrentSemester(token);
     final icsContent = IcsGenerator.generate(courses, firstWeekMonday);
     final storage = TimetableStorage();
-    await storage.saveTimetable(icsContent);
-    await storage.saveCourseList(courses);
-    await storage.saveMetadata(
-      semester: semester,
-      firstWeekMonday: firstWeekMonday,
-    );
-    await CourseNotificationService.instance.rescheduleIfEnabled();
+    final backup = await _TimetableBackup.capture(storage);
 
-    return courses;
-  }
-
-  Future<String> _fetchTimetableHtml(String semester) async {
-    final storage = SecureStorageHelper();
-    final username = await storage.getUsername();
-    final password = await storage.getPassword();
-
-    if (username == null || password == null) {
-      throw Exception('请先登录以保存凭据');
+    onProgress?.call('正在保存课表…');
+    try {
+      await storage.saveTimetable(icsContent);
+      await storage.saveCourseList(courses);
+      // A fresh remote timetable is a new baseline; old temporary overrides
+      // could point at stale course ids or weeks.
+      await storage.deleteAdjustments();
+      await storage.saveMetadata(
+        semester: semester,
+        firstWeekMonday: firstWeekMonday,
+      );
+    } catch (_) {
+      await backup.restore(storage);
+      rethrow;
     }
 
-    final completer = Completer<String>();
-    bool completed = false;
-    bool loginInjected = false;
-    bool syncTriggered = false;
-
-    final cookieManager = webview.CookieManager.instance();
-
-    final headlessWebView = webview.HeadlessInAppWebView(
-      initialUrlRequest: webview.URLRequest(url: webview.WebUri(AppConstants.webvpnPortalUrl)),
-      initialSettings: webview.InAppWebViewSettings(
-        javaScriptEnabled: true,
-        domStorageEnabled: true,
-        useHybridComposition: true,
-        mixedContentMode: webview.MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      ),
-      onLoadStop: (controller, url) async {
-        if (completed) return;
-        final urlString = url?.toString() ?? '';
-
-        if ((urlString.contains('/cas/login') || urlString.contains('sso.hunau.edu.cn')) && !loginInjected) {
-          await Future.delayed(const Duration(seconds: 2));
-
-          final jsUsername = jsonEncode(username);
-          final jsPassword = jsonEncode(password);
-
-          final injectionResult = await controller.evaluateJavascript(source: '''
-            (async function() {
-              const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-              for (let i = 0; i < 15; i++) {
-                const queryInFrames = (selector) => {
-                  let el = document.querySelector(selector);
-                  if (el) return el;
-                  const frames = document.querySelectorAll('iframe');
-                  for (let f of frames) {
-                    try {
-                      let doc = f.contentDocument || f.contentWindow.document;
-                      let e = doc.querySelector(selector);
-                      if (e) return e;
-                    } catch (err) {}
-                  }
-                  return null;
-                };
-
-                const userInput = queryInFrames('input.email-username') || queryInFrames('input[name="username"]');
-                const passInput = queryInFrames('input[name="authcode"]') || queryInFrames('input[type="password"]');
-                const loginBtn = queryInFrames('button.exeActionBtn') || queryInFrames('.login-btn');
-
-                if (userInput && passInput && loginBtn) {
-                  userInput.value = $jsUsername;
-                  passInput.value = $jsPassword;
-                  loginBtn.click();
-                  return 'INJECTED_AND_CLICKED';
-                }
-                await sleep(1000);
-              }
-              return 'NOT_FOUND';
-            })();
-          ''');
-
-          if (injectionResult == 'INJECTED_AND_CLICKED') {
-            loginInjected = true;
-          }
-        }
-
-        if (urlString.contains('/fusion/') && !syncTriggered) {
-          final cookies = await cookieManager.getCookies(url: url!);
-          final hasTicket = cookies.any((c) => c.name == 'wengine_vpn_ticketwebvpn_hunau_edu_cn');
-
-          if (hasTicket) {
-            syncTriggered = true;
-            await Future.delayed(const Duration(seconds: 2));
-            await controller.loadUrl(urlRequest: webview.URLRequest(
-              url: webview.WebUri(AppConstants.webvpnCookieSyncUrl),
-            ));
-          }
-        }
-
-        if (urlString.contains('wengine-vpn/cookie')) {
-          await controller.loadUrl(urlRequest: webview.URLRequest(
-            url: webview.WebUri(AppConstants.jwxtSsoUrl),
-          ));
-          return;
-        }
-
-        if (urlString.contains('sso.jsp')) {
-          await controller.evaluateJavascript(source: "window.location.href = 'framework/xsMainV.jsp';");
-          await Future.delayed(const Duration(seconds: 3));
-          final currentUrl = await controller.getUrl();
-          if (currentUrl != null && currentUrl.toString().contains('sso.jsp')) {
-            await controller.loadUrl(urlRequest: webview.URLRequest(
-              url: webview.WebUri(AppConstants.jwxtFrameworkUrl),
-            ));
-          }
-          return;
-        }
-
-        if (!urlString.contains('wengine-vpn/cookie') &&
-            !urlString.contains('sso.jsp') &&
-            (urlString.contains('framework') || urlString.contains('xsMain'))) {
-          await Future.delayed(const Duration(seconds: 6));
-          await controller.loadUrl(urlRequest: webview.URLRequest(
-            url: webview.WebUri(AppConstants.jwxtTimetableUrl(semester)),
-          ));
-        }
-
-        if (urlString.contains('xskb_list.do')) {
-          for (int attempt = 1; attempt <= 10; attempt++) {
-            await Future.delayed(const Duration(seconds: 2));
-            final htmlStr = (await controller.getHtml()) ?? '';
-
-            if (htmlStr.contains('timetable') || htmlStr.contains('kbcontent') || htmlStr.contains('节次')) {
-              completed = true;
-              completer.complete(htmlStr);
-              return;
-            }
-
-            if (htmlStr.contains('flag1":2') || htmlStr.contains('请先登录') || htmlStr.contains('请重新登录')) {
-              await controller.reload();
-            }
-          }
-
-          if (!completed) {
-            completer.completeError(Exception('课表页面加载超时'));
-          }
-        }
-      },
-    );
-
-    await headlessWebView.run();
-
     try {
-      return await completer.future.timeout(const Duration(seconds: 90));
+      await CourseNotificationService.instance.rescheduleIfEnabled();
     } catch (e) {
-      _logger.e('❌ Timetable fetch failed: $e');
-      rethrow;
-    } finally {
-      headlessWebView.dispose();
+      // 课表已经完整保存，通知重排失败不应让用户误以为同步失败。
+      _logger.w('课表同步成功，但课程通知重排失败: $e');
+    }
+
+    onProgress?.call('同步完成');
+    return TimetableSyncResult(
+      courses: courses,
+      firstWeekMonday: firstWeekMonday,
+      semester: semester,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchAllWeeks(
+    String token,
+    void Function(String progress)? onProgress,
+  ) async {
+    onProgress?.call('正在获取当前学期课表…');
+    return Future.wait(
+      List.generate(20, (index) => _fetchWeek(index + 1, token)),
+    );
+  }
+
+  Future<Map<String, dynamic>> _fetchWeek(int week, String token) async {
+    try {
+      final response = await DioClient().dio.post(
+        AppConstants.ydjwxtTimetableUrl,
+        queryParameters: {'week': week, 'kbjcmsid': ''},
+        options: _apiOptions(token),
+      );
+      final body = _decodeMap(response.data);
+
+      if (response.statusCode == 401 ||
+          response.statusCode == 403 ||
+          _isAuthError(body)) {
+        throw const _YdjwxtAuthException();
+      }
+      if (response.statusCode == 200 && _isSuccess(body)) return body!;
+
+      final message = body?['Msg']?.toString() ??
+          body?['msg']?.toString() ??
+          'HTTP ${response.statusCode}';
+      throw Exception('获取第 $week 周课表失败：$message');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+        throw const _YdjwxtAuthException();
+      }
+      throw Exception('获取第 $week 周课表失败：${e.message}');
+    }
+  }
+
+  Future<String> _fetchCurrentSemester(String token) async {
+    try {
+      final response = await DioClient().dio.post(
+        AppConstants.ydjwxtSemesterListUrl,
+        options: _apiOptions(token),
+      );
+      final body = _decodeMap(response.data);
+      final rawList = body?['data'];
+      if (response.statusCode == 200 && _isSuccess(body) && rawList is List) {
+        Map<dynamic, dynamic>? active;
+        for (final item in rawList.whereType<Map>()) {
+          if (item['isdqxq']?.toString() == '1') {
+            active = item;
+            break;
+          }
+        }
+        active ??= rawList.whereType<Map>().firstOrNull;
+        final id = active?['semesterId']?.toString();
+        if (id != null && id.isNotEmpty) return id;
+      }
+    } catch (e) {
+      _logger.w('未能读取当前学期标识，将根据日期生成: $e');
+    }
+    return _semesterFromDate(DateTime.now());
+  }
+
+  Options _apiOptions(String token) => Options(
+        headers: {
+          'token': token,
+          'User-Agent': AppConstants.ydjwxtUA,
+          'Referer': 'https://ydjwxt.hunau.edu.cn/hnnydx/',
+          'Accept': 'application/json, text/plain, */*',
+          'Origin': 'https://ydjwxt.hunau.edu.cn',
+          'Content-Type': 'application/json',
+        },
+      );
+
+  Map<String, dynamic>? _decodeMap(dynamic value) {
+    if (value is Map) return Map<String, dynamic>.from(value);
+    if (value is String) {
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  bool _isSuccess(Map<String, dynamic>? body) =>
+      body?['code']?.toString() == '1';
+
+  bool _isAuthError(Map<String, dynamic>? body) {
+    if (body == null) return false;
+    final code = body['code']?.toString();
+    final message =
+        body['Msg']?.toString() ?? body['msg']?.toString() ?? '';
+    return code == '401' ||
+        code == '-1' ||
+        message.contains('登录') ||
+        message.contains('失效') ||
+        message.toLowerCase().contains('token');
+  }
+
+  String _semesterFromDate(DateTime date) {
+    if (date.month >= 7) return '${date.year}-${date.year + 1}-1';
+    return '${date.year - 1}-${date.year}-2';
+  }
+}
+
+class _YdjwxtAuthException implements Exception {
+  const _YdjwxtAuthException();
+}
+
+class _TimetableBackup {
+  const _TimetableBackup({this.ics, this.metadata, required this.courses, required this.adjustments});
+
+  final String? ics;
+  final Map<String, dynamic>? metadata;
+  final List<CourseModel> courses;
+  final List<TimetableAdjustment> adjustments;
+
+  static Future<_TimetableBackup> capture(TimetableStorage storage) async {
+    return _TimetableBackup(
+      ics: await storage.readTimetable(),
+      metadata: await storage.readMetadata(),
+      courses: await storage.readCourseList(),
+      adjustments: await storage.readAdjustments(),
+    );
+  }
+
+  Future<void> restore(TimetableStorage storage) async {
+    try {
+      if (ics == null) {
+        await storage.deleteTimetable();
+      } else {
+        await storage.saveTimetable(ics!);
+      }
+
+      final semester = metadata?['semester'];
+      final firstMonday = metadata?['firstWeekMonday'];
+      if (semester is String && firstMonday is String) {
+        await storage.saveMetadata(
+          semester: semester,
+          firstWeekMonday: DateTime.parse(firstMonday),
+        );
+      } else {
+        await storage.deleteMetadata();
+      }
+
+      if (courses.isEmpty) {
+        await storage.deleteCourseList();
+      } else {
+        await storage.saveCourseList(courses);
+      }
+
+      await storage.saveAdjustments(adjustments);
+    } catch (e) {
+      AppLogger.instance.e('恢复旧课表失败: $e');
     }
   }
 }

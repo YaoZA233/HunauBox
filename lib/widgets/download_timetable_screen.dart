@@ -4,17 +4,20 @@ import '../models/course_model.dart';
 import '../services/timetable_service.dart';
 
 class TimetableImportResult {
-  final List<CourseModel> courses;
-  final DateTime firstWeekMonday;
-  final String semester;
-
-  TimetableImportResult({
+  const TimetableImportResult({
     required this.courses,
     required this.firstWeekMonday,
     required this.semester,
   });
+
+  final List<CourseModel> courses;
+  final DateTime firstWeekMonday;
+  final String semester;
 }
 
+/// 当前学期课表自动同步页。
+///
+/// 页面打开后立即从移动教务拉取，无需选择学期或填写开学日期。
 class DownloadTimetableScreen extends StatefulWidget {
   const DownloadTimetableScreen({super.key});
 
@@ -24,228 +27,96 @@ class DownloadTimetableScreen extends StatefulWidget {
 }
 
 class _DownloadTimetableScreenState extends State<DownloadTimetableScreen> {
-  final TimetableService _timetableService = TimetableService();
+  final _timetableService = TimetableService();
 
-  String? _selectedSemester;
-  DateTime? _selectedDate;
-  bool _isLoading = false;
-
-  late final List<String> _semesters;
+  bool _isLoading = true;
+  String _status = '正在准备同步…';
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _semesters = _generateSemesters();
-    if (_semesters.isNotEmpty) {
-      _selectedSemester = _semesters.first;
-    }
-  }
-
-  List<String> _generateSemesters() {
-    final now = DateTime.now();
-    final x = now.year;
-    final List<String> list = [];
-
-    if (now.month <= 6) {
-      int startYear = x - 1;
-      for (int i = 0; i < 5; i++) {
-        int y = startYear - i;
-        list.add('$y-${y + 1}-2');
-        list.add('$y-${y + 1}-1');
-      }
-    } else {
-      int startYear = x;
-      for (int i = 0; i < 5; i++) {
-        int y = startYear - i;
-        list.add('$y-${y + 1}-1');
-        list.add('${y - 1}-$y-2');
-      }
-    }
-    return list;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    InputDecoration md2InputDecoration(String label, IconData icon) =>
-        InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.white70
-                : const Color(0xFF5F6368),
-            fontWeight: FontWeight.w400,
-            fontSize: 14,
-          ),
-          floatingLabelStyle: TextStyle(
-            color: theme.primaryColor,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-          floatingLabelBehavior: FloatingLabelBehavior.auto,
-          prefixIcon: Icon(icon, size: 20),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 14,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white24
-                  : const Color(0xFFDADCE0),
-              width: 1,
-            ),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white24
-                  : const Color(0xFFDADCE0),
-              width: 1,
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: theme.primaryColor, width: 2),
-          ),
-          filled: true,
-          fillColor: Theme.of(context).brightness == Brightness.dark
-              ? Colors.white.withOpacity(0.05)
-              : Colors.white,
-        );
+    final colors = theme.colorScheme;
 
     return PopScope(
       canPop: !_isLoading,
       child: Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          elevation: 0,
-          surfaceTintColor: Theme.of(context).scaffoldBackgroundColor,
           automaticallyImplyLeading: false,
           leading: IconButton(
-            icon: Icon(
-              Icons.close,
-              color: _isLoading
-                  ? (Theme.of(context).brightness == Brightness.dark
-                        ? Colors.grey[800]
-                        : Colors.grey[300])
-                  : (Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white70
-                        : const Color(0xFF5F6368)),
-            ),
             onPressed: _isLoading ? null : () => Navigator.pop(context),
+            icon: const Icon(Icons.close),
           ),
+          title: const Text('同步课表'),
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              const SizedBox(height: 24),
-              DropdownButtonFormField<String>(
-                value: _selectedSemester,
-                decoration: md2InputDecoration(
-                  '学年学期',
-                  Icons.calendar_today_outlined,
-                ),
-                isExpanded: true,
-                icon: Icon(
-                  Icons.arrow_drop_down,
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white70
-                      : const Color(0xFF5F6368),
-                ),
-                dropdownColor: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(6),
-                items: _semesters.map((semester) {
-                  return DropdownMenuItem(
-                    value: semester,
-                    child: Text(semester, style: const TextStyle(fontSize: 15)),
-                  );
-                }).toList(),
-                onChanged: _isLoading
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _selectedSemester = value;
-                        });
-                      },
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: colors.primaryContainer,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _error == null
+                          ? Icons.calendar_month_rounded
+                          : Icons.sync_problem_rounded,
+                      size: 34,
+                      color: _error == null
+                          ? colors.onPrimaryContainer
+                          : colors.error,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    _error == null ? '正在同步当前学期' : '同步没有完成',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _error ?? '系统会自动识别当前学期和开学日期，无需手动选择。',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: _error == null
+                          ? colors.onSurfaceVariant
+                          : colors.error,
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 28),
+                  if (_isLoading) ...[
+                    const LinearProgressIndicator(),
+                    const SizedBox(height: 12),
+                    Text(
+                      _status,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.primary,
+                      ),
+                    ),
+                  ] else if (_error != null)
+                    FilledButton.icon(
+                      onPressed: _sync,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('重新同步'),
+                    ),
+                ],
               ),
-              const SizedBox(height: 28),
-              InkWell(
-                onTap: _isLoading ? null : _selectDate,
-                borderRadius: BorderRadius.circular(6),
-                child: IgnorePointer(
-                  child: TextFormField(
-                    controller: TextEditingController(
-                      text: _selectedDate != null
-                          ? '${_selectedDate!.year}年${_selectedDate!.month}月${_selectedDate!.day}日'
-                          : '',
-                    ),
-                    decoration:
-                        md2InputDecoration(
-                          '第一周周一',
-                          Icons.date_range_outlined,
-                        ).copyWith(
-                          hintText: '请选择日期',
-                          suffixIcon: const Icon(
-                            Icons.edit_calendar_outlined,
-                            size: 18,
-                          ),
-                        ),
-                    readOnly: true,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        bottomNavigationBar: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (_isLoading)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 16),
-                    child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                ElevatedButton.icon(
-                  onPressed: (_canConfirm() && !_isLoading) ? _confirm : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.primaryColor,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: theme.primaryColor.withOpacity(
-                      0.12,
-                    ),
-                    disabledForegroundColor: theme.primaryColor.withOpacity(
-                      0.38,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    minimumSize: const Size(88, 36),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    elevation: 0,
-                  ),
-                  icon: const Icon(Icons.download_rounded, size: 18),
-                  label: const Text(
-                    '导入',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
             ),
           ),
         ),
@@ -253,74 +124,34 @@ class _DownloadTimetableScreenState extends State<DownloadTimetableScreen> {
     );
   }
 
-  bool _canConfirm() => _selectedSemester != null && _selectedDate != null;
-
-  Future<void> _selectDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate ?? now,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 1),
-      helpText: '选择本学期第一周的周一',
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            useMaterial3: true,
-            colorScheme: Theme.of(context).colorScheme,
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      final monday = _getMondayOfWeek(picked);
-      setState(() {
-        _selectedDate = monday;
-      });
-    }
-  }
-
-  DateTime _getMondayOfWeek(DateTime date) {
-    final daysFromMonday = date.weekday - DateTime.monday;
-    return date.subtract(Duration(days: daysFromMonday));
-  }
-
-  Future<void> _confirm() async {
-    if (_selectedSemester == null || _selectedDate == null) return;
-
+  Future<void> _sync() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
+      _error = null;
+      _status = '正在准备同步…';
     });
 
     try {
-      final courses = await _timetableService.downloadAndSaveTimetable(
-        semester: _selectedSemester!,
-        firstWeekMonday: _selectedDate!,
+      final result = await _timetableService.downloadAndSaveTimetable(
+        onProgress: (progress) {
+          if (mounted) setState(() => _status = progress);
+        },
       );
       if (!mounted) return;
       Navigator.of(context).pop(
         TimetableImportResult(
-          courses: courses,
-          firstWeekMonday: _selectedDate!,
-          semester: _selectedSemester!,
+          courses: result.courses,
+          firstWeekMonday: result.firstWeekMonday,
+          semester: result.semester,
         ),
       );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('导入失败: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted)
-        setState(() {
-          _isLoading = false;
-        });
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
     }
   }
 }

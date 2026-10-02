@@ -16,6 +16,14 @@ class HomeworkPage extends ConsumerStatefulWidget {
 
 class _HomeworkPageState extends ConsumerState<HomeworkPage> {
   int _selectedTab = 0;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   Future<void> _refresh() => ref.read(homeworkProvider.notifier).refresh();
 
@@ -36,10 +44,17 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
   }
 
   Widget _buildContent(List<HomeworkModel> homework) {
-    final pending = homework
+    final allPending = homework
         .where((item) => item.status == HomeworkStatus.pending)
         .toList();
-    final completed = homework
+    final allCompleted = homework
+        .where((item) => item.status == HomeworkStatus.completed)
+        .toList();
+    final filteredHomework = _filterHomework(homework);
+    final pending = filteredHomework
+        .where((item) => item.status == HomeworkStatus.pending)
+        .toList();
+    final completed = filteredHomework
         .where((item) => item.status == HomeworkStatus.completed)
         .toList();
     final visibleItems = _selectedTab == 0 ? pending : completed;
@@ -50,19 +65,30 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
             sliver: SliverToBoxAdapter(
-              child: _buildOverview(pending.length, completed.length),
+              child: _buildOverview(
+                allPending.length,
+                allCompleted.length,
+                matchingCount: filteredHomework.length,
+              ),
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverToBoxAdapter(child: _buildSearchField()),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
             sliver: SliverToBoxAdapter(child: _buildSegmentedControl()),
           ),
           if (visibleItems.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
-              child: _buildEmptyState(isPending: _selectedTab == 0),
+              child: _buildEmptyState(
+                isPending: _selectedTab == 0,
+                hasSearch: _searchQuery.trim().isNotEmpty,
+              ),
             )
           else
             SliverPadding(
@@ -73,7 +99,7 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
                   homework: visibleItems[index],
                   onTap: () => _openHomework(visibleItems[index]),
                 ),
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
               ),
             ),
         ],
@@ -81,110 +107,165 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
     );
   }
 
-  Widget _buildOverview(int pendingCount, int completedCount) {
+  List<HomeworkModel> _filterHomework(List<HomeworkModel> homework) {
+    final terms = _searchQuery
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((term) => term.isNotEmpty)
+        .toList();
+    if (terms.isEmpty) return homework;
+
+    return homework.where((item) {
+      final searchable = [
+        item.courseName,
+        item.title,
+        item.remarks,
+        item.rawTimeStr,
+        if (item.endTime != null)
+          DateFormat('yyyy年MM月dd日 HH:mm').format(item.endTime!),
+      ].join(' ').toLowerCase();
+      return terms.every((term) => searchable.contains(term));
+    }).toList();
+  }
+
+  Widget _buildOverview(
+    int pendingCount,
+    int completedCount, {
+    required int matchingCount,
+  }) {
     final colors = Theme.of(context).colorScheme;
     final total = pendingCount + completedCount;
     final completion = total == 0 ? 0.0 : completedCount / total;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          pendingCount == 0 ? '今天的安排已完成' : '还有 $pendingCount 项任务待处理',
-          style: Theme.of(context).textTheme.headlineSmall,
+    final hasSearch = _searchQuery.trim().isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          colors: [colors.primary, Color.lerp(colors.primary, colors.tertiary, .62)!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        const SizedBox(height: 6),
-        Text(
-          total == 0 ? '下拉刷新以同步学习通作业' : '已完成 $completedCount / $total',
-          style: TextStyle(fontSize: 14, color: colors.onSurfaceVariant),
-        ),
-        const SizedBox(height: 18),
-        TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: completion),
-          duration: const Duration(milliseconds: 650),
-          curve: Curves.easeOutCubic,
-          builder: (context, value, _) => ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: value,
-              minHeight: 6,
-              backgroundColor: colors.surfaceContainerHighest,
-              valueColor: AlwaysStoppedAnimation(colors.secondary),
+        boxShadow: [BoxShadow(color: colors.primary.withValues(alpha: .22), blurRadius: 22, offset: const Offset(0, 10))],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('本周学习节奏', style: TextStyle(color: colors.onPrimary.withValues(alpha: .78), fontSize: 13, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Text(
+                  hasSearch ? '找到 $matchingCount 项相关作业' : pendingCount == 0 ? '安排已清空' : '还有 $pendingCount 项待处理',
+                  style: TextStyle(color: colors.onPrimary, fontSize: 24, height: 1.12, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  hasSearch ? '可按课程名、标题或备注继续筛选' : total == 0 ? '下拉刷新以同步学习通作业' : '已完成 $completedCount / $total',
+                  style: TextStyle(color: colors.onPrimary.withValues(alpha: .8), fontSize: 13),
+                ),
+              ],
             ),
           ),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: 76,
+            height: 76,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CircularProgressIndicator(value: completion, strokeWidth: 7, backgroundColor: colors.onPrimary.withValues(alpha: .2), valueColor: AlwaysStoppedAnimation(colors.onPrimary)),
+                Text('${(completion * 100).round()}%', style: TextStyle(color: colors.onPrimary, fontWeight: FontWeight.w800, fontSize: 16)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    final colors = Theme.of(context).colorScheme;
+    return TextField(
+      controller: _searchController,
+      onChanged: (value) => setState(() => _searchQuery = value),
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: '搜索课程、作业或备注',
+        prefixIcon: const Icon(Icons.search_rounded, size: 21),
+        suffixIcon: _searchQuery.isEmpty
+            ? null
+            : IconButton(
+                tooltip: '清除搜索',
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                },
+                icon: const Icon(Icons.close_rounded, size: 19),
+              ),
+        filled: true,
+        fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.72),
+        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
         ),
-      ],
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: .65)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: colors.primary, width: 1.4),
+        ),
+      ),
     );
   }
 
   Widget _buildSegmentedControl() {
     final colors = Theme.of(context).colorScheme;
-    const labels = ['待完成', '已完成'];
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final segmentWidth = (constraints.maxWidth - 6) / labels.length;
-          return Stack(
-            children: [
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeOutCubic,
-                left: _selectedTab * segmentWidth,
-                top: 0,
-                width: segmentWidth,
-                height: 38,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainerLowest,
-                    borderRadius: BorderRadius.circular(9),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 5,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
+    const labels = ['待处理', '已完成'];
+    return Row(
+      children: List.generate(labels.length, (index) {
+        final selected = _selectedTab == index;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: index == 0 ? 8 : 0),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => setState(() => _selectedTab = index),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? colors.onSurface
+                      : colors.surfaceContainerHighest.withValues(alpha: .62),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  labels[index],
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: selected ? colors.surface : colors.onSurfaceVariant,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              Row(
-                children: List.generate(labels.length, (index) {
-                  final selected = _selectedTab == index;
-                  return Expanded(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(9),
-                      onTap: () => setState(() => _selectedTab = index),
-                      child: Center(
-                        child: Text(
-                          labels[index],
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            color: selected
-                                ? colors.onSurface
-                                : colors.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ],
-          );
-        },
-      ),
+            ),
+          ),
+        );
+      }),
     );
   }
 
-  Widget _buildEmptyState({required bool isPending}) {
+  Widget _buildEmptyState({
+    required bool isPending,
+    required bool hasSearch,
+  }) {
     final colors = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
@@ -195,16 +276,20 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
             Icon(
               isPending ? Icons.task_alt_rounded : Icons.done_all_rounded,
               size: 42,
-              color: colors.secondary,
+              color: colors.primary,
             ),
             const SizedBox(height: 14),
             Text(
-              isPending ? '没有待完成的作业' : '暂时没有已完成的作业',
+              hasSearch
+                  ? '没有找到匹配的作业'
+                  : isPending
+                  ? '没有待完成的作业'
+                  : '暂时没有已完成的作业',
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
             Text(
-              '下拉即可同步最新作业',
+              hasSearch ? '换个关键词试试' : '下拉即可同步最新作业',
               style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
             ),
           ],
@@ -290,76 +375,83 @@ class _HomeworkItem extends StatelessWidget {
     final completed = homework.status == HomeworkStatus.completed;
     final deadline = _deadlineText();
     final urgent = !completed && _isUrgent();
-    final accent = completed ? colors.secondary : urgent ? colors.error : colors.primary;
+    final accent = completed ? colors.primary : urgent ? colors.error : colors.tertiary;
 
     return Material(
       color: colors.surfaceContainerLowest,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(15, 14, 14, 14),
+          padding: const EdgeInsets.fromLTRB(16, 16, 12, 15),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border(left: BorderSide(color: accent, width: 3)),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: colors.outlineVariant.withValues(alpha: .8)),
+            boxShadow: [
+              BoxShadow(
+                color: colors.shadow.withValues(alpha: 0.045),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      homework.courseName.isEmpty ? '课程作业' : homework.courseName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    completed ? Icons.check_circle_rounded : Icons.schedule_rounded,
-                    size: 18,
-                    color: accent,
-                  ),
-                ],
+              Container(
+                width: 4,
+                height: 66,
+                margin: const EdgeInsets.only(right: 13),
+                decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(99)),
               ),
-              const SizedBox(height: 8),
-              Text(
-                homework.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 16,
-                  height: 1.3,
-                  fontWeight: FontWeight.w700,
-                  color: completed ? colors.onSurfaceVariant : colors.onSurface,
-                  decoration: completed ? TextDecoration.lineThrough : null,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            homework.courseName.isEmpty ? '课程作业' : homework.courseName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        if (homework.isManual)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(color: colors.secondaryContainer, borderRadius: BorderRadius.circular(99)),
+                            child: Text('手动', style: TextStyle(color: colors.onSecondaryContainer, fontSize: 10, fontWeight: FontWeight.w700)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      homework.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 16, height: 1.28, fontWeight: FontWeight.w800, color: completed ? colors.onSurfaceVariant : colors.onSurface, decoration: completed ? TextDecoration.lineThrough : null),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(completed ? Icons.check_circle_outline_rounded : Icons.schedule_rounded, size: 16, color: accent),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            deadline,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: completed ? colors.onSurfaceVariant : accent),
+                          ),
+                        ),
+                        const Icon(Icons.arrow_outward_rounded, size: 17),
+                      ],
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.timer_outlined, size: 15, color: accent),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      deadline,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: completed ? colors.onSurfaceVariant : accent,
-                      ),
-                    ),
-                  ),
-                  Icon(Icons.chevron_right_rounded, size: 20, color: colors.onSurfaceVariant),
-                ],
               ),
             ],
           ),

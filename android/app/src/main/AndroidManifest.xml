@@ -70,6 +70,11 @@
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="alipays"/>
         </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="weixin"/>
+        </intent>
         <package android:name="com.eg.android.AlipayGphone"/>
+        <package android:name="com.tencent.mm"/>
     </queries>
 </manifest>

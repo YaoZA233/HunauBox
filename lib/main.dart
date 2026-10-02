@@ -31,18 +31,52 @@ class SmartHunanAgriApp extends ConsumerWidget {
 
     ThemeData buildTheme(Brightness brightness) {
       final isDark = brightness == Brightness.dark;
-      final scheme = ColorScheme.fromSeed(
+      final generatedScheme = ColorScheme.fromSeed(
         seedColor: themeColor,
         brightness: brightness,
         dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
       );
+      // ChillEast's light theme is intentionally white-first: one clear
+      // campus green accent, Google-style neutral text, and quiet borders.
+      // Keep the generated tonal roles so custom accent colors still work,
+      // while pinning the neutral surfaces to that same visual language.
+      final scheme = generatedScheme.copyWith(
+        primary: themeColor,
+        onPrimary: isDark ? Colors.black : Colors.white,
+        surface: isDark ? const Color(0xFF121212) : Colors.white,
+        surfaceContainerLowest: isDark
+            ? const Color(0xFF121212)
+            : Colors.white,
+        surfaceContainerLow: isDark
+            ? const Color(0xFF181818)
+            : Colors.white,
+        surfaceContainer: isDark
+            ? const Color(0xFF1E1E1E)
+            : Colors.white,
+        surfaceContainerHigh: isDark
+            ? const Color(0xFF242424)
+            : const Color(0xFFF8F9FA),
+        surfaceContainerHighest: isDark
+            ? const Color(0xFF2B2B2B)
+            : const Color(0xFFF1F3F4),
+        onSurface: isDark ? Colors.white : const Color(0xFF202124),
+        onSurfaceVariant: isDark
+            ? const Color(0xFFBDC1C6)
+            : const Color(0xFF5F6368),
+        outline: isDark
+            ? const Color(0xFF5F6368)
+            : const Color(0xFFDADCE0),
+        outlineVariant: isDark
+            ? const Color(0xFF3C4043)
+            : const Color(0xFFE8EAED),
+      );
       final surface = isDark
-          ? const Color(0xFF121716)
-          : const Color(0xFFF7F8F5);
-      final card = isDark ? const Color(0xFF1D2522) : const Color(0xFFFFFEFA);
+          ? const Color(0xFF121212)
+          : Colors.white;
+      final card = isDark ? const Color(0xFF1E1E1E) : Colors.white;
       final outline = isDark
-          ? const Color(0xFF45534D)
-          : const Color(0xFFD9E1DA);
+          ? const Color(0xFF3C4043)
+          : const Color(0xFFDADCE0);
       final textTheme = ThemeData(brightness: brightness).textTheme.apply(
         bodyColor: scheme.onSurface,
         displayColor: scheme.onSurface,
@@ -52,6 +86,7 @@ class SmartHunanAgriApp extends ConsumerWidget {
       return ThemeData(
         useMaterial3: true,
         brightness: brightness,
+        primaryColor: themeColor,
         colorScheme: scheme,
         scaffoldBackgroundColor: background.hasImage
             ? Colors.transparent
@@ -110,7 +145,9 @@ class SmartHunanAgriApp extends ConsumerWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: isDark ? const Color(0xFF252F2B) : const Color(0xFFF0F3EE),
+          fillColor: isDark
+              ? const Color(0xFF2B2B2B)
+              : const Color(0xFFF1F3F4),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 16,
@@ -150,8 +187,8 @@ class SmartHunanAgriApp extends ConsumerWidget {
         snackBarTheme: SnackBarThemeData(
           behavior: SnackBarBehavior.floating,
           backgroundColor: isDark
-              ? const Color(0xFF2B3832)
-              : const Color(0xFF30483B),
+              ? const Color(0xFF2B2B2B)
+              : const Color(0xFF202124),
           contentTextStyle: TextStyle(
             color: isDark ? scheme.onSurface : Colors.white,
           ),

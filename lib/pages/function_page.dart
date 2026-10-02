@@ -13,6 +13,7 @@ import 'score_page.dart';
 import 'webview_detail_page.dart';
 import 'bus_tracking_page.dart';
 import 'dorm_service_page.dart';
+import 'questionnaire_list_page.dart';
 import '../models/app_constants.dart';
 import '../services/auth_guard.dart';
 
@@ -112,6 +113,14 @@ class FunctionPage extends StatelessWidget {
               ]),
               _buildCategorySection('学习教务', [
                 _FunctionItem(
+                  Icons.fact_check_outlined,
+                  '学工问卷',
+                  '填写通知问卷、查看提交记录',
+                  onTap: () {
+                    _openProtectedPage(context, const QuestionnaireListPage());
+                  },
+                ),
+                _FunctionItem(
                   Icons.meeting_room_outlined,
                   '空教室',
                   '实时查找空闲教室',
@@ -125,6 +134,22 @@ class FunctionPage extends StatelessWidget {
                   '进入学工系统',
                   onTap: () {
                     _openProtectedPage(context, const XgxtWebViewPage());
+                  },
+                ),
+                _FunctionItem(
+                  Icons.verified_outlined,
+                  '电子证明系统（试运行）',
+                  '查看在读证明、最大成绩单和正考成绩单',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const WebViewDetailPage(
+                          title: '电子证明系统（试运行）',
+                          url: AppConstants.electronicCertificateUrl,
+                          showWebBack: true,
+                        ),
+                      ),
+                    );
                   },
                 ),
                 _FunctionItem(

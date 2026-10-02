@@ -53,13 +53,38 @@ class ElectricityRoom {
 class ElectricityBalanceInfo {
   final String balance;
   final String? detail;
+  final String? accountName;
+  final int? status;
 
-  ElectricityBalanceInfo({required this.balance, this.detail});
+  ElectricityBalanceInfo({
+    required this.balance,
+    this.detail,
+    this.accountName,
+    this.status,
+  });
 
   factory ElectricityBalanceInfo.fromJson(Map<String, dynamic> json) {
+    final accountName =
+        (json['accname'] ?? json['roomname'] ?? json['roomdesc'])?.toString();
     return ElectricityBalanceInfo(
-      balance: (json['balance'] ?? json['elebalance'] ?? '0.00').toString(),
-      detail: json['eleaccdetail']?.toString(),
+      balance:
+          (json['eledetail'] ??
+                  json['balance'] ??
+                  json['elebalance'] ??
+                  json['syje'] ??
+                  json['ye'] ??
+                  json['remainElec'] ??
+                  json['remainelec'] ??
+                  json['restmoney'] ??
+                  json['elec_balance'] ??
+                  '0.00')
+              .toString(),
+      detail:
+          (json['eleaccdetail'] ?? json['detail'] ?? accountName)?.toString(),
+      accountName: accountName,
+      status: json['elestatus'] is int
+          ? json['elestatus'] as int
+          : int.tryParse(json['elestatus']?.toString() ?? ''),
     );
   }
 }

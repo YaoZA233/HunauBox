@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/electricity_model.dart';
 import '../services/app_logger.dart';
 import '../services/campus_card_service.dart';
 import '../services/electricity_service.dart';
+import '../widgets/campus_card_payment_sheet.dart';
 import '../widgets/payment_result_sheet.dart';
 
 class ElectricityRechargePage extends StatefulWidget {
@@ -220,13 +222,13 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
       return;
     }
 
-    final amountText = _amountController.text;
-    final amount = double.tryParse(amountText);
+    final amountText = _amountController.text.trim();
+    final amount = int.tryParse(amountText);
 
-    if (amount == null || amount <= 0) {
+    if (amount == null || amount < 1 || amount > 1000) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('请输入有效的充值金额')));
+      ).showSnackBar(const SnackBar(content: Text('请输入 1–1000 元的整数金额')));
       return;
     }
 
@@ -252,8 +254,9 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
         areaName: _selectedArea!.name,
         buildingName: _selectedBuilding!.name,
         roomId: _selectedRoom!.id,
+        roomName: _selectedRoom!.name,
         mertype: _selectedRoom!.mertype,
-        amount: amount,
+        amount: amount.toDouble(),
       );
 
       if (mounted) {
@@ -286,6 +289,78 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
         ).showSnackBar(SnackBar(content: Text('充值失败: $e')));
       }
     }
+  }
+
+  Future<void> _handleThirdPartyRecharge(PaymentMethod method) async {
+    final area = _selectedArea;
+    final building = _selectedBuilding;
+    final room = _selectedRoom;
+    if (area == null || building == null || room == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请选择完整的房间信息')));
+      return;
+    }
+
+    final amountText = _amountController.text.trim();
+    final amount = int.tryParse(amountText);
+    if (amount == null || amount < 1 || amount > 1000) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请输入 1–1000 元的整数金额')));
+      return;
+    }
+
+    late final CampusCardInfo cardInfo;
+    setState(() => _isPaying = true);
+    try {
+      // 支付结果通过校园卡余额增长确认，因此必须以本次下单前的实时余额为基线。
+      cardInfo = await CampusCardService.instance.fetchRechargeInfo();
+    } catch (e) {
+      _logger.e('Failed to fetch card info for electricity recharge: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('获取校园卡信息失败: $e')),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) setState(() => _isPaying = false);
+    }
+    if (!mounted) return;
+
+    final roomDescription = '${area.name} ${building.name} ${room.name}';
+    await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => CampusCardPaymentSheet(
+        amount: amountText,
+        merchantName: '缴电费·$roomDescription',
+        info: cardInfo,
+        paymentMethod: method,
+        successTitle: '电费充值成功',
+        onCardRechargeSuccess: () async {
+          final success = await ElectricityService.instance.recharge(
+            areaName: area.name,
+            buildingName: building.name,
+            roomId: room.id,
+            roomName: room.name,
+            mertype: room.mertype,
+            amount: amount.toDouble(),
+          );
+          if (!success) throw Exception('电费充值失败');
+        },
+      ),
+    );
+
+    if (!mounted) return;
+    try {
+      await CampusCardService.instance.fetchRechargeInfo();
+    } catch (e) {
+      _logger.w('Failed to refresh card info after payment: $e');
+    }
+    await _loadBalance();
   }
 
   @override
@@ -326,12 +401,12 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                     decoration: BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.secondaryContainer.withOpacity(0.4),
+                      ).colorScheme.secondaryContainer.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: Theme.of(
                           context,
-                        ).colorScheme.outlineVariant.withOpacity(0.3),
+                        ).colorScheme.outlineVariant.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Column(
@@ -486,7 +561,7 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                               color: isSelected
                                   ? Theme.of(context).colorScheme.primary
                                   : Theme.of(context).colorScheme.outlineVariant
-                                        .withOpacity(0.5),
+                                        .withValues(alpha: 0.5),
                               width: isSelected ? 2 : 1,
                             ),
                           ),
@@ -512,19 +587,15 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                   const SizedBox(height: 24),
                   TextField(
                     controller: _amountController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                    ],
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: InputDecoration(
                       labelText: '其他金额',
                       prefixText: '¥ ',
                       filled: true,
                       fillColor: Theme.of(
                         context,
-                      ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -542,30 +613,72 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                     ),
                   ),
                   const SizedBox(height: 48),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: FilledButton.icon(
-                      onPressed: _isPaying ? null : _handleRecharge,
-                      icon: _isPaying
-                          ? Container(
-                              width: 20,
-                              height: 20,
-                              margin: const EdgeInsets.only(right: 8),
-                              child: CircularProgressIndicator(
-                                color: Theme.of(context).colorScheme.onPrimary,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Icon(Icons.bolt_rounded, size: 20),
-                      label: const Text(
-                        '立即充值',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        height: 52,
+                        child: FilledButton.icon(
+                          onPressed: _isPaying ? null : _handleRecharge,
+                          icon: _isPaying
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.credit_card_rounded, size: 20),
+                          label: const Text(
+                            '校园卡支付',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 52,
+                              child: FilledButton.icon(
+                                onPressed: _isPaying
+                                    ? null
+                                    : () => _handleThirdPartyRecharge(PaymentMethod.wechat),
+                                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF07C160)),
+                                icon: SvgPicture.string(
+                                  kWechatSvg,
+                                  width: 20,
+                                  height: 20,
+                                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                                ),
+                                label: const Text('微信支付', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: SizedBox(
+                              height: 52,
+                              child: FilledButton.icon(
+                                onPressed: _isPaying
+                                    ? null
+                                    : () => _handleThirdPartyRecharge(PaymentMethod.alipay),
+                                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1677FF)),
+                                icon: SvgPicture.string(
+                                  kAlipaySvg,
+                                  width: 20,
+                                  height: 20,
+                                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                                ),
+                                label: const Text('支付宝支付', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 32),
                 ],
@@ -581,13 +694,14 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
     Function(String?) onChanged,
   ) {
     return DropdownButtonFormField<String>(
-      value: items.contains(current) ? current : null,
+      key: ValueKey('$label:$current'),
+      initialValue: items.contains(current) ? current : null,
       decoration: InputDecoration(
         labelText: label,
         filled: true,
         fillColor: Theme.of(
           context,
-        ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 16,

@@ -13,7 +13,10 @@ class HomeworkStorage {
     return File('${directory.path}/$_fileName');
   }
 
-  Future<void> saveHomeworkList(List<HomeworkModel> list) async {
+  Future<void> saveHomeworkList(
+    List<HomeworkModel> list, {
+    bool throwOnError = false,
+  }) async {
     try {
       final file = await _getFile();
       final jsonString = jsonEncode(list.map((e) => e.toJson()).toList());
@@ -21,6 +24,7 @@ class HomeworkStorage {
       _logger.d('💾 Saved ${list.length} homework items to local storage.');
     } catch (e) {
       _logger.e('❌ Failed to save homework list: $e');
+      if (throwOnError) rethrow;
     }
   }
 
@@ -33,8 +37,10 @@ class HomeworkStorage {
 
       final jsonString = await file.readAsString();
       final List<dynamic> jsonList = jsonDecode(jsonString);
-      
-      _logger.d('📖 Read ${jsonList.length} homework items from local storage.');
+
+      _logger.d(
+        '📖 Read ${jsonList.length} homework items from local storage.',
+      );
       return jsonList.map((e) => HomeworkModel.fromJson(e)).toList();
     } catch (e) {
       _logger.e('❌ Failed to read homework list: $e');

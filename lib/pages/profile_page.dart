@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../services/app_cookie_manager.dart';
+import '../services/agent_settings_store.dart';
 import '../services/electricity_service.dart';
 import '../services/secure_storage_helper.dart';
 import 'about_page.dart';
@@ -14,6 +15,8 @@ class ProfilePage extends StatelessWidget {
   final String? avatarUrl;
   final String? studentId;
   final VoidCallback onLogout;
+  final bool isLoggedIn;
+  final VoidCallback? onLogin;
 
   const ProfilePage({
     super.key,
@@ -21,9 +24,16 @@ class ProfilePage extends StatelessWidget {
     this.avatarUrl,
     this.studentId,
     required this.onLogout,
+    this.isLoggedIn = true,
+    this.onLogin,
   });
 
   Future<void> _handleLogout(BuildContext context) async {
+    try {
+      await AgentSettingsStore.instance.clear();
+    } catch (_) {
+      // 内存中已关闭 Agent；后续 clearAll 再清理设备凭据。
+    }
     final storage = SecureStorageHelper();
     await storage.clearAll();
     await ElectricityService.instance.clearSavedRoom();
@@ -40,7 +50,9 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final hasAvatar = avatarUrl != null && avatarUrl!.isNotEmpty;
-    final displayName = realName?.trim().isNotEmpty == true
+    final displayName = !isLoggedIn
+        ? '未登录'
+        : realName?.trim().isNotEmpty == true
         ? realName!
         : '校园用户';
     final displayStudentId = studentId?.trim().isNotEmpty == true
@@ -91,7 +103,9 @@ class ProfilePage extends StatelessWidget {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        '学号 $displayStudentId',
+                        isLoggedIn
+                            ? '学号 $displayStudentId'
+                            : '登录后使用校园服务，设置无需登录',
                         style: TextStyle(
                           fontSize: 14,
                           color: colors.onSurfaceVariant,
@@ -162,9 +176,12 @@ class ProfilePage extends StatelessWidget {
           ),
           const SizedBox(height: 36),
           OutlinedButton.icon(
-            onPressed: () => _handleLogout(context),
-            icon: const Icon(Icons.logout_rounded, size: 19),
-            label: const Text('退出登录'),
+            onPressed: isLoggedIn ? () => _handleLogout(context) : onLogin,
+            icon: Icon(
+              isLoggedIn ? Icons.logout_rounded : Icons.login_rounded,
+              size: 19,
+            ),
+            label: Text(isLoggedIn ? '退出登录' : '登录校园账号'),
             style: OutlinedButton.styleFrom(
               foregroundColor: colors.error,
               side: BorderSide(color: colors.error.withValues(alpha: 0.45)),

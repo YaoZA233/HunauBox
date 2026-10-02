@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,6 +12,8 @@ import '../services/course_notification_service.dart';
 import '../services/course_notification_settings_store.dart';
 import '../services/quick_action_store.dart';
 import '../providers/theme_provider.dart';
+import '../utils/notification_debug_helper.dart';
+import '../widgets/agent_settings_section.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -26,7 +29,7 @@ class _SettingsPageState extends State<SettingsPage> {
   static const int _maxSelected = 8;
 
   final List<Color> _themeColors = [
-    const Color(0xFF486A5A), // Fern
+    const Color(0xFF09C489), // ChillEast green
     const Color(0xFF7A5C46), // Cedar
     const Color(0xFFB05C4D), // Brick
     const Color(0xFF9A6A3A), // Ochre
@@ -72,6 +75,7 @@ class _SettingsPageState extends State<SettingsPage> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              const AgentSettingsSection(),
               const Text(
                 '主题设置',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -412,6 +416,25 @@ class _SettingsPageState extends State<SettingsPage> {
                               await CourseNotificationService.instance
                                   .rescheduleIfEnabled();
                             },
+                          ),
+                        ),
+                      if (kDebugMode)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('正在检查通知状态...')),
+                              );
+                              await NotificationDebugHelper.printDiagnostics();
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('通知诊断已输出到日志')),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.bug_report_outlined),
+                            label: const Text('诊断通知状态'),
                           ),
                         ),
                     ],

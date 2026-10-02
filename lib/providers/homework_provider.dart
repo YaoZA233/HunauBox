@@ -25,9 +25,10 @@ final homeworkProvider =
 
 class HomeworkNotifier extends StateNotifier<AsyncValue<List<HomeworkModel>>> {
   final Ref _ref;
+  late final Future<void> _initialization;
 
   HomeworkNotifier(this._ref) : super(const AsyncValue.loading()) {
-    _init();
+    _initialization = _init();
   }
 
   Future<void> _init() async {
@@ -88,6 +89,48 @@ class HomeworkNotifier extends StateNotifier<AsyncValue<List<HomeworkModel>>> {
     _ref.read(homeworkStorageProvider).saveHomeworkList(list);
     state = AsyncValue.data(list);
     CourseNotificationService.instance.rescheduleIfEnabled();
+  }
+
+  /// Agent 修改只适用于手动作业；持久化成功后才更新 UI。
+  Future<void> addManualHomework(
+    HomeworkModel item, {
+    void Function()? checkActive,
+  }) async {
+    await _initialization;
+    checkActive?.call();
+    if (state.isLoading || state.value == null) throw StateError('作业仍在加载');
+    if (!item.isManual) throw ArgumentError('仅支持手动作业');
+    final list = [...state.value!, item];
+    await _ref
+        .read(homeworkStorageProvider)
+        .saveHomeworkList(list, throwOnError: true);
+    state = AsyncValue.data(list);
+    try {
+      await CourseNotificationService.instance.rescheduleIfEnabled();
+    } catch (_) {}
+  }
+
+  Future<void> completeManualHomework(
+    String id, {
+    void Function()? checkActive,
+  }) async {
+    await _initialization;
+    checkActive?.call();
+    if (state.isLoading || state.value == null) throw StateError('作业仍在加载');
+    final item = state.value!.firstWhere((h) => h.id == id);
+    if (!item.isManual) throw ArgumentError('学习通作业必须在学习通完成');
+    final list = state.value!
+        .map(
+          (h) => h.id == id ? h.copyWith(status: HomeworkStatus.completed) : h,
+        )
+        .toList();
+    await _ref
+        .read(homeworkStorageProvider)
+        .saveHomeworkList(list, throwOnError: true);
+    state = AsyncValue.data(list);
+    try {
+      await CourseNotificationService.instance.rescheduleIfEnabled();
+    } catch (_) {}
   }
 
   Future<void> clearAll() async {

@@ -1,30 +1,8 @@
-# Life@HUNAU
+# HUNAUBOX
 
 基于 Flutter 开发的 HUNAU 校园生活服务 App。应用通过侧边导航整合首页、校园功能、通知、作业和设置，将校园卡、教务与常用校园服务集中到一个移动端入口中。
 
 项目当前使用学校统一身份认证登录，并通过网络请求、WebView 和本地缓存连接校园相关服务。
-
-## 界面预览
-
-以下截图来自 Android 运行效果，保存在 [`screenimg`](./screenimg) 目录中。当前界面支持主题色、明暗模式和自定义背景。
-
-<table>
-  <tr>
-    <td align="center"><img src="./screenimg/Screenshot_20260815_174716_com_example_smart_huna.jpg" width="240" alt="Life at HUNAU 首页" /><br />首页</td>
-    <td align="center"><img src="./screenimg/Screenshot_20260815_174721_com_example_smart_huna.jpg" width="240" alt="Life at HUNAU 通知" /><br />通知</td>
-  </tr>
-  <tr>
-    <td align="center"><img src="./screenimg/Screenshot_20260815_174654_com_example_smart_huna.jpg" width="240" alt="Life at HUNAU 作业" /><br />作业</td>
-    <td align="center"><img src="./screenimg/Screenshot_20260815_174731_com_example_smart_huna.jpg" width="240" alt="Life at HUNAU 设置" /><br />设置</td>
-  </tr>
-  <tr>
-    <td align="center"><img src="./screenimg/Image_1786787361018_419.jpg" width="240" alt="Life at HUNAU 自定义背景效果一" /><br />自定义背景效果（一）</td>
-    <td align="center"><img src="./screenimg/Image_1786787383930_160.jpg" width="240" alt="Life at HUNAU 自定义背景效果二" /><br />自定义背景效果（二）</td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2"><img src="./screenimg/Image_1786787386735_96.jpg" width="240" alt="Life at HUNAU 自定义背景通知页" /><br />自定义背景下的通知页</td>
-  </tr>
-</table>
 
 ## 主要功能
 
@@ -53,9 +31,22 @@
 - 登录后可手动刷新通知和作业数据
 - 可在设置中开启新校园消息和新作业通知
 
+### Agent 校园助手
+
+- 可选开启校园 Agent，并配置兼容 Chat Completions 的模型服务
+- 支持查询今日课程、下一节课、课程地点和近期作业
+- 支持创建手动作业、完成手动作业和打开相关校园功能
+- 支持通过自然语言进入空教室、成绩、通知等校园服务页面
+- 涉及创建、跳转或其他可能改变数据的操作时，会先展示操作内容并请求确认
+- Agent 不代替用户支付、提交问卷、提交学习通作业或执行扣款操作
+- API Key 等配置保存在本机安全存储中，反馈问题时请勿提交 Key、密码、验证码或 Cookie
+
 ### 课表与个性化
 
 - 从教务系统导入课表，以周视图查看课程，并可快速回到当天
+- 支持长按课程卡片进行临时调课，也可以从右上角进入调课方式选择
+- 支持日期时间调课、单周次调课、批量周次调课和批量课程调课
+- 支持将某一周次标记为不上课；临时安排独立保存，不会破坏原始课表
 - 支持将当前课表导出为 ICS 文件并分享
 - 根据已导入课表发送下一节课提醒，可选择提前 10、15、20 或 30 分钟通知
 - 支持白天、黑夜与跟随系统三种显示模式，以及 10 种主题配色
@@ -67,6 +58,13 @@
 - 登录凭据使用 `flutter_secure_storage` 保存，支持下次启动自动登录
 - Cookie、课表、通知、作业和部分页面数据会根据功能需要进行本地缓存
 - 需要登录的功能会在进入时自动进行登录校验
+
+### 帮助与反馈
+
+- 帮助与反馈页面提供登录、Agent、课表调课、作业、通知和同步异常的使用说明
+- FAQ 会解释常见的登录失败、Agent 配置错误、缓存未更新和课表显示差异
+- 提交问题时建议附上页面名称、操作步骤、预期结果、实际结果、设备型号和应用版本
+- 请勿在反馈中发送密码、API Key、验证码、Cookie 或其他敏感信息
 
 ## 技术栈
 
@@ -90,7 +88,6 @@ smart_hunan_agri/
 ├── macos/                    # macOS 工程
 ├── windows/                  # Windows 工程
 ├── assets/                   # 应用图标等资源
-├── screenimg/                # README 使用的运行截图
 ├── lib/
 │   ├── models/               # 数据模型和应用常量
 │   ├── pages/                # 页面与业务界面
@@ -227,6 +224,6 @@ flutter test
 
 ## 版本信息
 
-- 应用版本：`1.0.1+1`
+- 应用版本：`1.0.2+2`
 - 项目名称：`smart_hunan_agri`
-- 应用展示名称：`Life@HUNAU`
+- 应用展示名称：`HuanuBox`

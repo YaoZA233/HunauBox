@@ -21,10 +21,18 @@ class AppConstants {
   static const String xgxtBaseUrl = 'https://xgxt.hunau.edu.cn';
   static const String xgxtCasUrl = '$xgxtBaseUrl/cas';
   static const String xgxtWapUrl = '$xgxtBaseUrl/wap/main/welcome';
+  static const String xgxtQuestionnaireListUrl =
+      '$xgxtBaseUrl/content/tabledata/fwk/wjdc/stu/xs_wjdc';
+  static const String xgxtQuestionnaireDetailUrl =
+      '$xgxtBaseUrl/content/json/fwk/wjdc/stu/ks_sj/sjvo';
+  static const String xgxtQuestionnaireSubmitUrl =
+      '$xgxtBaseUrl/content/fwk/wjdc/stu/ks_sj/submit';
 
   static const String jwxtBaseUrl = 'http://jwxt.hunau.edu.cn';
   static const String jwxtSsoUrl =
       'https://webvpn.hunau.edu.cn/http/77777776706e6973746865626573742117075065b065b1ed23b25545bb868160e0/sso.jsp';
+  static const String electronicCertificateUrl =
+      'https://webvpn.hunau.edu.cn/https/77777776706e697374686562657374211e155a65b065b1ed23b25545bb86816075/Integrated_platform/modules/student/OnlineAppL';
   static const String jwxtFrameworkUrl =
       'https://webvpn.hunau.edu.cn/http/77777776706e6973746865626573742117075065b065b1ed23b25545bb868160e0/jsxsd/framework/xsMainV.jsp';
   static const String jwxtCookieSyncUrl = '$jwxtBaseUrl/cookieSync';
@@ -34,6 +42,8 @@ class AppConstants {
   // 移动教务系统（超星 OAuth）
   static const String ydjwxtOAuthUrl =
       'https://auth.chaoxing.com/connect/oauth2/authorize?appid=ccf57937af7e40dcbdef0523e05e5ddd&redirect_uri=https%3A%2F%2Fydjwxt.hunau.edu.cn%2Fnjwhd%2Flogin%2Foauth2%3FappId%3Dccf57937af7e40dcbdef0523e05e5ddd%26appKey%3D1D13d6neUcz6c20f%26uid%3D22073114%26fidEnc%3Da915b52ee0aa18ad%26mappId%3D6127153%26formid%3D&response_type=code&scope=snsapi_base&state=128516';
+  static const String ydjwxtTimetableUrl =
+      'https://ydjwxt.hunau.edu.cn/njwhd/student/curriculum';
   static const String ydjwxtSemesterListUrl =
       'https://ydjwxt.hunau.edu.cn/njwhd/semesterList';
   static const String ydjwxtScoreUrl =
@@ -102,5 +112,5 @@ class AppConstants {
   static const String storageAuthStateKey = 'auth_state';
 
   static const String defaultSemester = '2025-2026-2';
-  static const int primaryColorValue = 0xFF486A5A;
+  static const int primaryColorValue = 0xFF09C489;
 }

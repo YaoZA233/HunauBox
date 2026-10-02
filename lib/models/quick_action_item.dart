@@ -50,6 +50,11 @@ class QuickActionCatalog {
       icon: Icons.connect_without_contact_outlined,
     ),
     QuickActionItem(
+      id: 'questionnaire',
+      label: '学工问卷',
+      icon: Icons.fact_check_outlined,
+    ),
+    QuickActionItem(
       id: 'teaching_eval',
       label: '教学评价平台',
       icon: Icons.rate_review_outlined,

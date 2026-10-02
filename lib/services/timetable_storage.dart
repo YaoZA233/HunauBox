@@ -4,11 +4,13 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/course_model.dart';
+import '../models/timetable_adjustment.dart';
 
 class TimetableStorage {
   static const String _fileName = 'current_timetable.ics';
   static const String _metaFileName = 'timetable_meta.json';
   static const String _courseListFileName = 'courses.json';
+  static const String _adjustmentFileName = 'timetable_adjustments.json';
 
   Future<File> _getFile() async {
     final directory = await getApplicationDocumentsDirectory();
@@ -154,5 +156,36 @@ class TimetableStorage {
     } catch (e) {
       return;
     }
+  }
+
+  Future<void> saveAdjustments(List<TimetableAdjustment> adjustments) async {
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/$_adjustmentFileName');
+    await file.writeAsString(jsonEncode(adjustments.map((e) => e.toJson()).toList()));
+  }
+
+  Future<List<TimetableAdjustment>> readAdjustments() async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$_adjustmentFileName');
+      if (!await file.exists()) return [];
+      final decoded = jsonDecode(await file.readAsString());
+      if (decoded is! List) return [];
+      return decoded
+          .whereType<Map>()
+          .map((item) => TimetableAdjustment.fromJson(Map<String, dynamic>.from(item)))
+          .where((item) => item.courseId.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> deleteAdjustments() async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$_adjustmentFileName');
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
   }
 }

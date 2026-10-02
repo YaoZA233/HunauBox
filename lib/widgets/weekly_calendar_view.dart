@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/course_model.dart';
+import '../models/timetable_adjustment.dart';
 import '../utils/date_calculator.dart';
 import '../utils/week_parser.dart';
 import '../utils/course_color_utils.dart';
@@ -8,11 +9,15 @@ import '../utils/course_color_utils.dart';
 class WeeklyCalendarView extends StatefulWidget {
   final List<CourseModel> courses;
   final DateTime firstWeekMonday;
+  final List<TimetableAdjustment> adjustments;
+  final void Function(CourseModel course, int weekNumber)? onCourseLongPress;
 
   const WeeklyCalendarView({
     super.key,
     required this.courses,
     required this.firstWeekMonday,
+    this.adjustments = const [],
+    this.onCourseLongPress,
   });
 
   @override
@@ -290,6 +295,9 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
     final color = CourseColorUtils.getColorForCourse(course.name);
     return GestureDetector(
       onTap: () => _showCourseDetail(course),
+      onLongPress: widget.onCourseLongPress == null
+          ? null
+          : () => widget.onCourseLongPress!(course, _currentWeekNumber),
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
@@ -394,9 +402,46 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
   }
 
   List<CourseModel> _getCoursesForWeek(int weekNumber) {
-    return widget.courses.where((course) {
-      final weeks = WeekParser.parseWeeks(course.weeks);
-      return weeks.contains(weekNumber);
-    }).toList();
+    final visible = <CourseModel>[];
+
+    for (final course in widget.courses) {
+      final active = WeekParser.parseWeeks(course.weeks).contains(weekNumber);
+      final sourceAdjustment = widget.adjustments
+          .where((item) => item.courseId == course.id && item.sourceWeek == weekNumber)
+          .firstOrNull;
+
+      if (active) {
+        if (sourceAdjustment == null) {
+          visible.add(course);
+        } else if (!sourceAdjustment.cancelled && sourceAdjustment.targetWeek == weekNumber) {
+          visible.add(_applyAdjustment(course, sourceAdjustment));
+        }
+      }
+
+      // A move can land in a week where the original course did not occur.
+      for (final adjustment in widget.adjustments.where(
+        (item) => item.courseId == course.id &&
+            item.targetWeek == weekNumber &&
+            item.sourceWeek != weekNumber &&
+            item.sourceWeek != 0,
+      )) {
+        if (!adjustment.cancelled) {
+          visible.add(_applyAdjustment(course, adjustment));
+        }
+      }
+    }
+    return visible;
+  }
+
+  CourseModel _applyAdjustment(
+    CourseModel course,
+    TimetableAdjustment adjustment,
+  ) {
+    return course.copyWith(
+      dayOfWeek: adjustment.targetDay,
+      startPeriod: adjustment.targetStartPeriod,
+      endPeriod: adjustment.targetEndPeriod,
+      periods: '${adjustment.targetStartPeriod}-${adjustment.targetEndPeriod}',
+    );
   }
 }

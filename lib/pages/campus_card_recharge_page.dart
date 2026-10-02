@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../services/app_logger.dart';
 import '../services/campus_card_service.dart';
@@ -67,13 +68,13 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
     });
   }
 
-  Future<void> _handleRecharge() async {
-    final amountText = _amountController.text;
-    final amount = double.tryParse(amountText);
+  Future<void> _handleRecharge(PaymentMethod method) async {
+    final amountText = _amountController.text.trim();
+    final amount = int.tryParse(amountText);
 
-    if (amount == null || amount <= 0) {
+    if (amount == null || amount < 1 || amount > 1000) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入有效的充值金额')),
+        const SnackBar(content: Text('请输入 1–1000 元的整数金额')),
       );
       return;
     }
@@ -88,6 +89,7 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
         amount: amountText,
         merchantName: '校园卡充值',
         info: _info!,
+        paymentMethod: method,
       ),
     ).then((_) {
       if (mounted) _loadInfo();
@@ -96,8 +98,6 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -130,9 +130,9 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4),
+                          color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4),
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3)),
+                          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -198,7 +198,7 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
                                 color: isSelected ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surface,
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5),
+                                  color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
                                   width: isSelected ? 2 : 1,
                                 ),
                               ),
@@ -218,13 +218,13 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
                       const SizedBox(height: 24),
                       TextField(
                         controller: _amountController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         decoration: InputDecoration(
                           labelText: '其他金额',
                           prefixText: '¥ ',
                           filled: true,
-                          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
@@ -241,16 +241,48 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
                         },
                       ),
                       const SizedBox(height: 32),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: FilledButton(
-                          onPressed: _handleRecharge,
-                          style: FilledButton.styleFrom(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 54,
+                              child: FilledButton.icon(
+                                onPressed: () => _handleRecharge(PaymentMethod.wechat),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF07C160),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
+                                icon: SvgPicture.string(
+                                  kWechatSvg,
+                                  width: 21,
+                                  height: 21,
+                                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                                ),
+                                label: const Text('微信支付', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
                           ),
-                          child: const Text('立即充值', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SizedBox(
+                              height: 54,
+                              child: FilledButton.icon(
+                                onPressed: () => _handleRecharge(PaymentMethod.alipay),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1677FF),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
+                                icon: SvgPicture.string(
+                                  kAlipaySvg,
+                                  width: 21,
+                                  height: 21,
+                                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                                ),
+                                label: const Text('支付宝支付', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 24),
                     ],

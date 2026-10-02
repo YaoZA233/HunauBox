@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/course_model.dart';
+import '../models/timetable_adjustment.dart';
 import '../models/quick_action_item.dart';
 import '../providers/homework_provider.dart';
 import '../providers/notice_provider.dart';
@@ -33,6 +34,7 @@ import 'network_speed_test_page.dart';
 import 'webview_detail_page.dart';
 import 'bus_tracking_page.dart';
 import 'dorm_service_page.dart';
+import 'questionnaire_list_page.dart';
 import '../models/app_constants.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -57,6 +59,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   bool _isLoadingTimetable = false;
   bool _hasTimetable = false;
   List<CourseModel> _allCourses = [];
+  List<TimetableAdjustment> _timetableAdjustments = [];
   CourseModel? _currentCourse;
   CourseModel? _nextCourse;
   DateTime? _nextCourseStart;
@@ -202,6 +205,39 @@ class _HomePageState extends ConsumerState<HomePage> {
         _isLoading = false;
       });
     }
+  }
+
+  /// 头像统一进入个人中心；即使未登录也可访问设置。
+  Future<void> _openProfile() async {
+    if (!_isLoggedIn && await AuthGuard.hasSavedCredentials()) {
+      await _syncSavedLoginState();
+    }
+    final username = await SecureStorageHelper().getUsername();
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ProfilePage(
+          realName: _realName,
+          avatarUrl: _avatarUrl,
+          studentId: username,
+          isLoggedIn: _isLoggedIn,
+          onLogin: () {
+            Navigator.pop(context);
+            _handleLogin();
+          },
+          onLogout: () {
+            if (mounted) {
+              setState(() {
+                _isLoggedIn = false;
+                _realName = null;
+                _avatarUrl = null;
+              });
+            }
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _performLogin(
@@ -451,9 +487,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     final colors = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
-      label: _isLoggedIn ? '个人中心' : '登录',
+      label: '个人中心与设置',
       child: InkWell(
-        onTap: _isLoading ? null : _handleLogin,
+        onTap: _isLoading ? null : _openProfile,
         customBorder: const CircleBorder(),
         child: Stack(
           clipBehavior: Clip.none,
@@ -511,11 +547,11 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1B2A22) : const Color(0xFFE8F0E8),
+        color: isDark
+            ? colors.surfaceContainerHigh
+            : colors.primaryContainer.withValues(alpha: 0.42),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isDark ? const Color(0xFF41594A) : const Color(0xFFC8D9C9),
-        ),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(7),
@@ -732,7 +768,7 @@ class _HomePageState extends ConsumerState<HomePage> {
               ),
             ),
             GestureDetector(
-              onTap: _isLoading ? null : _handleLogin,
+              onTap: _isLoading ? null : _openProfile,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
@@ -1126,9 +1162,12 @@ class _HomePageState extends ConsumerState<HomePage> {
             : null;
 
         if (icsContent != null && firstWeekMonday != null && mounted) {
+          final storedCourses = await storage.readCourseList();
+          final adjustments = await storage.readAdjustments();
           setState(() {
             _hasTimetable = true;
-            _allCourses = IcsParser.parse(icsContent);
+            _allCourses = storedCourses.isEmpty ? IcsParser.parse(icsContent) : storedCourses;
+            _timetableAdjustments = adjustments;
             _firstWeekMonday = firstWeekMonday;
           });
           _updateDisplayedCourses(DateTime.now());
@@ -1170,6 +1209,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       courses: _allCourses,
       firstWeekMonday: _firstWeekMonday,
       now: now,
+      adjustments: _timetableAdjustments,
     );
     setState(() {
       _currentCourse = selection.current?.course;
@@ -1407,6 +1447,13 @@ class _HomePageState extends ConsumerState<HomePage> {
       await Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const XgxtWebViewPage()));
+      return;
+    }
+
+    if (id == 'questionnaire') {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const QuestionnaireListPage()));
       return;
     }
 

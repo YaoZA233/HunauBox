@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/material.dart';
@@ -8,11 +9,12 @@ import '../providers/homework_provider.dart';
 import '../providers/notice_provider.dart';
 import '../providers/background_provider.dart';
 import '../services/auth_guard.dart';
+import '../services/agent_settings_store.dart';
+import 'agent_page.dart';
 import 'function_page.dart';
 import 'home_page.dart';
 import 'homework_page.dart';
 import 'notice_page.dart';
-import 'settings_page.dart';
 
 class MainNavigator extends ConsumerWidget {
   const MainNavigator({super.key});
@@ -21,7 +23,7 @@ class MainNavigator extends ConsumerWidget {
     (Icons.apps_outlined, Icons.apps_rounded, '功能'),
     (Icons.notifications_none_rounded, Icons.notifications_rounded, '通知'),
     (Icons.assignment_outlined, Icons.assignment_rounded, '作业'),
-    (Icons.settings_outlined, Icons.settings_rounded, '设置'),
+    (Icons.smart_toy_outlined, Icons.smart_toy_rounded, 'Agent'),
   ];
 
   Future<void> _openDestination(
@@ -29,6 +31,7 @@ class MainNavigator extends ConsumerWidget {
     WidgetRef ref,
     int index,
   ) async {
+    if (index == 3 && !ref.read(agentSettingsProvider).config.enabled) return;
     if (index != 3) {
       final result = await AuthGuard.ensureLoggedIn(context);
       if (!result.allowed || !context.mounted) return;
@@ -45,7 +48,7 @@ class MainNavigator extends ConsumerWidget {
       0 => const FunctionPage(),
       1 => const NoticePage(),
       2 => const HomeworkPage(),
-      3 => const SettingsPage(),
+      3 => const AgentPage(),
       _ => const HomePage(),
     };
 
@@ -57,20 +60,21 @@ class MainNavigator extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasBackground = ref.watch(appBackgroundProvider).hasImage;
+    final agentEnabled = ref.watch(agentSettingsProvider).config.enabled;
 
     return Scaffold(
+      // Keep a muted surface behind the rail so its translucent material has
+      // something to separate from the white content panel.
       backgroundColor: hasBackground
           ? Colors.transparent
-          : isDark
-          ? const Color(0xFF18221D)
-          : const Color(0xFFE2E8E1),
+          : colors.surfaceContainerHighest,
       body: Row(
         children: [
           SizedBox(
             width: 78,
-            child: _SideRail(
+            child: CampusNavigationRail(
+              agentEnabled: agentEnabled,
               onChanged: (index) => _openDestination(context, ref, index),
             ),
           ),
@@ -93,64 +97,96 @@ class MainNavigator extends ConsumerWidget {
   }
 }
 
-class _SideRail extends StatelessWidget {
-  const _SideRail({required this.onChanged});
+class CampusNavigationRail extends StatelessWidget {
+  const CampusNavigationRail({
+    super.key,
+    required this.onChanged,
+    required this.agentEnabled,
+    this.showSystemStatus = true,
+  });
 
   final ValueChanged<int> onChanged;
+  final bool agentEnabled;
+  final bool showSystemStatus;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final foreground = isDark
-        ? const Color(0xFFE8EEE8)
-        : const Color(0xFF3D5145);
+    final colors = Theme.of(context).colorScheme;
+    final foreground = colors.onSurfaceVariant;
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Column(
-          children: [
-            _TimeAndBatteryStatus(foreground: foreground),
-            const Spacer(),
-            ...List.generate(MainNavigator._destinations.length, (index) {
-              final destination = MainNavigator._destinations[index];
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.surfaceContainerHighest.withValues(alpha: 0.78),
+            border: Border(
+              right: BorderSide(
+                color: colors.outlineVariant.withValues(alpha: 0.9),
+              ),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: colors.shadow.withValues(alpha: 0.08),
+                blurRadius: 16,
+                offset: const Offset(2, 0),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Column(
+                children: [
+                  if (showSystemStatus)
+                    _TimeAndBatteryStatus(foreground: foreground),
+                  const Spacer(),
+                  ...List.generate(agentEnabled ? 4 : 3, (index) {
+                    final destination = MainNavigator._destinations[index];
 
-              return Padding(
-                padding: const EdgeInsets.only(top: 5),
-                child: Tooltip(
-                  message: destination.$3,
-                  child: Semantics(
-                    button: true,
-                    label: destination.$3,
-                    child: InkResponse(
-                      onTap: () => onChanged(index),
-                      radius: 27,
-                      customBorder: const CircleBorder(),
-                      child: SizedBox(
-                        width: 54,
-                        height: 54,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(destination.$1, size: 22, color: foreground),
-                            const SizedBox(height: 2),
-                            Text(
-                              destination.$3,
-                              style: TextStyle(
-                                color: foreground,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w500,
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Tooltip(
+                        message: destination.$3,
+                        child: Semantics(
+                          button: true,
+                          label: destination.$3,
+                          child: InkResponse(
+                            onTap: () => onChanged(index),
+                            radius: 27,
+                            customBorder: const CircleBorder(),
+                            child: SizedBox(
+                              width: 54,
+                              height: 54,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    destination.$1,
+                                    size: 22,
+                                    color: foreground,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    destination.$3,
+                                    style: TextStyle(
+                                      color: foreground,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ],
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

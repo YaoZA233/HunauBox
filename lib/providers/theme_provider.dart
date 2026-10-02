@@ -16,9 +16,8 @@ final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>((
 
 class ThemeColorNotifier extends StateNotifier<Color> {
   static const String _colorKey = 'theme_color';
-  // A calm fern green gives the app a campus-and-field identity without
-  // pushing every surface toward a bright accent color.
-  static const Color defaultColor = Color(0xFF486A5A);
+  // ChillEast's campus green accent keeps the light theme crisp and white-first.
+  static const Color defaultColor = Color(0xFF09C489);
 
   ThemeColorNotifier() : super(defaultColor) {
     _loadThemeColor();
@@ -28,9 +27,11 @@ class ThemeColorNotifier extends StateNotifier<Color> {
     final prefs = await SharedPreferences.getInstance();
     final colorValue = prefs.getInt(_colorKey);
     if (colorValue != null) {
-      // Migrate the former default so an existing install receives the new
-      // palette while still preserving any other custom color choice.
-      state = colorValue == 0xFF1A73E8 ? defaultColor : Color(colorValue);
+      // Migrate both older defaults so existing installs receive the new
+      // palette while preserving any deliberate custom color choice.
+      state = colorValue == 0xFF1A73E8 || colorValue == 0xFF486A5A
+          ? defaultColor
+          : Color(colorValue);
     }
   }
 
