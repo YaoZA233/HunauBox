@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/course_model.dart';
 import '../models/homework_model.dart';
 import '../models/score_model.dart';
+import '../models/timetable_adjustment.dart';
 import '../models/agent_models.dart';
 import '../providers/homework_provider.dart';
 import '../utils/date_calculator.dart';
@@ -19,6 +20,9 @@ import 'score_service.dart';
 import 'secure_storage_helper.dart';
 import 'timetable_service.dart';
 import 'timetable_storage.dart';
+import 'sunshine_service.dart';
+import 'leave_service.dart';
+import 'repair_service.dart';
 
 const agentServiceLabels = <String, String>{
   'timetable': '课表',
@@ -29,6 +33,9 @@ const agentServiceLabels = <String, String>{
   'campus_card': '校园卡充值',
   'electricity': '电费充值',
   'questionnaire': '学工问卷',
+  'sunshine': '阳光服务',
+  'leave': '请假申请',
+  'repair': '报修平台',
 };
 
 String agentClassroomSectionCode(int section) {
@@ -138,11 +145,39 @@ AgentToolRegistry buildCampusAgentTools(
           meta?['firstWeekMonday']?.toString() ?? '',
         ),
       );
+      final adjustments = await storage.readAdjustments();
+      final requestedWeek = a['today'] == true
+          ? DateCalculator.getCurrentWeekNumber(
+              DateTime.tryParse(meta?['firstWeekMonday']?.toString() ?? '')!,
+            )
+          : a['week'] as int?;
+      final effective = <CourseModel>[...filtered];
+      if (requestedWeek != null) {
+        for (final adjustment in adjustments.where((item) => !item.cancelled && item.targetWeek == requestedWeek)) {
+          final original = courses.where((course) => course.id == adjustment.courseId).firstOrNull;
+          if (original == null) continue;
+          if (adjustment.sourceWeek == requestedWeek) {
+            effective.removeWhere((course) => course.id == original.id);
+          }
+          effective.add(original.copyWith(dayOfWeek: adjustment.targetDay, startPeriod: adjustment.targetStartPeriod, endPeriod: adjustment.targetEndPeriod, periods: '${adjustment.targetStartPeriod}-${adjustment.targetEndPeriod}'));
+        }
+        effective.sort((a, b) => a.dayOfWeek != b.dayOfWeek ? a.dayOfWeek.compareTo(b.dayOfWeek) : a.startPeriod.compareTo(b.startPeriod));
+      }
       return {
         'totalCount': filtered.length,
         'source': '本地课表',
         'savedAt': meta?['savedAt'],
+        'currentWeek': meta?['firstWeekMonday'] == null
+            ? null
+            : DateCalculator.getCurrentWeekNumber(
+                DateTime.tryParse(meta!['firstWeekMonday'].toString())!,
+              ),
+        'adjustments': adjustments
+            .where((item) => filtered.any((course) => course.id == item.courseId))
+            .map((item) => item.toJson())
+            .toList(),
         'courses': filtered.take(100).map((c) => c.toJson()).toList(),
+        'effectiveCourses': effective.take(100).map((c) => c.toJson()).toList(),
       };
     },
     properties: {
@@ -214,6 +249,135 @@ AgentToolRegistry buildCampusAgentTools(
       'keyword': str,
       'forceRefresh': boolean,
     },
+  );
+
+  add(
+    'query_timetable_adjustments',
+    '查询临时调课',
+    '查询已经保存的临时调课和停课规则。返回原课程、源周次以及目标周次、星期和节次。',
+    (a, ctx) async {
+      final items = await TimetableStorage().readAdjustments();
+      final courses = await TimetableStorage().readCourseList();
+      final byId = {for (final course in courses) course.id: course};
+      final keyword = (a['courseName'] as String? ?? '').trim().toLowerCase();
+      final result = items.where((item) {
+        final course = byId[item.courseId];
+        return keyword.isEmpty ||
+            (course != null && course.name.toLowerCase().contains(keyword));
+      }).map((item) {
+        final course = byId[item.courseId];
+        return {
+          'courseId': item.courseId,
+          'courseName': course?.name ?? item.courseId,
+          'sourceWeek': item.sourceWeek,
+          'sourceDay': item.sourceDay,
+          'targetWeek': item.targetWeek,
+          'targetDay': item.targetDay,
+          'targetStartPeriod': item.targetStartPeriod,
+          'targetEndPeriod': item.targetEndPeriod,
+          'cancelled': item.cancelled,
+          'note': item.note,
+        };
+      }).toList();
+      return {'totalCount': result.length, 'adjustments': result};
+    },
+    properties: {'courseName': str},
+  );
+
+  add(
+    'adjust_timetable',
+    'AI 调课',
+    '保存一条临时调课或停课规则。必须先查询课表确认课程和源周次，再调用此工具。只修改本机临时安排，不改变教务原始课表；执行前必须让用户确认。星期使用 1=周一到 7=周日，节次使用实际小节编号。停课时 cancelled=true，目标位置仍需传入原课程位置。',
+    (a, ctx) async {
+      final courseName = (a['courseName'] as String).trim();
+      final sourceWeek = a['sourceWeek'] as int;
+      final sourceDay = a['sourceDay'] as int?;
+      final targetWeek = a['targetWeek'] as int;
+      final targetDay = a['targetDay'] as int;
+      final targetStart = a['targetStartPeriod'] as int;
+      final targetEnd = a['targetEndPeriod'] as int;
+      final cancelled = a['cancelled'] == true;
+      if (courseName.isEmpty) throw const AgentException('课程名称不能为空');
+      if (targetEnd < targetStart) throw const AgentException('结束节次不能早于开始节次');
+      if (sourceWeek < 1 || targetWeek < 1 || sourceDay == null || sourceDay < 1 || sourceDay > 7 || targetDay < 1 || targetDay > 7 || targetStart < 1 || targetEnd > 12) {
+        throw const AgentException('周次、星期或节次超出有效范围');
+      }
+      final storage = TimetableStorage();
+      final courses = await storage.readCourseList();
+      final candidates = courses.where((course) {
+        final sameName = course.name.toLowerCase().contains(courseName.toLowerCase());
+        final inWeek = WeekParser.parseWeeks(course.weeks).contains(sourceWeek);
+        return sameName && inWeek && course.dayOfWeek == sourceDay;
+      }).toList();
+      if (candidates.isEmpty) throw const AgentException('没有找到符合课程名、源周次和星期的课程，请先查询课表确认参数');
+      if (candidates.length > 1) {
+        throw AgentException('匹配到多门课程：${candidates.take(5).map((e) => '${e.name}（周${e.dayOfWeek}第${e.periods}节）').join('、')}，请补充更完整的课程名称');
+      }
+      final course = candidates.single;
+      final existing = await storage.readAdjustments();
+      final conflicts = courses.where((other) {
+        if (other.id == course.id) return false;
+        if (!WeekParser.parseWeeks(other.weeks).contains(targetWeek)) return false;
+        return other.dayOfWeek == targetDay && other.startPeriod <= targetEnd && other.endPeriod >= targetStart;
+      }).map((e) => e.name).toSet().toList();
+      final note = (a['note'] as String? ?? '').trim();
+      final detail = StringBuffer()
+        ..writeln('课程：${course.name}')
+        ..writeln('原安排：第$sourceWeek周 星期$sourceDay 第${course.periods}节')
+        ..writeln(cancelled ? '调整：本次停课' : '新安排：第$targetWeek周 星期$targetDay 第$targetStart-$targetEnd节')
+        ..writeln(note.isEmpty ? '备注：无' : '备注：$note');
+      if (conflicts.isNotEmpty) detail.writeln('提示：目标时段已有课程「${conflicts.join('、')}」，请确认是否继续。');
+      if (!await ctx.askConfirmation('确认 AI 调课', detail.toString())) return {'cancelled': true, 'message': '用户取消，未修改课表'};
+      ctx.checkActive();
+      final adjustment = TimetableAdjustment(
+        id: '${course.id}_$sourceWeek', courseId: course.id, sourceWeek: sourceWeek, sourceDay: course.dayOfWeek,
+        targetWeek: targetWeek, targetDay: targetDay, targetStartPeriod: targetStart, targetEndPeriod: targetEnd, cancelled: cancelled, note: note,
+      );
+      final replaced = existing.where((item) => !(item.courseId == course.id && item.sourceWeek == sourceWeek)).toList()..add(adjustment);
+      await storage.saveAdjustments(replaced);
+      return {'success': true, 'courseName': course.name, 'cancelled': cancelled, 'sourceWeek': sourceWeek, 'targetWeek': targetWeek, 'targetDay': targetDay, 'targetStartPeriod': targetStart, 'targetEndPeriod': targetEnd, 'conflicts': conflicts};
+    },
+    properties: {
+      'courseName': str,
+      'sourceWeek': {'type': 'integer', 'minimum': 1, 'maximum': 30},
+      'sourceDay': {'type': 'integer', 'minimum': 1, 'maximum': 7},
+      'targetWeek': {'type': 'integer', 'minimum': 1, 'maximum': 30},
+      'targetDay': {'type': 'integer', 'minimum': 1, 'maximum': 7},
+      'targetStartPeriod': {'type': 'integer', 'minimum': 1, 'maximum': 12},
+      'targetEndPeriod': {'type': 'integer', 'minimum': 1, 'maximum': 12},
+      'cancelled': boolean,
+      'note': str,
+    },
+    required: ['courseName', 'sourceWeek', 'sourceDay', 'targetWeek', 'targetDay', 'targetStartPeriod', 'targetEndPeriod'],
+  );
+
+  add(
+    'restore_timetable_course',
+    '恢复原课表',
+    '删除指定课程某一源周次的临时调课或停课规则，恢复教务原始安排。执行前必须让用户确认。',
+    (a, ctx) async {
+      final name = (a['courseName'] as String).trim().toLowerCase();
+      final week = a['sourceWeek'] as int;
+      final day = a['sourceDay'] as int;
+      final storage = TimetableStorage();
+      final courses = await storage.readCourseList();
+      final matches = courses.where((course) => course.name.toLowerCase().contains(name) && WeekParser.parseWeeks(course.weeks).contains(week) && course.dayOfWeek == day).toList();
+      if (matches.length != 1) throw const AgentException('没有唯一匹配到需要恢复的课程，请先查询课表并补充课程名称、周次和星期');
+      final course = matches.single;
+      final existing = await storage.readAdjustments();
+      final found = existing.where((item) => item.courseId == course.id && item.sourceWeek == week).toList();
+      if (found.isEmpty) return {'message': '该课程没有保存的临时调课，无需恢复'};
+      if (!await ctx.askConfirmation('恢复原课表', '将删除「${course.name}」第$week周星期$day的临时安排，恢复原始课表。')) return {'cancelled': true};
+      ctx.checkActive();
+      await storage.saveAdjustments(existing.where((item) => !(item.courseId == course.id && item.sourceWeek == week)).toList());
+      return {'success': true, 'courseName': course.name, 'sourceWeek': week};
+    },
+    properties: {
+      'courseName': str,
+      'sourceWeek': {'type': 'integer', 'minimum': 1, 'maximum': 30},
+      'sourceDay': {'type': 'integer', 'minimum': 1, 'maximum': 7},
+    },
+    required: ['courseName', 'sourceWeek', 'sourceDay'],
   );
 
   add(
@@ -463,6 +627,45 @@ AgentToolRegistry buildCampusAgentTools(
       'section': {'type': 'integer', 'minimum': 1, 'maximum': 6},
     },
     required: ['building', 'week', 'dayOfWeek', 'section'],
+  );
+
+  add(
+    'query_sunshine',
+    '查询阳光服务',
+    '查询已提交的阳光服务诉求及办理状态，只读，不提交诉求。',
+    (a, ctx) async {
+      final items = await SunshineService().fetchLetters();
+      final keyword = (a['keyword'] as String? ?? '').trim().toLowerCase();
+      final filtered = items.where((item) => keyword.isEmpty || '${item.title} ${item.department} ${item.type}'.toLowerCase().contains(keyword));
+      return {'totalCount': filtered.length, 'tickets': filtered.take(50).map((item) => {'id': item.id, 'title': item.title, 'department': item.department, 'type': item.type, 'date': item.date, 'status': item.statusLabel}).toList()};
+    },
+    properties: {'keyword': str},
+  );
+
+  add(
+    'query_leave',
+    '查询请假申请',
+    '查询请假申请记录和审核状态，只读，不提交或撤销。',
+    (a, ctx) async {
+      final items = await LeaveService().fetchList();
+      final keyword = (a['keyword'] as String? ?? '').trim().toLowerCase();
+      final filtered = items.where((item) => keyword.isEmpty || '${item.typeName} ${item.reason} ${item.startTime} ${item.endTime}'.toLowerCase().contains(keyword));
+      return {'totalCount': filtered.length, 'leaves': filtered.take(50).map((item) => {'id': item.id, 'type': item.typeName, 'startTime': item.startTime, 'endTime': item.endTime, 'duration': item.durationLabel, 'reason': item.reason, 'status': item.statusLabel}).toList()};
+    },
+    properties: {'keyword': str},
+  );
+
+  add(
+    'query_repairs',
+    '查询报修工单',
+    '查询报修平台工单，只读，不创建或取消工单。',
+    (a, ctx) async {
+      final orders = await RepairService().fetchOrders(ongoing: a['ongoing'] != false);
+      final keyword = (a['keyword'] as String? ?? '').trim().toLowerCase();
+      final filtered = orders.where((item) => keyword.isEmpty || '${item.title} ${item.description} ${item.catalog} ${item.status}'.toLowerCase().contains(keyword));
+      return {'totalCount': filtered.length, 'orders': filtered.take(50).map((item) => {'id': item.id, 'code': item.code, 'title': item.title, 'catalog': item.catalog, 'status': item.status, 'description': item.description, 'department': item.department}).toList()};
+    },
+    properties: {'ongoing': boolean, 'keyword': str},
   );
 
   add(

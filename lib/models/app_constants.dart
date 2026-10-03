@@ -106,6 +106,22 @@ class AppConstants {
   static const String repairsSsoUrl =
       '$ssoLoginUrl?service=http%3A%2F%2Fbxpt.hunau.edu.cn%2Frelax%2Fsso%2Fcas%2Flogin';
 
+  static const String sunshineBaseUrl = 'https://sun.hunau.edu.cn';
+  static const String sunshineAuthorizationUrl =
+      'https://sso.hunau.edu.cn/cas/oauth2.0/authorize?response_type=code&client_secret=trusfort&client_id=yg1000002&redirect_uri=http://sun.hunau.edu.cn/OAuthLogin.aspx';
+
+  static const String leaveApplyUrl =
+      '$xgxtBaseUrl/content/student/leave/apply_stu';
+  static const String leaveListUrl =
+      '$xgxtBaseUrl/content/tabledata/student/leave/apply_stu';
+  static const String leaveDeleteUrl =
+      '$xgxtBaseUrl/content/student/leave/apply_stu/del';
+  static const String leaveDictUrl = '$xgxtBaseUrl/content/json/selects';
+  static const String leaveRegionUrl =
+      '$xgxtBaseUrl/content/json/selects/wap/ssx';
+  static const String leaveCalculateUrl =
+      '$xgxtBaseUrl/content/student/leave/calculate';
+
   static const String storageUsernameKey = 'username';
   static const String storagePasswordKey = 'password';
   static const String storageTokenKey = 'token';

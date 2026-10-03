@@ -16,6 +16,9 @@ import 'notice_page.dart';
 import 'questionnaire_list_page.dart';
 import 'score_page.dart';
 import 'timetable_page.dart';
+import 'sunshine_page.dart';
+import 'leave_page.dart';
+import 'repair_page.dart';
 
 class AgentPage extends ConsumerStatefulWidget {
   const AgentPage({super.key, this.service, this.tools});
@@ -98,6 +101,9 @@ class _AgentPageState extends ConsumerState<AgentPage> {
       'campus_card' => const CampusCardRechargePage(),
       'electricity' => const ElectricityRechargePage(),
       'questionnaire' => const QuestionnaireListPage(),
+      'sunshine' => const SunshinePage(),
+      'leave' => const LeavePage(),
+      'repair' => const RepairPage(),
       _ => throw const AgentException('不支持的校园页面'),
     };
     await Navigator.push(
@@ -409,6 +415,8 @@ class _AgentPageState extends ConsumerState<AgentPage> {
       const SizedBox(height: 28),
       for (final prompt in [
         '今天有哪些课，分别在哪上？',
+        '把下周一的高等数学调到下周三第3-4节',
+        '这周五的英语课停课一次',
         '列出还没完成的作业',
         '查询宿舍电费余额',
         '有哪些待填写的学工问卷？',

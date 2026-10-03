@@ -16,6 +16,9 @@ import 'dorm_service_page.dart';
 import 'questionnaire_list_page.dart';
 import '../models/app_constants.dart';
 import '../services/auth_guard.dart';
+import 'sunshine_page.dart';
+import 'leave_page.dart';
+import 'repair_page.dart';
 
 class FunctionPage extends StatelessWidget {
   const FunctionPage({super.key});
@@ -112,6 +115,18 @@ class FunctionPage extends StatelessWidget {
                 ),
               ]),
               _buildCategorySection('学习教务', [
+                _FunctionItem(
+                  Icons.wb_sunny_outlined,
+                  '阳光服务',
+                  '提交诉求并跟踪办理进度',
+                  onTap: () => _openProtectedPage(context, const SunshinePage()),
+                ),
+                _FunctionItem(
+                  Icons.event_available_outlined,
+                  '请假申请',
+                  '在线提交请假并查看审核状态',
+                  onTap: () => _openProtectedPage(context, const LeavePage()),
+                ),
                 _FunctionItem(
                   Icons.fact_check_outlined,
                   '学工问卷',
@@ -249,18 +264,7 @@ class FunctionPage extends StatelessWidget {
                   '报修平台',
                   '提交校园报修工单',
                   onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const WebViewDetailPage(
-                          title: '报修平台',
-                          url: AppConstants.repairsSsoUrl,
-                          userAgent:
-                              'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36',
-                          showWebBack: true,
-                          targetUrl: '/relax/mobile/index.html',
-                        ),
-                      ),
-                    );
+                    _openProtectedPage(context, const RepairPage());
                   },
                 ),
                 _FunctionItem(

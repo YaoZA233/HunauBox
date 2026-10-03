@@ -35,6 +35,9 @@ import 'webview_detail_page.dart';
 import 'bus_tracking_page.dart';
 import 'dorm_service_page.dart';
 import 'questionnaire_list_page.dart';
+import 'sunshine_page.dart';
+import 'leave_page.dart';
+import 'repair_page.dart';
 import '../models/app_constants.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -1511,17 +1514,18 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     if (id == 'repair') {
       await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const WebViewDetailPage(
-            title: '报修平台',
-            url: AppConstants.repairsSsoUrl,
-            userAgent:
-                'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36',
-            showWebBack: true,
-            targetUrl: '/relax/mobile/index.html',
-          ),
-        ),
+        MaterialPageRoute(builder: (_) => const RepairPage()),
       );
+      return;
+    }
+
+    if (id == 'sunshine') {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SunshinePage()));
+      return;
+    }
+
+    if (id == 'leave') {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LeavePage()));
       return;
     }
 

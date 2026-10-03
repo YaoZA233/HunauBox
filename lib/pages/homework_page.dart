@@ -177,7 +177,26 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
               alignment: Alignment.center,
               children: [
                 CircularProgressIndicator(value: completion, strokeWidth: 7, backgroundColor: colors.onPrimary.withValues(alpha: .2), valueColor: AlwaysStoppedAnimation(colors.onPrimary)),
-                Text('${(completion * 100).round()}%', style: TextStyle(color: colors.onPrimary, fontWeight: FontWeight.w800, fontSize: 16)),
+                Container(
+                  width: 52,
+                  height: 52,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: .94),
+                    shape: BoxShape.circle,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${(completion * 100).round()}%',
+                      style: TextStyle(
+                        color: colors.onPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

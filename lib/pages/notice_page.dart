@@ -15,7 +15,9 @@ class NoticePage extends ConsumerStatefulWidget {
 class _NoticePageState extends ConsumerState<NoticePage>
     with AutomaticKeepAliveClientMixin {
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
   int _selectedFilter = 0;
+  String _searchQuery = '';
 
   @override
   bool get wantKeepAlive => true;
@@ -29,6 +31,7 @@ class _NoticePageState extends ConsumerState<NoticePage>
   @override
   void dispose() {
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -67,9 +70,10 @@ class _NoticePageState extends ConsumerState<NoticePage>
       return _buildErrorState();
     }
 
-    final unread = noticeState.messages.where(_isUnread).toList();
+    final filteredMessages = _filterMessages(noticeState.messages);
+    final unread = filteredMessages.where(_isUnread).toList();
     final visibleMessages = _selectedFilter == 0
-        ? noticeState.messages
+        ? filteredMessages
         : unread;
 
     return RefreshIndicator(
@@ -84,11 +88,16 @@ class _NoticePageState extends ConsumerState<NoticePage>
               child: _buildOverview(
                 unreadCount: unread.length,
                 totalCount: noticeState.messages.length,
+                matchingCount: filteredMessages.length,
               ),
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            sliver: SliverToBoxAdapter(child: _buildSearchField()),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
             sliver: SliverToBoxAdapter(child: _buildFilterControl()),
           ),
           if (noticeState.isLoading)
@@ -101,7 +110,10 @@ class _NoticePageState extends ConsumerState<NoticePage>
           if (visibleMessages.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
-              child: _buildEmptyState(showUnreadOnly: _selectedFilter == 1),
+              child: _buildEmptyState(
+                showUnreadOnly: _selectedFilter == 1,
+                hasSearch: _searchQuery.trim().isNotEmpty,
+              ),
             )
           else ...[
             SliverPadding(
@@ -127,18 +139,103 @@ class _NoticePageState extends ConsumerState<NoticePage>
     );
   }
 
-  Widget _buildOverview({required int unreadCount, required int totalCount}) {
+  Widget _buildSearchField() {
     final colors = Theme.of(context).colorScheme;
+    return TextField(
+      controller: _searchController,
+      onChanged: (value) => setState(() => _searchQuery = value),
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: '搜索通知标题、正文或发布人',
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: _searchQuery.isEmpty
+            ? null
+            : IconButton(
+                tooltip: '清除搜索',
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                },
+                icon: const Icon(Icons.close_rounded),
+              ),
+        filled: true,
+        fillColor: colors.surfaceContainerHighest.withValues(alpha: .7),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: .65)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: colors.primary, width: 1.4),
+        ),
+      ),
+    );
+  }
+
+  List<MessageModel> _filterMessages(List<MessageModel> messages) {
+    final terms = _normalize(_searchQuery)
+        .split(' ')
+        .where((term) => term.isNotEmpty)
+        .toList();
+    if (terms.isEmpty) return messages;
+
+    return messages.where((message) {
+      final searchable = _normalize([
+        message.title,
+        message.content,
+        message.createrName,
+        message.sendTime,
+        message.idCode,
+      ].join(' '));
+      return terms.every((term) => _fuzzyContains(searchable, term));
+    }).toList();
+  }
+
+  String _normalize(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\s,.;:!?，。；：！？、]+'), ' ')
+        .trim();
+  }
+
+  bool _fuzzyContains(String source, String term) {
+    if (source.contains(term)) return true;
+    var index = 0;
+    for (final character in source.split('')) {
+      if (index < term.length && character == term[index]) index++;
+    }
+    return index == term.length;
+  }
+
+  Widget _buildOverview({
+    required int unreadCount,
+    required int totalCount,
+    required int matchingCount,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final hasSearch = _searchQuery.trim().isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          unreadCount == 0 ? '消息已全部查看' : '有 $unreadCount 条消息未读',
+          hasSearch
+              ? '找到 $matchingCount 条相关通知'
+              : unreadCount == 0
+              ? '消息已全部查看'
+              : '有 $unreadCount 条消息未读',
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 6),
         Text(
-          totalCount == 0 ? '下拉刷新以同步校园通知' : '最近共收到 $totalCount 条通知',
+          hasSearch
+              ? '支持标题、正文、发布人和时间的模糊搜索'
+              : totalCount == 0
+              ? '下拉刷新以同步校园通知'
+              : '最近共收到 $totalCount 条通知',
           style: TextStyle(fontSize: 14, color: colors.onSurfaceVariant),
         ),
       ],
@@ -213,7 +310,10 @@ class _NoticePageState extends ConsumerState<NoticePage>
     );
   }
 
-  Widget _buildEmptyState({required bool showUnreadOnly}) {
+  Widget _buildEmptyState({
+    required bool showUnreadOnly,
+    required bool hasSearch,
+  }) {
     final colors = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
@@ -230,12 +330,16 @@ class _NoticePageState extends ConsumerState<NoticePage>
             ),
             const SizedBox(height: 14),
             Text(
-              showUnreadOnly ? '暂时没有未读通知' : '暂无通知',
+              hasSearch
+                  ? '没有找到匹配的通知'
+                  : showUnreadOnly
+                  ? '暂时没有未读通知'
+                  : '暂无通知',
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
             Text(
-              '下拉即可同步最新消息',
+              hasSearch ? '换个关键词或缩短搜索词试试' : '下拉即可同步最新消息',
               style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
             ),
           ],
