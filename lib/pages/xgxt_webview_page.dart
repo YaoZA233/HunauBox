@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:dio/dio.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart' as dio_cookie;
+import '../services/session_cookie_manager.dart';
 
 import '../models/app_constants.dart';
-import '../services/auth_service.dart';
 import '../services/secure_storage_helper.dart';
 import '../services/xgxt_login_service.dart';
 import '../services/app_cookie_manager.dart';
@@ -105,7 +105,6 @@ class _XgxtWebViewPageState extends State<XgxtWebViewPage> {
       }
 
       // 会话过期，执行完整登录
-      await AuthService().login(username, password, context);
       final casOk = await XgxtLoginService().performXgxtCasLogin();
       await AppCookieManager().syncMultiDomainCookiesToWebView(
         AppConstants.xgxtBaseUrl,
@@ -135,21 +134,28 @@ class _XgxtWebViewPageState extends State<XgxtWebViewPage> {
     try {
       final dio = Dio();
       dio.interceptors.add(
-        dio_cookie.CookieManager(AppCookieManager().dioCookieJar),
+        SessionCookieManager(AppCookieManager().dioCookieJar),
       );
-      final response = await dio.head(
-        AppConstants.xgxtWapUrl,
+      final response = await dio.get(
+        AppConstants.xgxtQuestionnaireListUrl,
+        queryParameters: {'iDisplayStart': '0', 'iDisplayLength': '1'},
         options: Options(
           followRedirects: false,
+          responseType: ResponseType.plain,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Referer': AppConstants.xgxtWapUrl,
+          },
           validateStatus: (status) => status != null && status < 500,
           receiveTimeout: const Duration(seconds: 3),
           sendTimeout: const Duration(seconds: 3),
         ),
       );
-      // 如果返回 200 且没有重定向到 CAS 登录页，说明会话有效
-      if (response.statusCode == 200) return true;
-      final location = response.headers.value('location') ?? '';
-      return !location.contains('/cas/login');
+      if (response.statusCode != 200) return false;
+      final data = response.data is String
+          ? jsonDecode(response.data)
+          : response.data;
+      return data is Map && data['aaData'] is List;
     } catch (e) {
       return false;
     }

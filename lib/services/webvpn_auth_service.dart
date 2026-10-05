@@ -18,6 +18,9 @@ class WebVpnAuthService {
       await AppCookieManager().syncMultiDomainCookiesToWebView(
         AppConstants.webvpnBaseUrl,
       );
+      await AppCookieManager().syncMultiDomainCookiesToWebView(
+        AppConstants.ssoBaseUrl,
+      );
 
       if (await _hasWebVpnSession() && await _isWebVpnSessionValid()) {
         return true;

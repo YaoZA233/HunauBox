@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/sso_auth_exception.dart';
 
 class LoginBottomSheet extends StatefulWidget {
   const LoginBottomSheet({super.key});
@@ -64,9 +65,7 @@ class _LoginBottomSheetState extends State<LoginBottomSheet>
       }
     } catch (e) {
       if (mounted) {
-        final errorMsg = e.toString().contains('LOGIN_ERROR')
-            ? e.toString().split('LOGIN_ERROR:').last.trim()
-            : "网络超时或教务系统不可用";
+        final errorMsg = e is SsoAuthException ? e.message : '统一认证连接失败，请稍后重试';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMsg),

@@ -1,9 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/app_cookie_manager.dart';
 import '../services/agent_settings_store.dart';
+import '../services/agent_conversation_store.dart';
+import '../services/auth_service.dart';
 import '../services/electricity_service.dart';
 import '../services/secure_storage_helper.dart';
 import 'about_page.dart';
@@ -29,12 +32,25 @@ class ProfilePage extends StatelessWidget {
   });
 
   Future<void> _handleLogout(BuildContext context) async {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final agentSettings = container.read(agentSettingsProvider);
+    final conversations = container.read(agentConversationsProvider);
+    await AuthService.cancelPendingLogins();
     try {
-      await AgentSettingsStore.instance.clear();
+      await agentSettings.clear();
     } catch (_) {
       // 内存中已关闭 Agent；后续 clearAll 再清理设备凭据。
     }
     final storage = SecureStorageHelper();
+    try {
+      await conversations.clear();
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('聊天记录清除失败，请在 Agent 历史中重试删除')),
+        );
+      }
+    }
     await storage.clearAll();
     await ElectricityService.instance.clearSavedRoom();
     try {

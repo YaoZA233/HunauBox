@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart' as dio_cookie;
+import 'session_cookie_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_constants.dart';
@@ -40,7 +41,7 @@ class ElectricityService {
     await AppCookieManager().initialize();
     if (_dio.interceptors.whereType<dio_cookie.CookieManager>().isEmpty) {
       _dio.interceptors.add(
-        dio_cookie.CookieManager(AppCookieManager().dioCookieJar),
+        SessionCookieManager(AppCookieManager().dioCookieJar),
       );
     }
     _cookiesReady = true;
@@ -114,9 +115,10 @@ class ElectricityService {
       'factorycode': _factoryCode,
     });
     _throwIfFailure(data, '获取校区失败');
-    return _extractList(data, const ['schoolList', 'schoollist'])
-        .map(ElectricityArea.fromJson)
-        .toList();
+    return _extractList(data, const [
+      'schoolList',
+      'schoollist',
+    ]).map(ElectricityArea.fromJson).toList();
   }
 
   Future<List<ElectricityBuilding>> getBuildings(String areaName) async {
@@ -125,9 +127,10 @@ class ElectricityService {
       'schoolid': areaName,
     });
     _throwIfFailure(data, '获取楼栋失败');
-    return _extractList(data, const ['buildingList', 'buildinglist'])
-        .map(ElectricityBuilding.fromJson)
-        .toList();
+    return _extractList(data, const [
+      'buildingList',
+      'buildinglist',
+    ]).map(ElectricityBuilding.fromJson).toList();
   }
 
   Future<List<ElectricityRoom>> getRooms(
@@ -140,9 +143,10 @@ class ElectricityService {
       'buildingid': buildingName,
     });
     _throwIfFailure(data, '获取房间失败');
-    return _extractList(data, const ['roomList', 'roomlist'])
-        .map(ElectricityRoom.fromJson)
-        .toList();
+    return _extractList(data, const [
+      'roomList',
+      'roomlist',
+    ]).map(ElectricityRoom.fromJson).toList();
   }
 
   Future<ElectricityBalanceInfo> getBalance({
@@ -212,7 +216,8 @@ class ElectricityService {
     });
 
     if (data is! Map) throw Exception('充值失败：响应格式异常');
-    final success = data['success'] == true ||
+    final success =
+        data['success'] == true ||
         data['success']?.toString() == 'true' ||
         data['code']?.toString() == '0' ||
         data['resultData'] != null;
@@ -225,7 +230,9 @@ class ElectricityService {
         areaName: areaName,
         buildingName: buildingName,
         roomId: roomId,
-        roomName: roomName?.trim().isNotEmpty == true ? roomName!.trim() : roomId,
+        roomName: roomName?.trim().isNotEmpty == true
+            ? roomName!.trim()
+            : roomId,
         mertype: mertype,
       ),
     );
@@ -269,8 +276,13 @@ class ElectricityService {
     final message = data is Map
         ? '${data['message'] ?? ''} ${data['msg'] ?? ''}'
         : data?.toString() ?? '';
-    return const ['openid无效', '页面丢失', '未登录', '会话过期', '资源受限']
-        .any(message.contains);
+    return const [
+      'openid无效',
+      '页面丢失',
+      '未登录',
+      '会话过期',
+      '资源受限',
+    ].any(message.contains);
   }
 
   String _messageOf(Map data, String fallback) {

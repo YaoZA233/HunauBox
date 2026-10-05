@@ -12,6 +12,6 @@
 
 关闭开关会停止正在进行的模型请求；已经完成的校园操作不会撤销。清除配置会关闭 Agent 并删除设备上的 Key。退出校园账号时同时清除 Agent 配置，避免后续账号沿用模型凭据。
 
-实现 Chat Completions + 多轮 Function Calling。请求最多六轮，每轮最多八个工具；工具名称及参数严格校验。模型 HTTP 客户端独立于校园客户端，禁止携带校园 Cookie，且不跟随携带授权头的重定向。
+实现参考 ChillEast 的 Chat Completions + 多轮 Function Calling。请求最多六轮，每轮最多八个工具；工具名称及参数严格校验。模型 HTTP 客户端独立于校园客户端，禁止携带校园 Cookie，且不跟随携带授权头的重定向。
 
 测试：`flutter test --no-pub test/agent_service_test.dart test/agent_widget_test.dart`。离线界面预览：`flutter test --no-pub tool/agent_preview_test.dart`，结果位于 `build/agent_previews/`。上述检查不使用真实 API Key、不调用真实模型或支付接口。

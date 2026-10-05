@@ -3,16 +3,24 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart' as dio_cookie;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart' as webview;
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 
 import '../models/app_constants.dart';
 import 'app_cookie_manager.dart';
+import 'auth_service.dart';
+import 'session_cookie_manager.dart';
 import 'dorm_storage.dart';
 import 'secure_storage_helper.dart';
 import 'webvpn_auth_service.dart';
+import 'webvpn_url_converter.dart';
+
+class _DormSessionExpired implements Exception {
+  const _DormSessionExpired();
+  @override
+  String toString() => '公寓系统登录已失效，请重新登录后再试';
+}
 
 class DormInfo {
   final String dormBuilding;
@@ -43,32 +51,73 @@ class DormService {
       'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36';
 
-  final Dio _dio = Dio();
+  final Dio _dio;
   final DormStorage _storage;
   final SecureStorageHelper _credentials;
+  final Future<void> Function()? _prepareSession;
+  final Future<bool> Function()? _reauthenticate;
+  final Future<DormInfo?> Function()? _fetchRenderedInfo;
+  final Future<bool> Function()? _ensureWebVpnSession;
   bool _cookiesReady = false;
 
-  DormService({DormStorage? storage, SecureStorageHelper? credentials})
-    : _storage = storage ?? DormStorage(),
-      _credentials = credentials ?? SecureStorageHelper();
+  DormService({
+    DormStorage? storage,
+    SecureStorageHelper? credentials,
+    Dio? dio,
+    Future<void> Function()? prepareSession,
+    Future<bool> Function()? reauthenticate,
+    Future<DormInfo?> Function()? fetchRenderedInfo,
+    Future<bool> Function()? ensureWebVpnSession,
+  }) : _storage = storage ?? DormStorage(),
+       _credentials = credentials ?? SecureStorageHelper(),
+       _dio =
+           dio ??
+           Dio(
+             BaseOptions(
+               connectTimeout: const Duration(seconds: 15),
+               receiveTimeout: const Duration(seconds: 15),
+             ),
+           ),
+       _prepareSession = prepareSession,
+       _reauthenticate = reauthenticate,
+       _fetchRenderedInfo = fetchRenderedInfo,
+       _ensureWebVpnSession = ensureWebVpnSession;
 
   Future<void> _ensureCookieJar() async {
     if (_cookiesReady) return;
     await AppCookieManager().initialize();
-    if (_dio.interceptors.whereType<dio_cookie.CookieManager>().isEmpty) {
-      _dio.interceptors.add(
-        dio_cookie.CookieManager(AppCookieManager().dioCookieJar),
-      );
-    }
+    SessionCookieManager.install(_dio, AppCookieManager().dioCookieJar);
     _cookiesReady = true;
   }
 
   Future<DormInfo> fetchDormInfo() async {
-    await _ensureCookieJar();
-    final webVpnReady = await WebVpnAuthService().ensureSession();
-    if (!webVpnReady) {
-      throw Exception('WebVPN 自动登录失败，请重新登录后再试');
+    try {
+      await _prepareDormSession();
+      return await _loadDormInfo();
+    } on _DormSessionExpired {
+      final renewed =
+          await (_reauthenticate?.call() ?? AuthService().silentLogin());
+      if (!renewed) throw const _DormSessionExpired();
+      await _prepareDormSession();
+      // Retry the complete page/data flow once after refreshing SSO.
+      return _loadDormInfo();
     }
+  }
+
+  Future<void> _prepareDormSession() async {
+    if (_prepareSession != null) {
+      await _prepareSession();
+      return;
+    }
+    if (_ensureWebVpnSession == null) await _ensureCookieJar();
+    final webVpnReady =
+        await (_ensureWebVpnSession?.call() ??
+            WebVpnAuthService().ensureSession());
+    if (!webVpnReady) {
+      throw const _DormSessionExpired();
+    }
+
+    if (_ensureWebVpnSession != null) return;
 
     await AppCookieManager().syncMultiDomainCookiesFromWebView(
       AppConstants.webvpnBaseUrl,
@@ -76,22 +125,30 @@ class DormService {
     await AppCookieManager().syncMultiDomainCookiesToWebView(
       AppConstants.dormServiceUrl,
     );
+    await AppCookieManager().syncMultiDomainCookiesToWebView(
+      AppConstants.ssoBaseUrl,
+    );
+  }
 
+  Future<DormInfo> _loadDormInfo() async {
     // 宿舍信息由页面脚本异步加载，直接请求初始 HTML 只能拿到页面壳。
-    final renderedInfo = await _fetchRenderedDormInfo();
+    final renderedInfo =
+        await (_fetchRenderedInfo?.call() ?? _fetchRenderedDormInfo());
     if (renderedInfo?.hasCoreInfo == true) {
       await _saveCachedInfo(renderedInfo!);
-      return renderedInfo!;
+      return renderedInfo;
     }
 
     DormInfo? staticInfo;
     try {
       staticInfo = await _fetchStaticDormInfoWithRetry();
+    } on _DormSessionExpired {
+      rethrow;
     } catch (_) {
       // Keep usable rendered fields when the secondary HTTP request is flaky.
       if (renderedInfo?.hasAny == true) {
         await _saveCachedInfo(renderedInfo!);
-        return renderedInfo!;
+        return renderedInfo;
       }
       rethrow;
     }
@@ -265,6 +322,16 @@ class DormService {
             );
 
             final html = renderedHtml?.toString() ?? '';
+            if (_looksLikeLoginPage(html) &&
+                RegExp(
+                  r'<input\b[^>]*type\s*=\s*["\x27]?password',
+                  caseSensitive: false,
+                ).hasMatch(html)) {
+              if (!completer.isCompleted) {
+                completer.completeError(const _DormSessionExpired());
+              }
+              return;
+            }
             if (html.isNotEmpty && !_looksLikeLoginPage(html)) {
               considerInfo(parseDormInfo(html));
               if (completer.isCompleted) return;
@@ -288,39 +355,85 @@ class DormService {
         const Duration(seconds: 12),
         onTimeout: () => bestInfo,
       );
+    } on _DormSessionExpired {
+      rethrow;
     } catch (_) {
       return bestInfo;
     } finally {
       disposed = true;
-      headlessWebView.dispose();
+      await headlessWebView.dispose();
+      // The browser may have established a path-scoped upstream CAS session.
+      // Publish it before the HTTP fallback tries to read the same dorm page.
+      await AppCookieManager().syncMultiDomainCookiesFromWebView(
+        AppConstants.dormServiceUrl,
+      );
     }
   }
 
   Future<DormInfo?> _fetchStaticDormInfo() async {
-    final response = await _dio.get<String>(
-      AppConstants.dormServiceUrl,
-      options: Options(
-        responseType: ResponseType.plain,
-        followRedirects: true,
-        validateStatus: (status) => status != null && status < 500,
-        headers: const {
-          'User-Agent': _userAgent,
-          'Accept':
-              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        },
-      ),
-    );
-
-    final html = response.data ?? '';
-    if (response.statusCode == null || response.statusCode! >= 400) {
-      throw Exception('学生公寓服务响应异常：HTTP ${response.statusCode}');
+    var uri = Uri.parse(AppConstants.dormServiceUrl);
+    Response<String>? response;
+    for (var hop = 0; hop < 10; hop++) {
+      response = await _dio.getUri<String>(
+        uri,
+        options: Options(
+          responseType: ResponseType.plain,
+          followRedirects: false,
+          validateStatus: (status) => status != null && status < 500,
+          headers: const {
+            'User-Agent': _userAgent,
+            'Accept':
+                'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          },
+        ),
+      );
+      if (!const [301, 302, 303, 307, 308].contains(response.statusCode)) {
+        break;
+      }
+      final location = response.headers.value('location');
+      if (location == null || location.isEmpty || hop == 9) {
+        throw const _DormSessionExpired();
+      }
+      uri = _resolveDormRedirect(uri, location);
     }
-    if (_looksLikeLoginPage(html)) {
-      throw Exception('登录状态未生效，请重新登录后再试');
+
+    final html = response?.data ?? '';
+    if (response?.statusCode == 401 ||
+        response?.statusCode == 403 ||
+        _looksLikeLoginPage(html) ||
+        uri.host == Uri.parse(AppConstants.ssoBaseUrl).host) {
+      throw const _DormSessionExpired();
+    }
+    if (response?.statusCode != 200) {
+      throw Exception('学生公寓服务响应异常：HTTP ${response?.statusCode}');
     }
 
     final info = parseDormInfo(html);
     return info.hasAny ? info : null;
+  }
+
+  Uri _resolveDormRedirect(Uri current, String location) {
+    final entry = Uri.parse(AppConstants.dormServiceUrl);
+    final proxyPrefix = entry.path.split('/').take(3).join('/');
+    if (RegExp(r'^/https?(?:-\d+)?/').hasMatch(location) ||
+        location.startsWith('/login?cas_login')) {
+      // WebVPN already rewrote this Location; do not proxy its prefix again.
+      return current.resolve(location);
+    }
+    // Relative upstream redirects must stay under the WebVPN proxy path.
+    final upstream =
+        current.host == entry.host && current.path.startsWith('$proxyPrefix/')
+        ? Uri(
+            scheme: 'http',
+            host: 'gy.hunau.edu.cn',
+            path: current.path.substring(proxyPrefix.length),
+            query: current.hasQuery ? current.query : null,
+          )
+        : current;
+    final next = upstream.resolve(location);
+    return next.host == 'gy.hunau.edu.cn'
+        ? Uri.parse(WebVpnUrlConverter.convert(next.toString()))
+        : next;
   }
 
   Future<DormInfo?> _fetchStaticDormInfoWithRetry() async {
@@ -328,6 +441,8 @@ class DormService {
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
         return await _fetchStaticDormInfo();
+      } on _DormSessionExpired {
+        rethrow;
       } catch (error) {
         lastError = error;
         if (attempt == 0) {

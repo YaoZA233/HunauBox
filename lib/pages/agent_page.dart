@@ -1,12 +1,20 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/agent_models.dart';
 import '../services/agent_service.dart';
+import '../services/agent_conversation_store.dart';
 import '../services/agent_settings_store.dart';
 import '../services/agent_tool_registry.dart';
 import '../services/campus_agent_tools.dart';
+import '../widgets/agent_history_sheet.dart';
+import '../widgets/agent_message_bubble.dart';
 import 'agent_settings_page.dart';
 import 'campus_card_recharge_page.dart';
 import 'electricity_recharge_page.dart';
@@ -38,26 +46,105 @@ class _AgentPageState extends ConsumerState<AgentPage> {
   bool _busy = false;
   String? _activity;
   String? _error;
+  late final AgentConversationStore _conversations = ref.read(
+    agentConversationsProvider,
+  );
+  String? _conversationId;
+  bool _chatsReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _restore();
+  }
+
+  Future<void> _restore({bool retry = false}) async {
+    if (retry) {
+      await _conversations.retryLoad();
+    } else {
+      await _conversations.load();
+    }
+    if (!mounted) return;
+    setState(() {
+      _chatsReady = _conversations.loadError == null;
+      _showConversation(_conversations.active);
+    });
+    _scrollToEnd();
+  }
+
+  void _showConversation(AgentConversation? conversation) {
+    _conversationId = conversation?.id;
+    _messages.clear();
+    _messages.addAll(conversation?.messages ?? []);
+    _history = conversation?.history.toList() ?? [];
+    _error = null;
+    _input.clear();
+  }
+
+  Future<bool> _saveConversation({bool pending = false}) async {
+    if (_messages.isEmpty || _conversationId == null) return true;
+    final first = _messages.first.text.replaceAll(RegExp(r'\s+'), ' ');
+    final record = AgentConversation(
+      id: _conversationId!,
+      title:
+          _conversations.byId(_conversationId!)?.title ??
+          (first.length > 32 ? '${first.substring(0, 32)}…' : first),
+      updatedAt: DateTime.now(),
+      messages: _messages,
+      history: _history,
+      pending: pending,
+    );
+    try {
+      await _conversations.upsert(record);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _interruptTurn() {
+    _cancelToken?.cancel();
+    _cancelToken = null;
+    if (_busy) {
+      _messages.add(
+        const AgentDisplayMessage(
+          'assistant',
+          agentInterruptedText,
+          incomplete: true,
+        ),
+      );
+      // _history already contains the safe placeholder persisted at send time.
+      unawaited(_saveConversation());
+    }
+    _busy = false;
+    _activity = null;
+  }
 
   @override
   void dispose() {
-    _cancelToken?.cancel();
+    _interruptTurn();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
   void _stop({bool clear = false}) {
-    _cancelToken?.cancel();
+    _interruptTurn();
     setState(() {
       _busy = false;
       _activity = null;
       _error = null;
       if (clear) {
-        _messages.clear();
-        _history.clear();
+        _showConversation(null);
+        unawaited(_selectConversation(null));
       }
     });
+  }
+
+  Future<void> _selectConversation(String? id) async {
+    try {
+      await _conversations.select(id);
+    } catch (_) {}
   }
 
   void _scrollToEnd() {
@@ -115,7 +202,11 @@ class _AgentPageState extends ConsumerState<AgentPage> {
   Future<void> _send([String? suggested]) async {
     final text = (suggested ?? _input.text).trim();
     final config = ref.read(agentSettingsProvider).config;
-    if (_busy || text.isEmpty || !config.enabled || !config.isConfigured) {
+    if (_busy ||
+        !_chatsReady ||
+        text.isEmpty ||
+        !config.enabled ||
+        !config.isConfigured) {
       return;
     }
     if (text.length > 4000) {
@@ -128,6 +219,8 @@ class _AgentPageState extends ConsumerState<AgentPage> {
     }
     final token = CancelToken();
     _cancelToken = token;
+    _conversationId ??=
+        '${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1 << 32)}';
     final requestHistory = [
       ..._history,
       {'role': 'user', 'content': text},
@@ -137,10 +230,18 @@ class _AgentPageState extends ConsumerState<AgentPage> {
       _error = null;
       _activity = '正在思考';
       _messages.add(AgentDisplayMessage('user', text));
+      _history = [
+        ...requestHistory,
+        {'role': 'assistant', 'content': agentInterruptedText},
+      ];
       _input.clear();
     });
     _scrollToEnd();
     try {
+      if (!await _saveConversation(pending: true)) {
+        throw const AgentException('消息未能保存，本次尚未请求模型，请重试保存后再发送');
+      }
+      if (!mounted || token.isCancelled) return;
       final result = await _service.chat(
         config: config,
         history: requestHistory,
@@ -154,19 +255,34 @@ class _AgentPageState extends ConsumerState<AgentPage> {
       );
       if (!mounted || token.isCancelled) return;
       setState(() {
+        _busy = false;
+        _activity = null;
         _history = result.history;
-        _messages.add(AgentDisplayMessage('assistant', result.text));
+        _messages.add(
+          AgentDisplayMessage(
+            'assistant',
+            result.text,
+            reasoning: result.reasoning,
+            usage: result.usage,
+            model: result.model,
+            durationMs: result.durationMs,
+          ),
+        );
       });
+      await _saveConversation();
       _scrollToEnd();
     } catch (e) {
       if (!mounted || token.isCancelled) return;
+      final errorMessage = e is AgentException ? e.message : '请求未完成，请检查配置或稍后重试';
       setState(() {
-        _error = e is AgentException ? e.message : '请求未完成，请检查配置或稍后重试';
-        _history = [
-          ...requestHistory,
-          {'role': 'assistant', 'content': '本轮请求未完成。请以校园页面中的实际记录为准。'},
-        ];
+        _busy = false;
+        _activity = null;
+        _error = null;
+        _messages.add(
+          AgentDisplayMessage('assistant', errorMessage, incomplete: true),
+        );
       });
+      await _saveConversation();
     } finally {
       if (mounted && identical(_cancelToken, token)) {
         setState(() {
@@ -177,33 +293,68 @@ class _AgentPageState extends ConsumerState<AgentPage> {
     }
   }
 
-  Future<void> _newConversation() async {
-    if (_messages.isNotEmpty) {
-      final approved = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('新建会话？'),
-          content: const Text('清空当前对话。已经完成的校园操作不会撤销。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('保留'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('新建'),
-            ),
-          ],
-        ),
-      );
-      if (!mounted || approved != true) return;
-    }
+  void _newConversation() {
     _stop(clear: true);
+  }
+
+  Future<void> _openHistory() async {
+    if (_busy) _stop();
+    final id = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const AgentHistorySheet(),
+    );
+    if (!mounted) return;
+    if (id != null) {
+      await _selectConversation(id);
+      if (!mounted) return;
+      setState(() => _showConversation(_conversations.byId(id)));
+      _scrollToEnd();
+    } else if (_conversationId != null &&
+        _conversations.byId(_conversationId!) == null) {
+      _stop(clear: true);
+    }
+  }
+
+  Future<void> _export(String action) async {
+    final conversation = _conversationId == null
+        ? null
+        : _conversations.byId(_conversationId!);
+    if (conversation == null) return;
+    final text = conversation.exportText();
+    try {
+      if (action == 'copy') {
+        await Clipboard.setData(ClipboardData(text: text));
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('对话已复制为 Markdown')));
+        }
+      } else {
+        final box = context.findRenderObject() as RenderBox?;
+        await SharePlus.instance.share(
+          ShareParams(
+            text: text,
+            title: conversation.title,
+            sharePositionOrigin: box == null
+                ? null
+                : box.localToGlobal(Offset.zero) & box.size,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('导出未完成，请尝试复制对话')));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final store = ref.watch(agentSettingsProvider);
+    final chats = ref.watch(agentConversationsProvider);
     ref.listen<AgentSettingsStore>(agentSettingsProvider, (previous, next) {
       // ChangeNotifier 的 previous/next 是同一对象，配置快照在消息发送时检查。
       if (_cancelToken != null &&
@@ -213,16 +364,33 @@ class _AgentPageState extends ConsumerState<AgentPage> {
       }
     });
     final config = store.config;
-    final available = store.loaded && config.enabled && config.isConfigured;
+    final available =
+        store.loaded && config.enabled && config.isConfigured && _chatsReady;
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Agent'),
         actions: [
           IconButton(
+            tooltip: '聊天记录',
+            onPressed: chats.loaded && chats.loadError == null
+                ? _openHistory
+                : null,
+            icon: const Icon(Icons.history_rounded),
+          ),
+          IconButton(
             tooltip: '新建会话',
-            onPressed: _newConversation,
+            onPressed: _chatsReady ? _newConversation : null,
             icon: const Icon(Icons.add_comment_outlined),
+          ),
+          PopupMenuButton<String>(
+            tooltip: '导出对话',
+            enabled: _messages.isNotEmpty,
+            onSelected: _export,
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'copy', child: Text('复制完整对话')),
+              PopupMenuItem(value: 'share', child: Text('分享 / 导出对话')),
+            ],
           ),
         ],
       ),
@@ -231,8 +399,36 @@ class _AgentPageState extends ConsumerState<AgentPage> {
           constraints: const BoxConstraints(maxWidth: 760),
           child: Column(
             children: [
+              if (chats.loadError != null || chats.saveError != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      Text(
+                        chats.loadError ?? chats.saveError!,
+                        style: TextStyle(color: colors.error),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          if (chats.loadError != null) {
+                            await _restore(retry: true);
+                          } else {
+                            try {
+                              await chats.retrySave();
+                            } catch (_) {}
+                          }
+                        },
+                        child: Text(
+                          chats.loadError != null ? '重试读取聊天记录' : '重试保存',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               Expanded(
-                child: !available
+                child: !store.loaded || !chats.loaded
+                    ? const Center(child: CircularProgressIndicator())
+                    : !config.enabled || !config.isConfigured
                     ? _buildSetup(store)
                     : _messages.isEmpty
                     ? _buildWelcome()
@@ -240,54 +436,8 @@ class _AgentPageState extends ConsumerState<AgentPage> {
                         controller: _scroll,
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                         itemCount: _messages.length,
-                        itemBuilder: (context, i) {
-                          final message = _messages[i];
-                          final user = message.role == 'user';
-                          return Align(
-                            alignment: user
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 20),
-                              padding: const EdgeInsets.all(16),
-                              constraints: BoxConstraints(
-                                maxWidth:
-                                    MediaQuery.sizeOf(context).width * .86,
-                              ),
-                              decoration: BoxDecoration(
-                                color: user
-                                    ? colors.primaryContainer
-                                    : colors.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    user ? '你' : 'Agent',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: user
-                                          ? colors.onPrimaryContainer
-                                          : colors.primary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  SelectableText(
-                                    message.text,
-                                    style: TextStyle(
-                                      height: 1.55,
-                                      color: user
-                                          ? colors.onPrimaryContainer
-                                          : colors.onSurface,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
+                        itemBuilder: (context, i) =>
+                            AgentMessageBubble(message: _messages[i]),
                       ),
               ),
               if (_busy)
@@ -434,7 +584,7 @@ class _AgentPageState extends ConsumerState<AgentPage> {
         ),
       const SizedBox(height: 16),
       Text(
-        '仅把本次回答所需数据发送到你配置的模型服务。对话仅保留在当前页面，退出即清空。',
+        '对话自动保存在本机，可从右上角历史记录继续聊天。仅把回答所需的对话与校园数据发送到你配置的模型服务。',
         style: Theme.of(context).textTheme.bodySmall,
       ),
     ],

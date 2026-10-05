@@ -166,7 +166,7 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Text(
-                          '发送消息后，对话和回答所需的校园数据会传到你配置的服务。API Key 只用于该地址的授权。保存配置不会发送测试请求或自动开启 Agent。',
+                          '发送消息后，对话和回答所需的校园数据会传到你配置的服务。聊天记录保存在本机，可在历史记录中删除；退出校园账号会清除聊天记录。思考内容和 Token 用量取决于服务商是否返回。API Key 只用于该地址的授权。保存配置不会发送测试请求或自动开启 Agent。',
                         ),
                       ),
                       if (_error != null) ...[

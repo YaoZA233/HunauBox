@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import '../services/session_cookie_manager.dart';
 import '../models/homework_model.dart';
 import '../services/homework_service.dart';
 import '../services/homework_storage.dart';
@@ -10,7 +10,7 @@ import '../services/course_notification_service.dart';
 
 final homeworkServiceProvider = Provider((ref) {
   final dio = Dio();
-  dio.interceptors.add(CookieManager(AppCookieManager().dioCookieJar));
+  dio.interceptors.add(SessionCookieManager(AppCookieManager().dioCookieJar));
   return HomeworkService(dio);
 });
 
@@ -47,7 +47,11 @@ class HomeworkNotifier extends StateNotifier<AsyncValue<List<HomeworkModel>>> {
       final username = await SecureStorageHelper().getUsername();
       if (username == null) return;
       state = const AsyncValue.loading();
-      await AppCookieManager().syncMultiDomainCookiesFromWebView();
+      await AppCookieManager().syncMultiDomainCookiesFromWebView(null, [
+        'https://passport2.chaoxing.com',
+        'https://mooc1-api.chaoxing.com',
+        'https://mooc1.chaoxing.com',
+      ]);
 
       final scraped = await _ref
           .read(homeworkServiceProvider)

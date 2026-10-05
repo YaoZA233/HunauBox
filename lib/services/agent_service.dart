@@ -51,6 +51,10 @@ class AgentService {
       ...history.map((m) => Map<String, dynamic>.from(m)),
     ];
     final executed = <String, String>{};
+    final reasoning = <String>[];
+    AgentTokenUsage? usage;
+    final elapsed = Stopwatch()..start();
+    var responseModel = config.model;
     for (var round = 0; round < maxRounds; round++) {
       context.checkActive();
       onActivity?.call('正在思考');
@@ -96,9 +100,28 @@ class AgentService {
         message = Map<String, dynamic>.from(
           data['choices'][0]['message'] as Map,
         );
+        final roundUsage = AgentTokenUsage.fromProvider(data['usage']);
+        usage = usage?.plus(roundUsage) ?? roundUsage;
+        if (data['model'] is String && (data['model'] as String).isNotEmpty) {
+          responseModel = data['model'];
+        }
       } catch (_) {
         throw const AgentException('模型服务返回格式异常，需要兼容 Chat Completions 的接口');
       }
+      // Only display reasoning explicitly exposed by the provider.
+      final exposedReasoning =
+          message['reasoning_content'] ?? message['reasoning'];
+      if (exposedReasoning is String && exposedReasoning.trim().isNotEmpty) {
+        reasoning.add(exposedReasoning.trim());
+      }
+      final assistantMessage = <String, dynamic>{
+        'role': 'assistant',
+        'content': message['content'] is String ? message['content'] : null,
+        // DeepSeek/Moonshot thinking models require this with tool results.
+        if (message['reasoning_content'] is String)
+          'reasoning_content': message['reasoning_content'],
+        if (message['reasoning'] is String) 'reasoning': message['reasoning'],
+      };
       final calls = message['tool_calls'];
       if (calls != null && calls is! List) {
         throw const AgentException('模型工具调用格式异常');
@@ -117,11 +140,7 @@ class AgentService {
             throw const AgentException('模型工具调用格式异常，本次已停止');
           }
         }
-        messages.add({
-          'role': 'assistant',
-          'content': message['content'] is String ? message['content'] : null,
-          'tool_calls': calls,
-        });
+        messages.add({...assistantMessage, 'tool_calls': calls});
         for (final raw in calls) {
           context.checkActive();
           final c = raw as Map;
@@ -159,9 +178,16 @@ class AgentService {
       if (text is! String || text.trim().isEmpty) {
         throw const AgentException('模型未返回回复，请检查模型是否支持所需能力');
       }
-      messages.add({'role': 'assistant', 'content': text});
+      messages.add(assistantMessage);
       // 保存完整工具对话，下一轮不重复获取信息；系统提示每次重新构建。
-      return AgentReply(text, messages.skip(1).toList());
+      return AgentReply(
+        text,
+        messages.skip(1).toList(),
+        reasoning: reasoning.join('\n\n'),
+        usage: usage,
+        model: responseModel,
+        durationMs: elapsed.elapsedMilliseconds,
+      );
     }
     throw const AgentException('工具调用次数已达上限，部分操作可能已完成，请查看对应页面后再继续');
   }

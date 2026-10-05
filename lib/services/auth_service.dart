@@ -1,32 +1,53 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart' as webview;
 
 import '../models/app_constants.dart';
 import 'app_logger.dart';
 import 'secure_storage_helper.dart';
 import 'app_cookie_manager.dart';
+import 'http_login_service.dart';
+import 'sso_auth_exception.dart';
+import 'session_cookie_manager.dart';
 
-import 'dart:io';
-import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 class AuthService {
-  final _storage = SecureStorageHelper();
+  AuthService({
+    HttpLoginService? httpLoginService,
+    SecureStorageHelper? storage,
+    AppCookieManager? cookies,
+  }) : _httpLoginService = httpLoginService ?? HttpLoginService(),
+       _storage = storage ?? SecureStorageHelper(),
+       _cookies = cookies ?? AppCookieManager();
+  static Future<bool>? _silentLoginInProgress;
+  final SecureStorageHelper _storage;
+  final HttpLoginService _httpLoginService;
+  final AppCookieManager _cookies;
   final _logger = AppLogger.instance;
   final dio = Dio();
 
-  AuthService() {
-    dio.interceptors.add(CookieManager(AppCookieManager().dioCookieJar));
+  bool _cookiesReady = false;
+  Future<void> _ensureCookies() async {
+    if (_cookiesReady) return;
+    await _cookies.initialize();
+    SessionCookieManager.install(dio, _cookies.dioCookieJar);
+    _cookiesReady = true;
   }
 
   /// 获取详细的用户资料（姓名、头像）
   Future<Map<String, String?>> fetchFullUserInfo() async {
     try {
-      String? cookieUid = await AppCookieManager().getCookieValue('https://passport2.chaoxing.com', 'UID');
-      cookieUid ??= await AppCookieManager().getCookieValue('https://passport2.chaoxing.com', '_uid');
+      await _ensureCookies();
+      String? cookieUid = await AppCookieManager().getCookieValue(
+        'https://passport2.chaoxing.com',
+        'UID',
+      );
+      cookieUid ??= await AppCookieManager().getCookieValue(
+        'https://passport2.chaoxing.com',
+        '_uid',
+      );
 
       String? realName;
       String? avatarUrl;
@@ -36,8 +57,10 @@ class AuthService {
         final response = await dio.get(AppConstants.portalIndexUrl);
         if (response.statusCode == 200 && response.data != null) {
           final String html = response.data.toString();
-          final infoTxtMatch = RegExp(r'<div class="infoTxt">([\s\S]*?)<\/div>').firstMatch(html);
-          
+          final infoTxtMatch = RegExp(
+            r'<div class="infoTxt">([\s\S]*?)<\/div>',
+          ).firstMatch(html);
+
           if (infoTxtMatch != null) {
             final infoHtml = infoTxtMatch.group(1)!;
             final nameMatch = RegExp(r'<em>(.*?)<\/em>').firstMatch(infoHtml);
@@ -53,10 +76,7 @@ class AuthService {
         avatarUrl = await _fetchAvatar(cookieUid);
       }
 
-      return {
-        'realName': realName,
-        'avatarUrl': avatarUrl,
-      };
+      return {'realName': realName, 'avatarUrl': avatarUrl};
     } catch (e) {
       _logger.e('❌ Profile retrieval error: $e');
       return {};
@@ -67,7 +87,7 @@ class AuthService {
     try {
       final avatarApiUrl = AppConstants.fusionAvatarUrl(uid);
       final tempDir = await getApplicationDocumentsDirectory();
-      final savePath = p.join(tempDir.path, 'avatar_$uid.png');
+      final savePath = '${tempDir.path}/avatar_$uid.png';
 
       String finalUrl = avatarApiUrl;
       int redirectCount = 0;
@@ -79,7 +99,8 @@ class AuthService {
             followRedirects: false,
             validateStatus: (status) => status != null && status < 500,
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36',
+              'User-Agent':
+                  'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36',
               'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
               'Referer': AppConstants.portalBaseUrl,
             },
@@ -93,7 +114,8 @@ class AuthService {
             final uri = Uri.parse(finalUrl);
             location = '${uri.scheme}://${uri.host}$location';
           }
-          if (location.contains('cas/login') || location.contains('passport2.chaoxing.com/login')) {
+          if (location.contains('cas/login') ||
+              location.contains('passport2.chaoxing.com/login')) {
             finalUrl = '';
             break;
           }
@@ -110,14 +132,16 @@ class AuthService {
           savePath,
           options: Options(
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36',
+              'User-Agent':
+                  'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36',
               'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
               'Referer': AppConstants.portalBaseUrl,
             },
           ),
         );
         final contentType = downloadRes.headers.value('content-type') ?? '';
-        if (!contentType.contains('text/html') && !contentType.contains('application/json')) {
+        if (!contentType.contains('text/html') &&
+            !contentType.contains('application/json')) {
           _logger.d('🖼️ Avatar saved to $savePath');
           return savePath;
         }
@@ -128,136 +152,96 @@ class AuthService {
     return null;
   }
 
-  Future<void> login(String username, String password, BuildContext context) async {
-    _logger.i('🚀 正在尝试为 $username 登录...');
+  Future<void> login(String username, String password, BuildContext context) =>
+      _login(username, password);
 
-    final completer = Completer<void>();
-    webview.HeadlessInAppWebView? webView;
+  /// Refresh unified authentication without requiring a page visit.
+  Future<bool> silentLogin() {
+    return _silentLoginInProgress ??= _silentLogin().whenComplete(() {
+      _silentLoginInProgress = null;
+    });
+  }
 
-    bool isLoginSubmitted = false;
-    bool isLoginSuccess = false;
-
-    final ssoLoginUrl =
-        '${AppConstants.ssoLoginUrl}?service=${Uri.encodeComponent('${AppConstants.portalBaseUrl}/login')}';
-
-    webView = webview.HeadlessInAppWebView(
-      initialSize: const Size(1080, 1920), // 防止由于 0x0 极小尺寸渲染导致的 Chromium 底层崩溃
-      initialUrlRequest: webview.URLRequest(url: webview.WebUri(ssoLoginUrl)),
-      initialSettings: webview.InAppWebViewSettings(
-        javaScriptEnabled: true, 
-        domStorageEnabled: true,
-        useShouldOverrideUrlLoading: false,
-        userAgent: 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36',
-        mixedContentMode: webview.MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
-        loadsImagesAutomatically: false,
-        disableDefaultErrorPage: true,
-        supportMultipleWindows: true,
-        javaScriptCanOpenWindowsAutomatically: true,
-      ),
-      onLoadStart: (controller, url) async {
-        final urlString = url?.toString() ?? '';
-        final isLoginPage = urlString.contains('/cas/login') ||
-            urlString.contains('/authn/login.html') ||
-            urlString.contains('sso.hunau.edu.cn');
-                              
-        if (isLoginPage && !isLoginSubmitted && !isLoginSuccess) {
-          _logger.d('🔐 检测到 SSO 登录页，准备自动注入...');
-          
-          final result = await controller.evaluateJavascript(source: '''
-            (async function() {
-              const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-              for (let i = 0; i < 20; i++) {
-                if (!document.body) {
-                  await sleep(500);
-                  continue;
-                }
-
-                const findError = () => {
-                  const texts = ['密码错误', '账号或密码不正确', '验证码错误', '失败', '非法'];
-                  const bodyText = document.body.innerText || '';
-                  for (let t of texts) {
-                    if (bodyText.includes(t)) return t;
-                  }
-                  return null;
-                };
-
-                const err = findError();
-                if (err) return 'LOGIN_ERROR: ' + err;
-
-                const queryInside = (selector) => {
-                  let el = document.querySelector(selector);
-                  if (el) return el;
-                  const frames = document.querySelectorAll('iframe');
-                  for (const f of frames) {
-                    try {
-                      let doc = f.contentDocument || f.contentWindow.document;
-                      let e = doc.querySelector(selector);
-                      if (e) return e;
-                    } catch (e) {}
-                  }
-                  return null;
-                };
-
-                const u = queryInside('input.email-username') || queryInside('input[name="username"]');
-                const p = queryInside('input[name="authcode"]') || queryInside('input[type="password"]');
-                
-                if (u && p) {
-                  u.value = '$username';
-                  p.value = '$password';
-
-                  let b = queryInside('button.exeActionBtn') ||
-                          queryInside('input[type="submit"]') ||
-                          queryInside('button[type="submit"]') ||
-                          queryInside('.login-btn');
-
-                  if (b) {
-                    b.click();
-                    return 'SUBMITTED_VIA_CLICK';
-                  } else if (u.form) {
-                    u.form.submit();
-                    return 'SUBMITTED_VIA_FORM';
-                  }
-                }
-                
-                await sleep(500);
-              }
-              return 'NOT_FOUND';
-            })();
-          ''');
-
-          if (result != null) {
-            final resStr = result.toString();
-            if (resStr.contains('SUBMITTED')) {
-              isLoginSubmitted = true;
-            } else if (resStr.contains('LOGIN_ERROR')) {
-              if (!completer.isCompleted) completer.completeError(Exception(resStr));
-            }
-          }
-        }
-      },
-      onLoadStop: (controller, url) async {
-        final urlString = url?.toString() ?? '';
-        final isPortalSuccess = urlString.contains('portal.hunau.edu.cn') && !urlString.contains('/cas/login');
-        
-        if (isPortalSuccess && !isLoginSuccess) {
-          isLoginSuccess = true;
-          _logger.i('✅ 登录成功，同步 Cookie 中...');
-          await AppCookieManager().syncMultiDomainCookiesFromWebView();
-          await _storage.saveUsername(username);
-          await _storage.savePassword(password);
-          if (!completer.isCompleted) completer.complete();
-        }
-      },
-      onConsoleMessage: (controller, consoleMessage) {
-        _logger.d('🌐 [WebView] ${consoleMessage.message}');
-      },
-    );
-
-    await webView.run();
+  Future<bool> _silentLogin() async {
+    final generation = _sessionGeneration;
     try {
-      await completer.future.timeout(const Duration(seconds: 60));
-    } finally {
-      webView.dispose();
+      final username = await _storage.getUsername();
+      final password = await _storage.getPassword();
+      if (username == null ||
+          username.isEmpty ||
+          password == null ||
+          password.isEmpty) {
+        return false;
+      }
+      if (generation != _sessionGeneration) return false;
+      await _login(username, password);
+      return true;
+    } catch (e) {
+      _logger.w('统一认证自动刷新失败（${e.runtimeType}）');
+      return false;
     }
+  }
+
+  static Future<void>? _loginInProgress;
+  static String? _loginUsername;
+  static String? _loginPassword;
+  static int _sessionGeneration = 0;
+
+  /// Logout waits for cookie publishers before clearing, so a late refresh
+  /// cannot restore the previous account's session.
+  static Future<void> cancelPendingLogins() async {
+    _sessionGeneration++;
+    try {
+      await _silentLoginInProgress;
+    } catch (_) {}
+    try {
+      await _loginInProgress;
+    } catch (_) {}
+  }
+
+  Future<void> _login(String username, String password) async {
+    final generation = _sessionGeneration;
+    while (_loginInProgress != null) {
+      final pending = _loginInProgress!;
+      if (_loginUsername == username && _loginPassword == password) {
+        return pending;
+      }
+      try {
+        await pending;
+      } catch (_) {}
+      if (generation != _sessionGeneration) {
+        throw const SsoAuthException('登录已取消');
+      }
+    }
+    _loginUsername = username;
+    _loginPassword = password;
+    final attempt = _loginWithHttp(username, password, generation);
+    _loginInProgress = attempt;
+    try {
+      await attempt;
+    } finally {
+      if (identical(_loginInProgress, attempt)) {
+        _loginInProgress = null;
+        _loginUsername = null;
+        _loginPassword = null;
+      }
+    }
+  }
+
+  Future<void> _loginWithHttp(
+    String username,
+    String password,
+    int generation,
+  ) async {
+    // The attempt owns a new empty jar. A valid portal cookie cannot bypass
+    // password authentication while the CAS TGC needed by other apps is stale.
+    final result = await _httpLoginService.login(username, password);
+    if (generation != _sessionGeneration) throw const SsoAuthException('登录已取消');
+    await _cookies.initialize();
+    await _cookies.saveHttpLoginCookies(result.cookies);
+    if (generation != _sessionGeneration) throw const SsoAuthException('登录已取消');
+    await _storage.saveUsername(username);
+    await _storage.savePassword(password);
+    _logger.i('统一认证已刷新，新会话已同步');
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart' as dio_cookie;
+import 'session_cookie_manager.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -130,7 +131,7 @@ class CampusCardService {
       await AppCookieManager().initialize();
       if (_dio.interceptors.whereType<dio_cookie.CookieManager>().isEmpty) {
         _dio.interceptors.add(
-          dio_cookie.CookieManager(AppCookieManager().dioCookieJar),
+          SessionCookieManager(AppCookieManager().dioCookieJar),
         );
       }
       _cookiesReady = true;

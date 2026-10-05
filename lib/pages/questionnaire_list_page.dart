@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/questionnaire_models.dart';
-import '../services/auth_service.dart';
 import '../services/questionnaire_service.dart';
-import '../services/secure_storage_helper.dart';
-import '../services/xgxt_login_service.dart';
 import '../widgets/login_bottom_sheet.dart';
 import '../widgets/questionnaire_widgets.dart';
 import 'questionnaire_detail_page.dart';
@@ -44,21 +41,8 @@ class _QuestionnaireListPageState extends State<QuestionnaireListPage> {
   @override
   void initState() {
     super.initState();
-    _service =
-        widget.service ?? QuestionnaireService(reauthenticate: _renewSession);
+    _service = widget.service ?? QuestionnaireService();
     _load();
-  }
-
-  Future<bool> _renewSession() async {
-    final login = XgxtLoginService();
-    if (await login.performXgxtCasLogin()) return true;
-    final storage = SecureStorageHelper();
-    final username = await storage.getUsername();
-    final password = await storage.getPassword();
-    if (!mounted || username == null || password == null) return false;
-    await AuthService().login(username, password, context);
-    if (!mounted) return false;
-    return login.performXgxtCasLogin();
   }
 
   Future<void> _load() async {

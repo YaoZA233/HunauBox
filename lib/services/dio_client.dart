@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart' as dio_cookie;
+import 'session_cookie_manager.dart';
 
 import '../models/app_constants.dart';
 import 'app_cookie_manager.dart';
@@ -14,10 +14,16 @@ class DioClient {
   late final Dio _dio;
   final _logger = AppLogger.instance;
   bool _initialized = false;
+  Future<void>? _initializing;
 
-  Future<void> initialize() async {
-    if (_initialized) return;
+  Future<void> initialize() {
+    if (_initialized) return Future.value();
+    return _initializing ??= _initialize().whenComplete(() {
+      _initializing = null;
+    });
+  }
 
+  Future<void> _initialize() async {
     await AppCookieManager().initialize();
 
     _dio = Dio(
@@ -39,7 +45,7 @@ class DioClient {
     );
 
     _dio.interceptors.add(
-      dio_cookie.CookieManager(AppCookieManager().dioCookieJar),
+      SessionCookieManager(AppCookieManager().dioCookieJar),
     );
 
     _dio.interceptors.add(
