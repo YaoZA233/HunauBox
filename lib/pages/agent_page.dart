@@ -514,7 +514,7 @@ class _AgentPageState extends ConsumerState<AgentPage> {
     padding: const EdgeInsets.all(28),
     children: [
       const SizedBox(height: 32),
-      const Icon(Icons.smart_toy_outlined, size: 48),
+      const Icon(Icons.auto_awesome_rounded, size: 48),
       const SizedBox(height: 20),
       Text(
         store.config.enabled ? '先连接你的模型服务' : 'Agent 已关闭',
@@ -550,7 +550,7 @@ class _AgentPageState extends ConsumerState<AgentPage> {
       Align(
         alignment: Alignment.centerLeft,
         child: Icon(
-          Icons.smart_toy_outlined,
+          Icons.auto_awesome_rounded,
           size: 38,
           color: Theme.of(context).colorScheme.primary,
         ),

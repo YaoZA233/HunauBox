@@ -102,7 +102,7 @@ class AppCookieManager {
     await initialize();
     await _clearWebViewCookies(urls);
     for (final url in urls) {
-      await syncMultiDomainCookiesToWebView(url);
+      await syncMultiDomainCookiesToWebView(url, throwOnFailure: true);
     }
   }
 
@@ -284,7 +284,10 @@ class AppCookieManager {
     }
   }
 
-  Future<void> syncMultiDomainCookiesToWebView(String url) async {
+  Future<void> syncMultiDomainCookiesToWebView(
+    String url, {
+    bool throwOnFailure = false,
+  }) async {
     await initialize();
     try {
       final requestedUri = Uri.parse(url);
@@ -313,6 +316,7 @@ class AppCookieManager {
       }
     } catch (e) {
       _logger.w('Failed to sync cookies to WebView for $url: $e');
+      if (throwOnFailure) rethrow;
     }
   }
 

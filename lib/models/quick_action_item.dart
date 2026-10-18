@@ -15,6 +15,11 @@ class QuickActionItem {
 class QuickActionCatalog {
   static const items = <QuickActionItem>[
     QuickActionItem(
+      id: 'campus_card_bill',
+      label: '校园卡账单',
+      icon: Icons.receipt_long_outlined,
+    ),
+    QuickActionItem(
       id: 'payment_code',
       label: '校园卡付款码',
       icon: Icons.qr_code_scanner_outlined,

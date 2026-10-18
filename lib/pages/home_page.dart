@@ -19,12 +19,15 @@ import '../utils/date_calculator.dart';
 import '../utils/ics_parser.dart';
 import '../utils/week_parser.dart';
 import '../widgets/login_bottom_sheet.dart';
+import '../widgets/app_motion.dart';
+import '../widgets/weather_widgets.dart';
 import 'function_page.dart';
 import 'empty_classroom_page.dart';
 import 'score_page.dart';
 import 'timetable_page.dart';
 import 'profile_page.dart';
 import 'campus_card_recharge_page.dart';
+import 'campus_card_bill_page.dart';
 import 'campus_card_webview_page.dart';
 import 'payment_code_page.dart';
 import 'electricity_recharge_page.dart';
@@ -387,18 +390,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          _realName?.trim().isNotEmpty == true
-                              ? '${_realName!.trim()}，今天好'
-                              : 'HunauBox',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(
-                                fontSize: 25,
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
+                        WeatherGreeting(realName: _realName),
                       ],
                     ),
                   ),
@@ -491,9 +483,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     return Semantics(
       button: true,
       label: '个人中心与设置',
-      child: InkWell(
+      child: AppPressable(
         onTap: _isLoading ? null : _openProfile,
-        customBorder: const CircleBorder(),
+        borderRadius: BorderRadius.circular(24),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -1169,7 +1161,9 @@ class _HomePageState extends ConsumerState<HomePage> {
           final adjustments = await storage.readAdjustments();
           setState(() {
             _hasTimetable = true;
-            _allCourses = storedCourses.isEmpty ? IcsParser.parse(icsContent) : storedCourses;
+            _allCourses = storedCourses.isEmpty
+                ? IcsParser.parse(icsContent)
+                : storedCourses;
             _timetableAdjustments = adjustments;
             _firstWeekMonday = firstWeekMonday;
           });
@@ -1337,10 +1331,9 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   Widget _buildQuickAction(IconData icon, String label, {VoidCallback? onTap}) {
     final colors = Theme.of(context).colorScheme;
-    return InkResponse(
+    return AppPressable(
       onTap: onTap,
-      radius: 34,
-      customBorder: const CircleBorder(),
+      borderRadius: BorderRadius.circular(24),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
@@ -1409,6 +1402,13 @@ class _HomePageState extends ConsumerState<HomePage> {
       await Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const CampusCardRechargePage()));
+      return;
+    }
+
+    if (id == 'campus_card_bill') {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const CampusCardBillPage()));
       return;
     }
 
@@ -1513,19 +1513,23 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
 
     if (id == 'repair') {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const RepairPage()),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const RepairPage()));
       return;
     }
 
     if (id == 'sunshine') {
-      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SunshinePage()));
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const SunshinePage()));
       return;
     }
 
     if (id == 'leave') {
-      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LeavePage()));
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const LeavePage()));
       return;
     }
 

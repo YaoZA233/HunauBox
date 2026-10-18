@@ -12,6 +12,13 @@ import 'app_logger.dart';
 import 'auth_service.dart';
 import 'session_cookie_manager.dart';
 
+class XgxtSessionException implements Exception {
+  const XgxtSessionException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 class XgxtLoginService {
   // Share one login across features to avoid competing CAS tickets/sessions.
   static final _shared = XgxtLoginService._();
@@ -65,6 +72,14 @@ class XgxtLoginService {
        _usesSharedJar = cookieJar == null;
 
   static const _maxRedirects = 10;
+  static const browserSessionUrls = [
+    AppConstants.xgxtBaseUrl,
+    AppConstants.xgxtWapUrl,
+    AppConstants.xgxtQuestionnaireListUrl,
+    AppConstants.leaveApplyUrl,
+    AppConstants.leaveListUrl,
+    '${AppConstants.xgxtBaseUrl}/wap/menu/student/leave/qjsq',
+  ];
   final _logger = AppLogger.instance;
   final Dio _dio;
   CookieJar? _cookieJar;
@@ -108,6 +123,31 @@ class XgxtLoginService {
     });
   }
 
+  /// Verify the HTTP session and publish every business cookie scope before
+  /// constructing the visible browser, including when reusing a session.
+  Future<bool> ensureSession() => _loginInProgress ??= _ensureSession()
+      .whenComplete(() => _loginInProgress = null);
+
+  Future<bool> _ensureSession() async {
+    await _ensureCookieJar();
+    if (await _probeSession()) {
+      await _publishValidSession();
+      return true;
+    }
+    return _login();
+  }
+
+  Future<bool> hasValidSession() async {
+    try {
+      await _ensureCookieJar();
+      return await _probeSession();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> publishBrowserSession() => _publishValidSession();
+
   Future<Uri?> _requestTicket() async {
     var current = Uri.parse(
       AppConstants.ssoLoginUrl,
@@ -121,7 +161,7 @@ class XgxtLoginService {
       final next = _trustedRedirect(current.resolve(location));
       if (next == null) return null;
       if (next.host == service.host &&
-          next.path == service.path &&
+          next.path.split(';').first == service.path &&
           (next.queryParameters['ticket'] ?? '').isNotEmpty) {
         return next;
       }
@@ -173,6 +213,11 @@ class XgxtLoginService {
       if (!browserOk || !await _probeSession()) return false;
       await _publishValidSession();
       return true;
+    } on XgxtSessionException {
+      rethrow;
+    } on DioException catch (e) {
+      _logger.w('学工 CAS 连接失败（${e.type}）');
+      throw const XgxtSessionException('学工或统一认证服务暂时无法连接，请稍后重试');
     } catch (e) {
       _logger.w('学工 CAS 登录失败（${e.runtimeType}）');
       return false;
@@ -196,20 +241,23 @@ class XgxtLoginService {
   }
 
   Future<void> _publishValidSession() async {
-    if (_publishSession != null) {
-      await _publishSession();
-    } else if (_usesSharedJar) {
-      await AppCookieManager().replaceWebViewSession([
-        AppConstants.xgxtBaseUrl,
-        AppConstants.xgxtWapUrl,
-        AppConstants.xgxtQuestionnaireListUrl,
-      ]);
+    try {
+      if (_publishSession != null) {
+        await _publishSession();
+      } else if (_usesSharedJar) {
+        await AppCookieManager().replaceWebViewSession(browserSessionUrls);
+      }
+    } catch (_) {
+      throw const XgxtSessionException('学工会话未能同步到浏览器，请重试');
     }
   }
 
   Future<bool> _exchangeTicket(Uri ticketUri) async {
     // Discard legacy Domain/path shadows before installing the new session.
-    await _cookieJar!.delete(Uri.parse(AppConstants.xgxtBaseUrl), true);
+    await SessionCookieManager.clearHostCookies(
+      _cookieJar!,
+      browserSessionUrls.map(Uri.parse),
+    );
     // As in ChillEast, each hop passes through CookieManager. Adapter-level
     // redirects lose intermediate Set-Cookie headers before the next hop.
     var currentUri = ticketUri;
@@ -246,26 +294,64 @@ class XgxtLoginService {
   }
 
   Future<bool> _probeSession() async {
-    final response = await _dio.get(
+    // A questionnaire outage or permission failure does not invalidate the
+    // whole student system. Verify a second authenticated, read-only endpoint.
+    for (final url in [
       AppConstants.xgxtQuestionnaireListUrl,
-      queryParameters: {'iDisplayStart': '0', 'iDisplayLength': '1'},
-      options: _options.copyWith(
-        headers: {
-          ...?_options.headers,
-          'X-Requested-With': 'XMLHttpRequest',
-          'Referer': AppConstants.xgxtWapUrl,
-        },
-      ),
-    );
-    if (response.statusCode != 200) return false;
-    try {
-      final data = response.data is String
-          ? jsonDecode(response.data)
-          : response.data;
-      return data is Map && data['aaData'] is List;
-    } on FormatException {
-      return false;
+      AppConstants.leaveListUrl,
+    ]) {
+      try {
+        final response = await _dio.get(
+          url,
+          queryParameters: {
+            'bSortable_0': 'false',
+            'bSortable_1': 'false',
+            'iSortingCols': '1',
+            'iDisplayStart': '0',
+            'iDisplayLength': '1',
+            'iSortCol_0': '3',
+            'sSortDir_0': 'desc',
+            '_t_s_': DateTime.now().millisecondsSinceEpoch,
+          },
+          options: _options.copyWith(
+            headers: {
+              ...?_options.headers,
+              'Cache-Control': 'no-cache',
+              'X-Requested-With': 'XMLHttpRequest',
+              'Referer': AppConstants.xgxtWapUrl,
+            },
+          ),
+        );
+        if (_isRedirect(response.statusCode) || response.statusCode == 401) {
+          return false;
+        }
+        if (response.statusCode == 200) {
+          try {
+            final data = response.data is String
+                ? jsonDecode(response.data)
+                : response.data;
+            if (data is Map && data['aaData'] is List) return true;
+          } on FormatException {
+            // Try the other service; an HTML error page is not proof of logout.
+          }
+        }
+        final body = '${response.data}'.trimLeft().toLowerCase();
+        if (!body.startsWith('{') &&
+            !body.startsWith('[') &&
+            (body.contains('cas/login') ||
+                RegExp(
+                  r'<input\b[^>]*type\s*=\s*["\x27]?password',
+                ).hasMatch(body) ||
+                RegExp(
+                  r'<form\b[^>]*\bid\s*=\s*["\x27]cims_form',
+                ).hasMatch(body))) {
+          return false;
+        }
+      } on DioException {
+        // The second endpoint can still be available.
+      }
     }
+    throw const XgxtSessionException('学工服务暂时无法验证会话，请稍后重试');
   }
 
   Future<bool> _loginWithBrowser() async {

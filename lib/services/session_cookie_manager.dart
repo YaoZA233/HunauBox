@@ -15,6 +15,40 @@ class SessionCookieManager extends CookieManager {
     dio.interceptors.add(SessionCookieManager(jar));
   }
 
+  /// CookieJar.delete(uri, true) also deletes parent-domain cookies shared by
+  /// SSO and sibling services. A business login must only reset its own host.
+  static Future<void> clearHostCookies(
+    CookieJar jar,
+    Iterable<Uri> urls,
+  ) async {
+    final targets = urls.toList();
+    if (targets.isEmpty) return;
+    final host = targets.first.host;
+    if (targets.any((uri) => uri.host != host)) {
+      throw ArgumentError('Cookie cleanup must be limited to one host');
+    }
+    final shadows = <String, Cookie>{};
+    for (final uri in targets) {
+      for (final cookie in await jar.loadForRequest(uri)) {
+        if (cookie.domain?.replaceFirst(RegExp(r'^\.'), '') != host) continue;
+        shadows['${cookie.domain}|${cookie.path}|${cookie.name}'] = cookie;
+      }
+    }
+    // Clear every host-only path, then expire explicit Domain=<this host>
+    // shadows without touching Domain=hunau.edu.cn cookies.
+    await jar.delete(targets.first, false);
+    if (shadows.isNotEmpty) {
+      await jar.saveFromResponse(targets.first, [
+        for (final cookie in shadows.values)
+          Cookie(cookie.name, '')
+            ..domain = cookie.domain
+            ..path = cookie.path ?? '/'
+            ..maxAge = 0
+            ..expires = DateTime.utc(1970),
+      ]);
+    }
+  }
+
   @override
   Future<String> loadCookies(RequestOptions options) async {
     final saved = await cookieJar.loadForRequest(options.uri);

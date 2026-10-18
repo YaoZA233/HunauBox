@@ -52,6 +52,9 @@ class QuestionnaireService {
     }
     final body = response.data;
     if (body is! String) return false;
+    final trimmed = body.trimLeft();
+    // Survey titles and questions can contain HTML or authentication URLs.
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) return false;
     final head = body
         .substring(0, body.length > 2048 ? 2048 : body.length)
         .toLowerCase();
@@ -61,9 +64,14 @@ class QuestionnaireService {
   }
 
   Future<void> _login() async {
-    final success =
-        await (_reauthenticate?.call() ??
-            XgxtLoginService().performXgxtCasLogin());
+    final bool success;
+    try {
+      success =
+          await (_reauthenticate?.call() ??
+              XgxtLoginService().performXgxtCasLogin());
+    } on XgxtSessionException catch (e) {
+      throw QuestionnaireException(e.message);
+    }
     if (!success) {
       throw const QuestionnaireException('学工登录已失效，请重新登录后重试');
     }

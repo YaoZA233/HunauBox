@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/agent_models.dart';
+import 'app_markdown.dart';
 
 class AgentMessageBubble extends StatelessWidget {
   const AgentMessageBubble({super.key, required this.message});
@@ -66,28 +67,22 @@ class AgentMessageBubble extends StatelessWidget {
                 children: [
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: SelectableText(
-                      message.reasoning,
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.5,
-                        color: colors.onSurfaceVariant,
-                      ),
+                    child: AppMarkdown(
+                      data: message.reasoning,
+                      fontSize: 13,
+                      textColor: colors.onSurfaceVariant,
                     ),
                   ),
                 ],
               ),
             const SizedBox(height: 8),
-            SelectableText(
-              message.text,
-              style: TextStyle(
-                height: 1.55,
-                color: message.incomplete
-                    ? colors.error
-                    : user
-                    ? colors.onPrimaryContainer
-                    : colors.onSurface,
-              ),
+            AppMarkdown(
+              data: message.text,
+              textColor: message.incomplete
+                  ? colors.error
+                  : user
+                  ? colors.onPrimaryContainer
+                  : colors.onSurface,
             ),
             if (!user && !message.incomplete) ...[
               const SizedBox(height: 12),

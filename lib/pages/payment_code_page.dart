@@ -8,6 +8,7 @@ import '../services/app_logger.dart';
 import '../services/campus_card_service.dart';
 import '../widgets/payment_result_sheet.dart';
 import 'campus_card_recharge_page.dart';
+import 'campus_card_bill_page.dart';
 
 /// 校园卡付款码。
 ///
@@ -287,7 +288,7 @@ class _PaymentCodePageState extends State<PaymentCodePage>
                   vertical: 14,
                 ),
                 decoration: BoxDecoration(
-                  color: colors.surfaceContainerHighest.withOpacity(0.45),
+                  color: colors.surfaceContainerHighest.withValues(alpha: 0.45),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -318,6 +319,19 @@ class _PaymentCodePageState extends State<PaymentCodePage>
                       child: const Text('充值'),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                margin: EdgeInsets.zero,
+                child: ListTile(
+                  leading: const Icon(Icons.receipt_long_outlined),
+                  title: const Text('校园卡账单'),
+                  subtitle: const Text('查看消费与充值记录'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const CampusCardBillPage(),
+                  )),
                 ),
               ),
               const SizedBox(height: 18),

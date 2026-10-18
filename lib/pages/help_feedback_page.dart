@@ -31,9 +31,9 @@ class HelpFeedbackPage extends StatelessWidget {
           _sectionTitle(context, '课表与临时调课'),
           const SizedBox(height: 10),
           _buildGuideCard(context, [
-            _GuideItem(Icons.calendar_month_rounded, '同步本学期课表', '在功能 → 课程表中打开课表，点击右上角同步按钮。首次同步会自动识别当前学期和开学日期。'),
-            _GuideItem(Icons.touch_app_rounded, '长按课程卡片调课', '长按某节课可以直接进入临时调课；也可以点击右上角的调课按钮，选择日期时间、单周次、批量周次或批量课程调课。'),
-            _GuideItem(Icons.event_busy_rounded, '设置本次不上课', '在调课表单中打开“本次不上课”，这只会隐藏对应周次的课程，不会删除原始课表。重新同步新课表时，旧的临时安排会自动清理。'),
+            _GuideItem(Icons.calendar_month_rounded, '使用课表功能菜单', '在课程表右上角打开“课表功能”，可导入课表、导出 ICS、回到本周或临时调课。选择“本学期课程”可查看全部课程的周次、时间、老师和教室，也可以搜索课程、老师或教室。'),
+            _GuideItem(Icons.touch_app_rounded, '选择对应的调课方式', 'AI 智能调课会进入 Agent；日期时间调课迁移某天全部课程；单周次只修改一门课的一次上课；批量周次可以勾选多个周次；批量课程可以勾选同一时间段的多门课，各门课周次保留。长按课程卡片会自动带入课程与来源周次。'),
+            _GuideItem(Icons.event_busy_rounded, '设置停课范围', '日期模式打开“这些日期不上课”后，选择停课开始和结束日期；其他模式打开“所选安排不上课”，只隐藏勾选周次或课程。保存前会展示受影响的安排，不会删除原始课表。重新同步新课表时，旧的临时安排会自动清理。'),
           ]),
           const SizedBox(height: 24),
           _sectionTitle(context, '作业、通知与提醒'),
@@ -200,7 +200,7 @@ class HelpFeedbackPage extends StatelessWidget {
           const SizedBox(height: 12),
           Row(children: [Icon(Icons.email_outlined, color: colors.primary), const SizedBox(width: 10), const SelectableText('yaozhengan7@gmail.com')]),
           const SizedBox(height: 12),
-          Text('反馈时请尽量说明设备型号、应用版本、页面名称和复现步骤。当前版本为 1.0.3。', style: TextStyle(color: colors.onSurfaceVariant, height: 1.5)),
+          Text('反馈时请尽量说明设备型号、应用版本、页面名称和复现步骤。当前版本为 1.0.5。', style: TextStyle(color: colors.onSurfaceVariant, height: 1.5)),
         ]),
       ),
     );

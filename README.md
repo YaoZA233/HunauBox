@@ -230,6 +230,6 @@ flutter test
 
 ## 版本信息
 
-- 应用版本：`1.0.3+3`
+- 应用版本：`1.0.4+4`
 - 项目名称：`smart_hunan_agri`
 - 应用展示名称：`HuanuBox`

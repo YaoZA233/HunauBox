@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../services/app_logger.dart';
 import '../services/campus_card_service.dart';
 import '../widgets/campus_card_payment_sheet.dart';
+import 'campus_card_bill_page.dart';
 
 class CampusCardRechargePage extends StatefulWidget {
   const CampusCardRechargePage({super.key});
@@ -103,6 +104,15 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
       appBar: AppBar(
         title: const Text('校园卡充值'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: '校园卡账单',
+            icon: const Icon(Icons.receipt_long_outlined),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const CampusCardBillPage(),
+            )),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'empty_classroom_page.dart';
 import 'campus_card_recharge_page.dart';
+import 'campus_card_bill_page.dart';
 import 'campus_card_webview_page.dart';
 import 'payment_code_page.dart';
 import 'electricity_recharge_page.dart';
@@ -16,6 +17,7 @@ import 'dorm_service_page.dart';
 import 'questionnaire_list_page.dart';
 import '../models/app_constants.dart';
 import '../services/auth_guard.dart';
+import '../widgets/app_motion.dart';
 import 'sunshine_page.dart';
 import 'leave_page.dart';
 import 'repair_page.dart';
@@ -61,6 +63,13 @@ class FunctionPage extends StatelessWidget {
           SliverList(
             delegate: SliverChildListDelegate([
               _buildCategorySection('校卡服务', [
+                _FunctionItem(
+                  Icons.receipt_long_outlined,
+                  '校园卡账单',
+                  '查询消费、充值、补助与转账记录',
+                  onTap: () =>
+                      _openProtectedPage(context, const CampusCardBillPage()),
+                ),
                 _FunctionItem(
                   Icons.qr_code_scanner_outlined,
                   '校园卡付款码',
@@ -119,7 +128,8 @@ class FunctionPage extends StatelessWidget {
                   Icons.wb_sunny_outlined,
                   '阳光服务',
                   '提交诉求并跟踪办理进度',
-                  onTap: () => _openProtectedPage(context, const SunshinePage()),
+                  onTap: () =>
+                      _openProtectedPage(context, const SunshinePage()),
                 ),
                 _FunctionItem(
                   Icons.event_available_outlined,
@@ -414,7 +424,7 @@ class FunctionPage extends StatelessWidget {
     required bool isLast,
     required BuildContext context,
   }) {
-    return InkWell(
+    return AppPressable(
       onTap: () async {
         if (item.requiresLogin) {
           final result = await AuthGuard.ensureLoggedIn(context);

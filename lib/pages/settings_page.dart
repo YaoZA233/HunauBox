@@ -14,6 +14,10 @@ import '../services/quick_action_store.dart';
 import '../providers/theme_provider.dart';
 import '../utils/notification_debug_helper.dart';
 import '../widgets/agent_settings_section.dart';
+import '../providers/motion_provider.dart';
+import 'motion_settings_page.dart';
+import '../providers/weather_provider.dart';
+import 'weather_settings_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -76,6 +80,50 @@ class _SettingsPageState extends State<SettingsPage> {
             padding: const EdgeInsets.all(16),
             children: [
               const AgentSettingsSection(),
+              Consumer(
+                builder: (context, ref, _) {
+                  final weather = ref.watch(weatherProvider);
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.wb_sunny_outlined),
+                    title: const Text('天气与位置'),
+                    subtitle: Text(
+                      !weather.settings.enabled
+                          ? '天气已关闭'
+                          : weather.settings.useDeviceLocation
+                          ? '使用设备当前位置'
+                          : weather.settings.manualLocation?.description ??
+                                '手动选择城市',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const WeatherSettingsPage(),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              Consumer(
+                builder: (context, ref, _) {
+                  final motion = ref.watch(motionSettingsProvider);
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.animation_rounded),
+                    title: const Text('动画与交互'),
+                    subtitle: Text(
+                      '${motion.transition.label} · ${motion.speed.label}${motion.reduceMotion ? ' · 减少动态效果' : ''}',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const MotionSettingsPage(),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const Divider(height: 32),
               const Text(
                 '主题设置',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -127,7 +175,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         spacing: 12,
                         runSpacing: 12,
                         children: _themeColors.map((color) {
-                          final isSelected = currentColor.value == color.value;
+                          final isSelected =
+                              currentColor.toARGB32() == color.toARGB32();
                           return GestureDetector(
                             onTap: () {
                               ref
@@ -151,7 +200,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                       ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: color.withOpacity(0.4),
+                                    color: color.withValues(alpha: 0.4),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),
@@ -306,7 +355,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: DropdownButtonFormField<int>(
-                            value: settings.minutesBefore,
+                            initialValue: settings.minutesBefore,
                             decoration: const InputDecoration(
                               labelText: '提前通知时间',
                               border: OutlineInputBorder(),
@@ -392,7 +441,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: DropdownButtonFormField<int>(
-                            value: settings.homeworkMinutesBefore,
+                            initialValue: settings.homeworkMinutesBefore,
                             decoration: const InputDecoration(
                               labelText: '作业截止提前提醒时间',
                               border: OutlineInputBorder(),

@@ -8,6 +8,8 @@ import 'services/app_cookie_manager.dart';
 import 'services/course_notification_service.dart';
 import 'pages/main_navigator.dart';
 import 'providers/theme_provider.dart';
+import 'providers/motion_provider.dart';
+import 'widgets/app_motion.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +30,8 @@ class SmartHunanAgriApp extends ConsumerWidget {
     final themeColor = ref.watch(themeColorProvider);
     final themeMode = ref.watch(themeModeProvider);
     final background = ref.watch(appBackgroundProvider);
+    final motion = ref.watch(motionSettingsProvider);
+    final transitions = AppPageTransitionsBuilder(motion);
 
     ThemeData buildTheme(Brightness brightness) {
       final isDark = brightness == Brightness.dark;
@@ -44,15 +48,9 @@ class SmartHunanAgriApp extends ConsumerWidget {
         primary: themeColor,
         onPrimary: isDark ? Colors.black : Colors.white,
         surface: isDark ? const Color(0xFF121212) : Colors.white,
-        surfaceContainerLowest: isDark
-            ? const Color(0xFF121212)
-            : Colors.white,
-        surfaceContainerLow: isDark
-            ? const Color(0xFF181818)
-            : Colors.white,
-        surfaceContainer: isDark
-            ? const Color(0xFF1E1E1E)
-            : Colors.white,
+        surfaceContainerLowest: isDark ? const Color(0xFF121212) : Colors.white,
+        surfaceContainerLow: isDark ? const Color(0xFF181818) : Colors.white,
+        surfaceContainer: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         surfaceContainerHigh: isDark
             ? const Color(0xFF242424)
             : const Color(0xFFF8F9FA),
@@ -63,16 +61,12 @@ class SmartHunanAgriApp extends ConsumerWidget {
         onSurfaceVariant: isDark
             ? const Color(0xFFBDC1C6)
             : const Color(0xFF5F6368),
-        outline: isDark
-            ? const Color(0xFF5F6368)
-            : const Color(0xFFDADCE0),
+        outline: isDark ? const Color(0xFF5F6368) : const Color(0xFFDADCE0),
         outlineVariant: isDark
             ? const Color(0xFF3C4043)
             : const Color(0xFFE8EAED),
       );
-      final surface = isDark
-          ? const Color(0xFF121212)
-          : Colors.white;
+      final surface = isDark ? const Color(0xFF121212) : Colors.white;
       final card = isDark ? const Color(0xFF1E1E1E) : Colors.white;
       final outline = isDark
           ? const Color(0xFF3C4043)
@@ -84,6 +78,7 @@ class SmartHunanAgriApp extends ConsumerWidget {
       );
 
       return ThemeData(
+        extensions: [motion],
         useMaterial3: true,
         brightness: brightness,
         primaryColor: themeColor,
@@ -145,9 +140,7 @@ class SmartHunanAgriApp extends ConsumerWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: isDark
-              ? const Color(0xFF2B2B2B)
-              : const Color(0xFFF1F3F4),
+          fillColor: isDark ? const Color(0xFF2B2B2B) : const Color(0xFFF1F3F4),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 16,
@@ -173,7 +166,19 @@ class SmartHunanAgriApp extends ConsumerWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
+          ).copyWith(foregroundBuilder: AppPressScale.buttonBuilder),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: ButtonStyle(
+            foregroundBuilder: AppPressScale.buttonBuilder,
+            minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
           ),
+        ),
+        textButtonTheme: const TextButtonThemeData(
+          style: ButtonStyle(foregroundBuilder: AppPressScale.buttonBuilder),
+        ),
+        iconButtonTheme: const IconButtonThemeData(
+          style: ButtonStyle(foregroundBuilder: AppPressScale.buttonBuilder),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
@@ -182,7 +187,7 @@ class SmartHunanAgriApp extends ConsumerWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
-          ),
+          ).copyWith(foregroundBuilder: AppPressScale.buttonBuilder),
         ),
         snackBarTheme: SnackBarThemeData(
           behavior: SnackBarBehavior.floating,
@@ -196,23 +201,28 @@ class SmartHunanAgriApp extends ConsumerWidget {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        pageTransitionsTheme: const PageTransitionsTheme(
+        pageTransitionsTheme: PageTransitionsTheme(
           builders: {
-            TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+            for (final platform in TargetPlatform.values) platform: transitions,
           },
         ),
       );
     }
 
     return MaterialApp(
+      scrollBehavior: const AppScrollBehavior(),
       debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
       themeMode: themeMode,
       builder: (context, child) {
         if (child == null) return const SizedBox.shrink();
-        if (!background.hasImage) return child;
+        if (!background.hasImage) {
+          return ColoredBox(
+            color: Theme.of(context).colorScheme.surface,
+            child: child,
+          );
+        }
         final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return Stack(

@@ -5,7 +5,7 @@ description: "A new Flutter project."
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.3+3
+version: 1.0.5+5
 
 environment:
   sdk: ^3.11.4
@@ -45,6 +45,7 @@ dependencies:
   battery_plus: ^7.1.1
   fast_gbk: ^1.0.0
   package_info_plus: ^9.0.1
+  flutter_markdown_plus: ^1.0.12
 
 dev_dependencies:
   flutter_test:

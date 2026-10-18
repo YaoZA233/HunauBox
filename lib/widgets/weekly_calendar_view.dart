@@ -5,6 +5,8 @@ import '../models/timetable_adjustment.dart';
 import '../utils/date_calculator.dart';
 import '../utils/week_parser.dart';
 import '../utils/course_color_utils.dart';
+import '../models/motion_settings.dart';
+import 'app_motion.dart';
 
 class WeeklyCalendarView extends StatefulWidget {
   final List<CourseModel> courses;
@@ -28,21 +30,36 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
   late PageController _pageController;
   int _currentWeekNumber = 1;
 
+  int get currentWeekNumber => _currentWeekNumber;
+  final _sourceWeeks = Expando<int>();
+
+  int get _weekCount => [
+    20,
+    for (final course in widget.courses) ...WeekParser.parseWeeks(course.weeks),
+    for (final adjustment in widget.adjustments) adjustment.targetWeek,
+  ].reduce((a, b) => a > b ? a : b);
+
   @override
   void initState() {
     super.initState();
     final initialWeek = DateCalculator.getCurrentWeekNumber(
       widget.firstWeekMonday,
     );
-    _currentWeekNumber = initialWeek.clamp(1, 20);
+    _currentWeekNumber = initialWeek.clamp(1, _weekCount);
     _pageController = PageController(initialPage: _currentWeekNumber - 1);
   }
 
   void jumpToToday() {
     final nowWeek = DateCalculator.getCurrentWeekNumber(widget.firstWeekMonday);
+    final settings = MotionSettings.of(context);
+    if (settings.reduced(context) ||
+        settings.transition == AppTransition.none) {
+      _pageController.jumpToPage(nowWeek.clamp(1, _weekCount) - 1);
+      return;
+    }
     _pageController.animateToPage(
-      nowWeek.clamp(1, 20) - 1,
-      duration: const Duration(milliseconds: 400),
+      nowWeek.clamp(1, _weekCount) - 1,
+      duration: settings.duration(context),
       curve: Curves.easeOutCubic,
     );
   }
@@ -70,7 +87,7 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
         Expanded(
           child: PageView.builder(
             controller: _pageController,
-            itemCount: 20,
+            itemCount: _weekCount,
             onPageChanged: (page) {
               setState(() {
                 _currentWeekNumber = page + 1;
@@ -82,7 +99,11 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
                 widget.firstWeekMonday,
                 weekNum,
               );
-              return _buildTimetableGrid(monday, weekNum);
+              return AppMotionPage(
+                controller: _pageController,
+                index: index,
+                child: _buildTimetableGrid(monday, weekNum),
+              );
             },
           ),
         ),
@@ -103,17 +124,20 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
       child: Row(
         children: [
           const SizedBox(width: 8),
-          Text(
-            '第$weekNumber周',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white
-                  : Theme.of(context).colorScheme.onSurface,
+          Expanded(
+            child: Text(
+              '第$weekNumber周',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white
+                    : Theme.of(context).colorScheme.onSurface,
+              ),
             ),
           ),
-          const Spacer(),
           Text(
             '${monday.month}.${monday.day} - ${sunday.month}.${sunday.day}',
             style: TextStyle(
@@ -165,6 +189,7 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
                         screenWidth,
                         sectionHeight,
                         targetGap,
+                        weekNumber,
                       ),
                     ],
                   ),
@@ -182,7 +207,7 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
     final columnWidth = (screenWidth - 55) / 7.0;
 
     return SizedBox(
-      height: 40,
+      height: 40 * MediaQuery.textScalerOf(context).scale(1).clamp(1, 2),
       child: Row(
         children: [
           const SizedBox(width: 55),
@@ -193,12 +218,21 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(labels[index], style: const TextStyle(fontSize: 11)),
-                  Text(
-                    '${day.month}/${day.day}',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      labels[index],
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${day.month}/${day.day}',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ],
@@ -261,6 +295,7 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
     double screenWidth,
     double blockHeight,
     double gap,
+    int weekNumber,
   ) {
     final blocks = <Widget>[];
     const timeColumnWidth = 55.0;
@@ -284,20 +319,20 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
           left: left,
           width: width,
           height: height,
-          child: _buildCourseBlock(course),
+          child: _buildCourseBlock(course, _sourceWeeks[course] ?? weekNumber),
         ),
       );
     }
     return blocks;
   }
 
-  Widget _buildCourseBlock(CourseModel course) {
+  Widget _buildCourseBlock(CourseModel course, int sourceWeek) {
     final color = CourseColorUtils.getColorForCourse(course.name);
-    return GestureDetector(
+    return AppPressable(
       onTap: () => _showCourseDetail(course),
       onLongPress: widget.onCourseLongPress == null
           ? null
-          : () => widget.onCourseLongPress!(course, _currentWeekNumber),
+          : () => widget.onCourseLongPress!(course, sourceWeek),
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
@@ -407,20 +442,25 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
     for (final course in widget.courses) {
       final active = WeekParser.parseWeeks(course.weeks).contains(weekNumber);
       final sourceAdjustment = widget.adjustments
-          .where((item) => item.courseId == course.id && item.sourceWeek == weekNumber)
+          .where(
+            (item) =>
+                item.courseId == course.id && item.sourceWeek == weekNumber,
+          )
           .firstOrNull;
 
       if (active) {
         if (sourceAdjustment == null) {
           visible.add(course);
-        } else if (!sourceAdjustment.cancelled && sourceAdjustment.targetWeek == weekNumber) {
+        } else if (!sourceAdjustment.cancelled &&
+            sourceAdjustment.targetWeek == weekNumber) {
           visible.add(_applyAdjustment(course, sourceAdjustment));
         }
       }
 
       // A move can land in a week where the original course did not occur.
       for (final adjustment in widget.adjustments.where(
-        (item) => item.courseId == course.id &&
+        (item) =>
+            item.courseId == course.id &&
             item.targetWeek == weekNumber &&
             item.sourceWeek != weekNumber &&
             item.sourceWeek != 0,
@@ -437,11 +477,13 @@ class WeeklyCalendarViewState extends State<WeeklyCalendarView> {
     CourseModel course,
     TimetableAdjustment adjustment,
   ) {
-    return course.copyWith(
+    final result = course.copyWith(
       dayOfWeek: adjustment.targetDay,
       startPeriod: adjustment.targetStartPeriod,
       endPeriod: adjustment.targetEndPeriod,
       periods: '${adjustment.targetStartPeriod}-${adjustment.targetEndPeriod}',
     );
+    _sourceWeeks[result] = adjustment.sourceWeek;
+    return result;
   }
 }

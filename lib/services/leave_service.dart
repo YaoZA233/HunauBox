@@ -43,13 +43,24 @@ class LeaveService {
     }
   }
 
-  Future<Response> _read(Future<Response> Function(Dio d) fn) async {
+  Future<Response> _read(
+    Future<Response> Function(Dio d) fn, {
+    bool write = false,
+  }) async {
     final d = await client;
     var r = await fn(d);
     if (_needsLogin(r)) {
-      final ok = _reauthenticate != null
-          ? await _reauthenticate()
-          : await XgxtLoginService().performXgxtCasLogin();
+      if (write && !_explicitlyUnauthenticated(r)) {
+        throw const LeaveException('未能确认操作结果，请刷新记录后确认，避免重复提交');
+      }
+      final bool ok;
+      try {
+        ok = _reauthenticate != null
+            ? await _reauthenticate()
+            : await XgxtLoginService().performXgxtCasLogin();
+      } on XgxtSessionException catch (e) {
+        throw LeaveException(e.message);
+      }
       if (!ok) throw const LeaveException('学工登录已失效，请重新登录');
       r = await fn(d);
     }
@@ -57,10 +68,21 @@ class LeaveService {
     return r;
   }
 
+  bool _explicitlyUnauthenticated(Response r) {
+    if (r.statusCode == 401 || r.statusCode == 403) return true;
+    final location = r.headers.value('location') ?? '';
+    final body = '${r.data}'.toLowerCase();
+    return location.contains('/cas/login') ||
+        location.contains('/login') ||
+        body.contains('cas/login') ||
+        RegExp(r'<input\b[^>]*type\s*=\s*["\x27]?password').hasMatch(body);
+  }
+
   bool _needsLogin(Response r) {
     final s = r.statusCode ?? 0;
     if ((s >= 300 && s < 400) || s == 401 || s == 403) return true;
-    final body = '${r.data}'.toLowerCase();
+    final body = '${r.data}'.trimLeft().toLowerCase();
+    if (body.startsWith('{') || body.startsWith('[')) return false;
     return body.contains('cas/login') ||
         body.contains('<html') ||
         body.contains('<!doctype html');
@@ -98,7 +120,7 @@ class LeaveService {
       ),
     );
     final data = _json(r);
-    if (data is! List) return [];
+    if (data is! List) throw const LeaveException('离校去向数据格式异常，请重试');
     return data
         .whereType<Map>()
         .map((e) => RegionNode.fromJson(e.cast<String, dynamic>()))
@@ -118,7 +140,13 @@ class LeaveService {
       ),
     );
     final data = _json(r);
-    return LeaveDuration.fromJson((data as Map).cast<String, dynamic>());
+    if (data is! Map) throw const LeaveException('未能计算请假时长，请重试');
+    final days = int.tryParse('${data['day']}');
+    final hours = int.tryParse('${data['hour']}');
+    if (days == null || hours == null || days < 0 || hours < 0 || hours > 23) {
+      throw const LeaveException('请假时长数据异常，请重新选择时间');
+    }
+    return LeaveDuration(days, hours);
   }
 
   Future<List<LeaveRecord>> fetchList() async {
@@ -179,7 +207,7 @@ class LeaveService {
               : Headers.formUrlEncodedContentType,
         ),
       );
-    });
+    }, write: true);
     final j = _json(r);
     if (j is! Map || j['result'] != true) {
       throw LeaveException(
@@ -197,6 +225,7 @@ class LeaveService {
           contentType: Headers.formUrlEncodedContentType,
         ),
       ),
+      write: true,
     );
     final j = _json(r);
     if (j != true) throw const LeaveException('撤销失败，该请假单可能已进入审核');

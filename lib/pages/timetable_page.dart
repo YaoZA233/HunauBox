@@ -6,6 +6,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/course_model.dart';
 import '../models/timetable_adjustment.dart';
+import '../services/course_notification_service.dart';
+import '../services/timetable_adjustment_service.dart';
 import '../services/timetable_storage.dart';
 import '../utils/date_calculator.dart';
 import '../utils/week_parser.dart';
@@ -14,9 +16,24 @@ import '../utils/ics_generator.dart';
 import '../widgets/download_timetable_screen.dart';
 import '../widgets/empty_timetable_state.dart';
 import '../widgets/weekly_calendar_view.dart';
+import '../widgets/daily_calendar_view.dart';
+import '../widgets/app_motion.dart';
+import '../widgets/timetable_adjustment_form.dart';
+import 'agent_page.dart';
+import 'semester_courses_page.dart';
+
+enum _TimetableAction {
+  semesterCourses,
+  adjustment,
+  today,
+  importTimetable,
+  exportIcs,
+}
 
 class TimetablePage extends StatefulWidget {
-  const TimetablePage({super.key});
+  const TimetablePage({super.key, this.storage});
+
+  final TimetableStorage? storage;
 
   @override
   State<TimetablePage> createState() => _TimetablePageState();
@@ -24,6 +41,9 @@ class TimetablePage extends StatefulWidget {
 
 class _TimetablePageState extends State<TimetablePage> {
   final GlobalKey<WeeklyCalendarViewState> _weeklyKey = GlobalKey();
+  final GlobalKey<DailyCalendarViewState> _dailyKey = GlobalKey();
+  bool _dailyView = false;
+  late final _storage = widget.storage ?? TimetableStorage();
 
   List<CourseModel> _courses = [];
   List<TimetableAdjustment> _adjustments = [];
@@ -40,39 +60,75 @@ class _TimetablePageState extends State<TimetablePage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasTimetable = _courses.isNotEmpty && _firstWeekMonday != null;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('我的课表'),
         actions: [
-          IconButton(
-            onPressed: _isLoading ? null : _openDownload,
-            icon: const Icon(Icons.download_outlined),
-            tooltip: '导入课表',
-          ),
-          IconButton(
-            onPressed:
-                _isLoading || _courses.isEmpty || _firstWeekMonday == null
-                ? null
-                : _exportIcs,
-            icon: const Icon(Icons.ios_share_outlined),
-            tooltip: '导出 ICS',
-          ),
-          IconButton(
-            onPressed: _isLoading ? null : _handleTodayClick,
-            icon: const Icon(Icons.today_outlined),
-          ),
-          IconButton(
-            onPressed: _isLoading || _courses.isEmpty || _firstWeekMonday == null
-                ? null
-                : _openAdjustmentModes,
-            icon: const Icon(Icons.swap_horiz_rounded),
-            tooltip: '临时调课',
+          PopupMenuButton<_TimetableAction>(
+            tooltip: '课表功能',
+            enabled: !_isLoading,
+            icon: const Icon(Icons.more_horiz_rounded),
+            onSelected: _handleAction,
+            itemBuilder: (_) => [
+              _menuItem(
+                _TimetableAction.semesterCourses,
+                Icons.library_books_outlined,
+                '本学期课程',
+                enabled: _courses.isNotEmpty,
+              ),
+              _menuItem(
+                _TimetableAction.adjustment,
+                Icons.swap_horiz_rounded,
+                '临时调课',
+                enabled: hasTimetable,
+              ),
+              _menuItem(
+                _TimetableAction.today,
+                Icons.today_outlined,
+                _dailyView ? '回到今天' : '回到本周',
+                enabled: hasTimetable,
+              ),
+              const PopupMenuDivider(),
+              _menuItem(
+                _TimetableAction.importTimetable,
+                Icons.download_outlined,
+                '导入课表',
+              ),
+              _menuItem(
+                _TimetableAction.exportIcs,
+                Icons.ios_share_outlined,
+                '导出 ICS',
+                enabled: hasTimetable,
+              ),
+            ],
           ),
         ],
       ),
       body: Column(
         children: [
+          if (hasTimetable)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: false,
+                    icon: Icon(Icons.calendar_view_week_outlined),
+                    label: Text('周视图'),
+                  ),
+                  ButtonSegment(
+                    value: true,
+                    icon: Icon(Icons.view_agenda_outlined),
+                    label: Text('日视图'),
+                  ),
+                ],
+                selected: {_dailyView},
+                onSelectionChanged: (selection) =>
+                    setState(() => _dailyView = selection.single),
+              ),
+            ),
           if (_errorMessage != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -84,12 +140,25 @@ class _TimetablePageState extends State<TimetablePage> {
           Expanded(
             child: _courses.isEmpty || _firstWeekMonday == null
                 ? EmptyTimetableState(onDownload: _openDownload)
-                : WeeklyCalendarView(
-                    key: _weeklyKey,
-                    courses: _courses,
-                    firstWeekMonday: _firstWeekMonday!,
-                    adjustments: _adjustments,
-                    onCourseLongPress: _openAdjustmentModesForCourse,
+                : AppMotionIndexedStack(
+                    index: _dailyView ? 1 : 0,
+                    children: [
+                      WeeklyCalendarView(
+                        key: _weeklyKey,
+                        courses: _courses,
+                        firstWeekMonday: _firstWeekMonday!,
+                        adjustments: _adjustments,
+                        onCourseLongPress: _openAdjustmentModesForCourse,
+                      ),
+                      DailyCalendarView(
+                        key: _dailyKey,
+                        courses: _courses,
+                        firstWeekMonday: _firstWeekMonday!,
+                        adjustments: _adjustments,
+                        active: _dailyView,
+                        onCourseLongPress: _openAdjustmentModesForCourse,
+                      ),
+                    ],
                   ),
           ),
         ],
@@ -97,8 +166,52 @@ class _TimetablePageState extends State<TimetablePage> {
     );
   }
 
+  PopupMenuItem<_TimetableAction> _menuItem(
+    _TimetableAction action,
+    IconData icon,
+    String label, {
+    bool enabled = true,
+  }) => PopupMenuItem(
+    value: action,
+    enabled: enabled,
+    child: Row(
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: 12),
+        Flexible(child: Text(label)),
+      ],
+    ),
+  );
+
+  void _handleAction(_TimetableAction action) {
+    switch (action) {
+      case _TimetableAction.semesterCourses:
+        Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => SemesterCoursesPage(
+              courses: _courses,
+              adjustments: _adjustments,
+              firstWeekMonday: _firstWeekMonday,
+            ),
+          ),
+        );
+      case _TimetableAction.adjustment:
+        _openAdjustmentModes();
+      case _TimetableAction.today:
+        _handleTodayClick();
+      case _TimetableAction.importTimetable:
+        _openDownload();
+      case _TimetableAction.exportIcs:
+        _exportIcs();
+    }
+  }
+
   void _handleTodayClick() {
-    _weeklyKey.currentState?.jumpToToday();
+    if (_dailyView) {
+      _dailyKey.currentState?.jumpToToday();
+    } else {
+      _weeklyKey.currentState?.jumpToToday();
+    }
   }
 
   Future<void> _loadLocalTimetable() async {
@@ -108,7 +221,7 @@ class _TimetablePageState extends State<TimetablePage> {
     });
 
     try {
-      final storage = TimetableStorage();
+      final storage = _storage;
       final hasTimetable = await storage.hasLocalTimetable();
 
       if (hasTimetable) {
@@ -128,6 +241,7 @@ class _TimetablePageState extends State<TimetablePage> {
             );
           }
 
+          if (!mounted) return;
           setState(() {
             _courses = courses;
             _adjustments = adjustments;
@@ -138,10 +252,12 @@ class _TimetablePageState extends State<TimetablePage> {
         }
       }
 
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
@@ -211,36 +327,50 @@ class _TimetablePageState extends State<TimetablePage> {
     CourseModel? course,
     int? weekNumber,
   }) async {
-    final selected = await showModalBottomSheet<_AdjustmentMode>(
+    final selected = await showModalBottomSheet<AdjustmentMode>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _AdjustmentModeSheet(course: course),
+      builder: (context) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .9,
+        ),
+        child: SingleChildScrollView(
+          child: _AdjustmentModeSheet(course: course),
+        ),
+      ),
     );
     if (!mounted || selected == null) return;
 
-    if (selected == _AdjustmentMode.ai) {
-      _showInfo('AI 智能调课', '把通知文字粘贴进来，后续可由 AI 帮你解析调课与放假安排。');
+    if (selected == AdjustmentMode.ai) {
+      await Navigator.of(
+        context,
+      ).push<void>(MaterialPageRoute(builder: (_) => const AgentPage()));
+      if (mounted) await _loadLocalTimetable();
       return;
     }
 
-    var selectedCourse = course;
-    if (selectedCourse == null) {
+    var selectedCourse = _courses
+        .where((item) => item.id == course?.id)
+        .firstOrNull;
+    if (selected != AdjustmentMode.date && selectedCourse == null) {
       selectedCourse = await _pickCourse();
       if (!mounted || selectedCourse == null) return;
     }
 
-    final suggestedWeek = weekNumber ??
+    final suggestedWeek =
+        weekNumber ??
+        (_dailyView
+            ? _dailyKey.currentState?.currentWeekNumber
+            : _weeklyKey.currentState?.currentWeekNumber) ??
         DateCalculator.getCurrentWeekNumber(_firstWeekMonday!).clamp(1, 20);
-    final availableWeeks = WeekParser.parseWeeks(selectedCourse.weeks);
+    final availableWeeks = selectedCourse == null
+        ? <int>[]
+        : WeekParser.parseWeeks(selectedCourse.weeks);
     final currentWeek = availableWeeks.contains(suggestedWeek)
         ? suggestedWeek
         : (availableWeeks.firstOrNull ?? suggestedWeek);
-    await _openAdjustmentForm(
-      selected,
-      selectedCourse,
-      currentWeek,
-    );
+    await _openAdjustmentForm(selected, selectedCourse, currentWeek);
   }
 
   Future<CourseModel?> _pickCourse() {
@@ -255,14 +385,22 @@ class _TimetablePageState extends State<TimetablePage> {
             child: ListView.separated(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               itemCount: _courses.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (_, index) {
                 final item = _courses[index];
                 return ListTile(
                   tileColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: Text('周${item.dayOfWeek} · 第${item.periods}节 · ${item.classroom}'),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  title: Text(
+                    item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    '周${item.dayOfWeek} · 第${item.periods}节 · ${item.classroom}',
+                  ),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => Navigator.pop(context, item),
                 );
@@ -275,182 +413,61 @@ class _TimetablePageState extends State<TimetablePage> {
   }
 
   Future<void> _openAdjustmentForm(
-    _AdjustmentMode mode,
-    CourseModel course,
+    AdjustmentMode mode,
+    CourseModel? course,
     int sourceWeek,
   ) async {
-    var targetDay = course.dayOfWeek;
-    var targetWeek = sourceWeek;
-    var targetStart = course.startPeriod;
-    var targetEnd = course.endPeriod;
-    var cancelled = false;
-
-    final saved = await showModalBottomSheet<bool>(
+    final additions = await showModalBottomSheet<List<TimetableAdjustment>>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            final colors = Theme.of(context).colorScheme;
-            final title = switch (mode) {
-              _AdjustmentMode.date => '日期时间调课',
-              _AdjustmentMode.singleWeek => '单周次调课',
-              _AdjustmentMode.batchWeeks => '批量周次调课',
-              _AdjustmentMode.batchCourses => '批量课程调课',
-              _AdjustmentMode.ai => 'AI 智能调课',
-            };
-            final applies = switch (mode) {
-              _AdjustmentMode.batchWeeks => '将应用到 ${WeekParser.parseWeeks(course.weeks).length} 个已有周次',
-              _AdjustmentMode.batchCourses => '将应用到同一星期、相同开始节次的课程',
-              _ => '只改变临时安排，原课表仍可随时恢复',
-            };
-            return SafeArea(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.viewInsetsOf(context).bottom + 20),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: Theme.of(context).textTheme.headlineSmall),
-                      const SizedBox(height: 6),
-                      Text(course.name, style: TextStyle(color: colors.primary, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      Text(applies, style: TextStyle(color: colors.onSurfaceVariant)),
-                      const SizedBox(height: 20),
-                      if (mode == _AdjustmentMode.date || mode == _AdjustmentMode.singleWeek) ...[
-                        _selector<int>(
-                          label: '目标周次',
-                          value: targetWeek,
-                          values: List.generate(20, (index) => index + 1),
-                          text: (value) => '第$value周',
-                          onChanged: (value) => setSheetState(() => targetWeek = value),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      _selector<int>(
-                        label: '目标星期',
-                        value: targetDay,
-                        values: List.generate(7, (index) => index + 1),
-                        text: (value) => '星期${['一', '二', '三', '四', '五', '六', '日'][value - 1]}',
-                        onChanged: (value) => setSheetState(() => targetDay = value),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(child: _selector<int>(
-                            label: '开始节次', value: targetStart,
-                            values: List.generate(12, (index) => index + 1),
-                            text: (value) => '第$value节',
-                            onChanged: (value) => setSheetState(() {
-                              targetStart = value;
-                              if (targetEnd < value) targetEnd = value;
-                            }),
-                          )),
-                          const SizedBox(width: 12),
-                          Expanded(child: _selector<int>(
-                            label: '结束节次', value: targetEnd,
-                            values: List.generate(12, (index) => index + 1),
-                            text: (value) => '第$value节',
-                            onChanged: (value) => setSheetState(() => targetEnd = value),
-                          )),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('本次不上课'),
-                        subtitle: const Text('保留记录，但在对应周次隐藏这节课'),
-                        value: cancelled,
-                        onChanged: (value) => setSheetState(() => cancelled = value),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: () => Navigator.pop(context, true),
-                          icon: const Icon(Icons.check_rounded),
-                          label: const Text('保存临时安排'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-    if (!mounted || saved != true) return;
-
-    final weeks = switch (mode) {
-      _AdjustmentMode.batchWeeks => WeekParser.parseWeeks(course.weeks),
-      _ => [sourceWeek],
-    };
-    final targets = mode == _AdjustmentMode.batchCourses
-        ? _courses.where((item) => item.dayOfWeek == course.dayOfWeek && item.startPeriod == course.startPeriod).toList()
-        : [course];
-    final additions = <TimetableAdjustment>[];
-    for (final item in targets) {
-      final itemWeeks = mode == _AdjustmentMode.batchWeeks || mode == _AdjustmentMode.batchCourses
-          ? WeekParser.parseWeeks(item.weeks)
-          : weeks;
-      for (final week in itemWeeks) {
-        additions.add(TimetableAdjustment(
-          id: '${item.id}_$week',
-          courseId: item.id,
-          sourceWeek: week,
-          sourceDay: item.dayOfWeek,
-          targetWeek: mode == _AdjustmentMode.batchWeeks || mode == _AdjustmentMode.batchCourses ? week : targetWeek,
-          targetDay: targetDay,
-          targetStartPeriod: targetStart,
-          targetEndPeriod: targetEnd,
-          cancelled: cancelled,
-        ));
-      }
-    }
-
-    final replaced = _adjustments.where((existing) => !additions.any(
-      (item) => item.courseId == existing.courseId && item.sourceWeek == existing.sourceWeek,
-    )).toList();
-    setState(() => _adjustments = [...replaced, ...additions]);
-    await TimetableStorage().saveAdjustments(_adjustments);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(cancelled ? '已标记为不上课' : '临时调课已保存')),
-      );
-    }
-  }
-
-  Widget _selector<T>({
-    required String label,
-    required T value,
-    required List<T> values,
-    required String Function(T value) text,
-    required ValueChanged<T> onChanged,
-  }) {
-    return DropdownButtonFormField<T>(
-      value: value,
-      decoration: InputDecoration(labelText: label),
-      items: values.map((item) => DropdownMenuItem(value: item, child: Text(text(item)))).toList(),
-      onChanged: (next) { if (next != null) onChanged(next); },
-    );
-  }
-
-  void _showInfo(String title, String message) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('知道了'))],
+      builder: (_) => TimetableAdjustmentForm(
+        mode: mode,
+        courses: _courses,
+        adjustments: _adjustments,
+        firstWeekMonday: _firstWeekMonday!,
+        initialWeek: sourceWeek,
+        course: course,
       ),
     );
+    if (!mounted || additions == null || additions.isEmpty) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final latest = await _storage.readAdjustments();
+      final merged = TimetableAdjustmentService.merge(latest, additions);
+      await _storage.saveAdjustments(merged);
+      if (!mounted) return;
+      setState(() => _adjustments = merged);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            additions.every((a) => a.cancelled)
+                ? '已将 ${additions.length} 次上课安排标记为停课'
+                : '已保存 ${additions.length} 次临时调课',
+          ),
+        ),
+      );
+      try {
+        await CourseNotificationService.instance.rescheduleIfEnabled();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('调课已保存，课程提醒更新失败，请在设置中重试')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存调课失败：$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 }
-
-enum _AdjustmentMode { ai, date, singleWeek, batchWeeks, batchCourses }
 
 class _AdjustmentModeSheet extends StatelessWidget {
   const _AdjustmentModeSheet({this.course});
@@ -461,11 +478,36 @@ class _AdjustmentModeSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final modes = [
-      (_AdjustmentMode.ai, Icons.auto_awesome_rounded, 'AI 智能调课', '粘贴通知或口述安排，快速整理调课与放假'),
-      (_AdjustmentMode.date, Icons.event_repeat_rounded, '日期时间调课', '某一天调到另一天，或这几天不上课'),
-      (_AdjustmentMode.singleWeek, Icons.calendar_today_rounded, '单周次调课', '只改变一门课的某一周，其它周次不动'),
-      (_AdjustmentMode.batchWeeks, Icons.view_week_rounded, '批量周次调课', '一门课的多个周次改到同一星期和节次'),
-      (_AdjustmentMode.batchCourses, Icons.library_books_rounded, '批量课程调课', '同一时间段的多门课一起调整，周次保留'),
+      (
+        AdjustmentMode.ai,
+        Icons.auto_awesome_rounded,
+        'AI 智能调课',
+        '粘贴通知或口述安排，快速整理调课与放假',
+      ),
+      (
+        AdjustmentMode.date,
+        Icons.event_repeat_rounded,
+        '日期时间调课',
+        '某一天调到另一天，或这几天不上课',
+      ),
+      (
+        AdjustmentMode.singleWeek,
+        Icons.calendar_today_rounded,
+        '单周次调课',
+        '只改变一门课的某一周，其它周次不动',
+      ),
+      (
+        AdjustmentMode.batchWeeks,
+        Icons.view_week_rounded,
+        '批量周次调课',
+        '一门课的多个周次改到同一星期和节次',
+      ),
+      (
+        AdjustmentMode.batchCourses,
+        Icons.library_books_rounded,
+        '批量课程调课',
+        '同一时间段的多门课一起调整，周次保留',
+      ),
     ];
     return SafeArea(
       child: Container(
@@ -478,32 +520,62 @@ class _AdjustmentModeSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(child: Container(width: 38, height: 4, decoration: BoxDecoration(color: colors.outlineVariant, borderRadius: BorderRadius.circular(99)))),
+            Center(
+              child: Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.outlineVariant,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
             const SizedBox(height: 20),
-            Text('临时调课', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: colors.onSurfaceVariant)),
+            Text(
+              '临时调课',
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(color: colors.onSurfaceVariant),
+            ),
             const SizedBox(height: 4),
-            Text('选择方式', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              '选择方式',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 8),
             Text(
-              course == null ? '先选择一种调整方式，再指定课程。' : '长按课程卡片进入时，已自动带入当前课程。',
+              course == null ? '按日期调整整天安排，或选择课程与周次。' : '长按课程卡片进入时，已自动带入当前课程。',
               style: TextStyle(color: colors.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
-            ...modes.map((item) => _modeTile(context, item.$1, item.$2, item.$3, item.$4)),
+            ...modes.map(
+              (item) => _modeTile(context, item.$1, item.$2, item.$3, item.$4),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _modeTile(BuildContext context, _AdjustmentMode mode, IconData icon, String title, String subtitle) {
+  Widget _modeTile(
+    BuildContext context,
+    AdjustmentMode mode,
+    IconData icon,
+    String title,
+    String subtitle,
+  ) {
     final colors = Theme.of(context).colorScheme;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       leading: Container(
         width: 44,
         height: 44,
-        decoration: BoxDecoration(color: colors.primaryContainer, borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(
+          color: colors.primaryContainer,
+          borderRadius: BorderRadius.circular(14),
+        ),
         child: Icon(icon, color: colors.onPrimaryContainer),
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),

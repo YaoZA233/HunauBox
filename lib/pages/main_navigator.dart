@@ -10,6 +10,8 @@ import '../providers/notice_provider.dart';
 import '../providers/background_provider.dart';
 import '../services/auth_guard.dart';
 import '../services/agent_settings_store.dart';
+import '../widgets/app_motion.dart';
+import '../widgets/weather_widgets.dart';
 import 'agent_page.dart';
 import 'function_page.dart';
 import 'home_page.dart';
@@ -23,7 +25,7 @@ class MainNavigator extends ConsumerWidget {
     (Icons.apps_outlined, Icons.apps_rounded, '功能'),
     (Icons.notifications_none_rounded, Icons.notifications_rounded, '通知'),
     (Icons.assignment_outlined, Icons.assignment_rounded, '作业'),
-    (Icons.smart_toy_outlined, Icons.smart_toy_rounded, 'Agent'),
+    (Icons.auto_awesome_outlined, Icons.auto_awesome_rounded, 'Agent'),
   ];
 
   Future<void> _openDestination(
@@ -136,53 +138,84 @@ class CampusNavigationRail extends StatelessWidget {
           child: SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 14),
-              child: Column(
-                children: [
+              child: CustomScrollView(
+                slivers: [
                   if (showSystemStatus)
-                    _TimeAndBatteryStatus(foreground: foreground),
-                  const Spacer(),
-                  ...List.generate(agentEnabled ? 4 : 3, (index) {
-                    final destination = MainNavigator._destinations[index];
+                    SliverToBoxAdapter(
+                      child: Column(
+                        children: [
+                          _TimeAndBatteryStatus(foreground: foreground),
+                          const WeatherRailStatus(),
+                        ],
+                      ),
+                    ),
+                  SliverLayoutBuilder(
+                    builder: (context, constraints) => SliverToBoxAdapter(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight:
+                              (constraints.viewportMainAxisExtent -
+                                      constraints.precedingScrollExtent)
+                                  .clamp(0.0, double.infinity),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            ...List.generate(agentEnabled ? 4 : 3, (index) {
+                              final destination =
+                                  MainNavigator._destinations[index];
 
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 5),
-                      child: Tooltip(
-                        message: destination.$3,
-                        child: Semantics(
-                          button: true,
-                          label: destination.$3,
-                          child: InkResponse(
-                            onTap: () => onChanged(index),
-                            radius: 27,
-                            customBorder: const CircleBorder(),
-                            child: SizedBox(
-                              width: 54,
-                              height: 54,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    destination.$1,
-                                    size: 22,
-                                    color: foreground,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    destination.$3,
-                                    style: TextStyle(
-                                      color: foreground,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w500,
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 5),
+                                child: Tooltip(
+                                  message: destination.$3,
+                                  child: Semantics(
+                                    button: true,
+                                    label: destination.$3,
+                                    child: AppPressable(
+                                      onTap: () => onChanged(index),
+                                      borderRadius: BorderRadius.circular(27),
+                                      child: Container(
+                                        width: 54,
+                                        constraints: const BoxConstraints(
+                                          minHeight: 54,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 6,
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              destination.$1,
+                                              size: 22,
+                                              color: foreground,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              destination.$3,
+                                              style: TextStyle(
+                                                color: foreground,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          ),
+                                ),
+                              );
+                            }),
+                          ],
                         ),
                       ),
-                    );
-                  }),
+                    ),
+                  ),
                 ],
               ),
             ),

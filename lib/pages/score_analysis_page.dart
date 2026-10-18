@@ -6,7 +6,8 @@ import '../models/score_model.dart';
 import '../services/score_service.dart';
 
 class ScoreAnalysisPage extends StatefulWidget {
-  const ScoreAnalysisPage({super.key});
+  const ScoreAnalysisPage({super.key, this.loadScores});
+  final Future<Map<SemesterModel, List<ScoreModel>>> Function()? loadScores;
 
   @override
   State<ScoreAnalysisPage> createState() => _ScoreAnalysisPageState();
@@ -18,441 +19,251 @@ class _ScoreAnalysisPageState extends State<ScoreAnalysisPage> {
   @override
   void initState() {
     super.initState();
-    _analysisFuture = _loadAnalysis();
+    _analysisFuture = _load();
   }
 
-  Future<_AnalysisSnapshot> _loadAnalysis() async {
-    final allScores = await ScoreService.instance.fetchAllScores();
-    return _AnalysisSnapshot.from(allScores);
-  }
+  Future<_AnalysisSnapshot> _load() async => _AnalysisSnapshot.from(
+    await (widget.loadScores ?? ScoreService.instance.fetchAllScores)(),
+  );
 
-  void _reload() {
-    setState(() => _analysisFuture = _loadAnalysis());
+  Future<void> _reload() async {
+    final next = _load();
+    setState(() {
+      _analysisFuture = next;
+    });
+    // FutureBuilder renders errors; also consume this future for pull-to-refresh.
+    try {
+      await next;
+    } catch (_) {}
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('成绩分析'),
-        actions: [
-          IconButton(
-            onPressed: _reload,
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: '重新分析',
-          ),
-        ],
-      ),
-      body: FutureBuilder<_AnalysisSnapshot>(
-        future: _analysisFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return _AnalysisError(onRetry: _reload);
-          }
-          final analysis = snapshot.data!;
-          if (analysis.isEmpty) {
-            return _AnalysisEmpty(onRetry: _reload);
-          }
-          return RefreshIndicator(
-            onRefresh: () async {
-              _reload();
-              await _analysisFuture;
-            },
-            child: _AnalysisContent(analysis: analysis),
-          );
-        },
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('成绩分析'),
+      actions: [
+        IconButton(
+          onPressed: _reload,
+          icon: const Icon(Icons.refresh_rounded),
+          tooltip: '重新分析',
+        ),
+      ],
+    ),
+    body: FutureBuilder<_AnalysisSnapshot>(
+      future: _analysisFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError ||
+            snapshot.data == null ||
+            snapshot.data!.isEmpty) {
+          return _AnalysisStatus(error: snapshot.hasError, onRetry: _reload);
+        }
+        return RefreshIndicator(
+          onRefresh: _reload,
+          child: _AnalysisContent(analysis: snapshot.data!),
+        );
+      },
+    ),
+  );
 }
 
 class _AnalysisContent extends StatelessWidget {
   const _AnalysisContent({required this.analysis});
-
   final _AnalysisSnapshot analysis;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primary = theme.colorScheme.primary;
-    final onSurface = theme.colorScheme.onSurface;
-
+    final colors = Theme.of(context).colorScheme;
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       children: [
-        _AnalysisIntro(analysis: analysis),
-        const SizedBox(height: 16),
-        _SectionTitle(title: '整体表现', caption: '把零散成绩汇成一条清晰的线'),
-        const SizedBox(height: 10),
-        GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 1.72,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            _MetricCard(
-              label: '累计均分',
-              value: analysis.average.toStringAsFixed(1),
-              suffix: '分',
-              icon: Icons.auto_graph_rounded,
-              color: primary,
-            ),
-            _MetricCard(
-              label: '通过率',
-              value: analysis.passRate.toStringAsFixed(0),
-              suffix: '%',
-              icon: Icons.check_circle_outline_rounded,
-              color: const Color(0xFF4C8A72),
-            ),
-            _MetricCard(
-              label: '修读课程',
-              value: '${analysis.courseCount}',
-              suffix: '门',
-              icon: Icons.menu_book_rounded,
-              color: const Color(0xFF5A80A8),
-            ),
-            _MetricCard(
-              label: '优秀成绩',
-              value: '${analysis.excellentCount}',
-              suffix: '门',
-              icon: Icons.stars_rounded,
-              color: const Color(0xFFD28A3D),
-            ),
-          ],
-        ),
-        const SizedBox(height: 22),
-        _SectionTitle(title: '学期趋势', caption: '均分和通过率的变化'),
-        const SizedBox(height: 10),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
-            child: Column(
-              children: [
-                _TrendChart(analysis: analysis, primary: primary),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _LegendDot(color: primary, label: '学期均分'),
-                    const SizedBox(width: 20),
-                    _LegendDot(color: const Color(0xFFD28A3D), label: '通过率'),
-                  ],
-                ),
-              ],
-            ),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: colors.primaryContainer,
+            borderRadius: BorderRadius.circular(20),
           ),
-        ),
-        const SizedBox(height: 22),
-        _SectionTitle(title: '成绩结构', caption: '看看分数集中在哪个区间'),
-        const SizedBox(height: 10),
-        _DistributionCard(items: analysis.distribution),
-        const SizedBox(height: 22),
-        _SectionTitle(title: '学期均分', caption: '柱状图更直观地比较每个学期'),
-        const SizedBox(height: 10),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
-            child: _SemesterBarChart(analysis: analysis, color: primary),
-          ),
-        ),
-        const SizedBox(height: 22),
-        _SectionTitle(title: '学期对比', caption: '每一学期都值得被看见'),
-        const SizedBox(height: 10),
-        Card(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (var i = 0; i < analysis.semesters.length; i++) ...[
-                _SemesterRow(stat: analysis.semesters[i]),
-                if (i < analysis.semesters.length - 1)
-                  Divider(height: 1, color: theme.dividerColor),
-              ],
+              Icon(Icons.insights_rounded, color: colors.onPrimaryContainer),
+              const SizedBox(height: 12),
+              Text(
+                analysis.headline,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: colors.onPrimaryContainer,
+                  fontWeight: FontWeight.w700,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${analysis.semesters.length} 个学期 · ${analysis.courseCount} 门课程 · ${analysis.totalCredits.toStringAsFixed(1)} 学分',
+                style: TextStyle(color: colors.onPrimaryContainer, height: 1.5),
+              ),
             ],
           ),
         ),
-        if (analysis.topCourses.isNotEmpty ||
-            analysis.needsAttention.isNotEmpty) ...[
-          const SizedBox(height: 22),
-          _SectionTitle(title: '课程画像', caption: '优势要保持，短板有方向'),
-          const SizedBox(height: 10),
-          _CourseInsightPanel(analysis: analysis),
-        ],
-        const SizedBox(height: 20),
-        Text(
-          '分析基于已获取的数字成绩，等级制成绩会按对应区间估算。',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: onSurface.withValues(alpha: 0.52),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AnalysisIntro extends StatelessWidget {
-  const _AnalysisIntro({required this.analysis});
-
-  final _AnalysisSnapshot analysis;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.insights_rounded,
-            color: theme.colorScheme.primary,
-            size: 28,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  analysis.headline,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: theme.colorScheme.onPrimaryContainer,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '${analysis.semesters.length} 个学期 · ${analysis.courseCount} 门课程 · ${analysis.totalCredits.toStringAsFixed(1)} 学分',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer.withValues(
-                      alpha: 0.78,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.label,
-    required this.value,
-    required this.suffix,
-    required this.icon,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final String suffix;
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(13, 12, 12, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Icon(icon, size: 20, color: color),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  value,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                    height: 1,
-                  ),
-                ),
-                const SizedBox(width: 3),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 1),
-                  child: Text(suffix, style: theme.textTheme.labelMedium),
-                ),
-                const Spacer(),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, required this.caption});
-
-  final String title;
-  final String caption;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(title, style: theme.textTheme.titleMedium),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            caption,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LegendDot extends StatelessWidget {
-  const _LegendDot({required this.color, required this.label});
-
-  final Color color;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 5),
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
-      ],
-    );
-  }
-}
-
-class _TrendChart extends StatelessWidget {
-  const _TrendChart({required this.analysis, required this.primary});
-
-  final _AnalysisSnapshot analysis;
-  final Color primary;
-
-  @override
-  Widget build(BuildContext context) {
-    final width = math.max(340.0, analysis.semesters.length * 68.0);
-    final theme = Theme.of(context);
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SizedBox(
-        width: width,
-        height: 198,
-        child: CustomPaint(
-          painter: _TrendPainter(
-            stats: analysis.semesters,
-            lineColor: primary,
-            passColor: const Color(0xFFD28A3D),
-            gridColor: theme.dividerColor,
-            textColor: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DistributionCard extends StatelessWidget {
-  const _DistributionCard({required this.items});
-
-  final List<_DistributionItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
-        child: LayoutBuilder(
+        const _SectionTitle(title: '整体表现', caption: '所有已获取成绩的统计'),
+        LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxWidth < 390;
-            final chartSize = compact ? 142.0 : 158.0;
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+            final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
+            final columns = constraints.maxWidth / scale >= 720
+                ? 4
+                : constraints.maxWidth / scale >= 280
+                ? 2
+                : 1;
+            final width = (constraints.maxWidth - 12 * (columns - 1)) / columns;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                SizedBox(
-                  width: chartSize,
-                  height: chartSize,
-                  child: CustomPaint(painter: _PiePainter(items: items)),
+                _MetricCard(
+                  width: width,
+                  label: '累计均分',
+                  value: '${analysis.average.toStringAsFixed(1)} 分',
+                  icon: Icons.auto_graph_rounded,
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    children: [
-                      for (var i = 0; i < items.length; i++) ...[
-                        _DistributionRow(item: items[i]),
-                        if (i < items.length - 1) const SizedBox(height: 11),
-                      ],
-                    ],
-                  ),
+                _MetricCard(
+                  width: width,
+                  label: '通过率',
+                  value: '${analysis.passRate.toStringAsFixed(1)}%',
+                  icon: Icons.check_circle_outline_rounded,
+                ),
+                _MetricCard(
+                  width: width,
+                  label: '修读课程',
+                  value: '${analysis.courseCount} 门',
+                  icon: Icons.menu_book_outlined,
+                ),
+                _MetricCard(
+                  width: width,
+                  label: '优秀成绩',
+                  value: '${analysis.excellentCount} 门',
+                  icon: Icons.stars_outlined,
                 ),
               ],
             );
           },
         ),
-      ),
+        const _SectionTitle(title: '学期趋势', caption: '按时间从早到晚排列，图下可查看完整学期数据'),
+        _AnalysisCard(child: _TrendChart(stats: analysis.semesters)),
+        const _SectionTitle(title: '成绩分布', caption: '各成绩区间的课程数量和占比'),
+        _AnalysisCard(
+          child: Column(
+            children: [
+              for (var i = 0; i < analysis.distribution.length; i++) ...[
+                _DistributionRow(item: analysis.distribution[i]),
+                if (i < analysis.distribution.length - 1)
+                  const SizedBox(height: 20),
+              ],
+            ],
+          ),
+        ),
+        const _SectionTitle(title: '学期明细', caption: '均分、通过率与较上一学期的变化'),
+        for (final stat in analysis.semesters) ...[
+          _SemesterCard(stat: stat),
+          const SizedBox(height: 12),
+        ],
+        if (analysis.topCourses.isNotEmpty) ...[
+          const _SectionTitle(title: '表现亮眼', caption: '成绩最高的课程'),
+          _CourseGroup(courses: analysis.topCourses),
+        ],
+        if (analysis.needsAttention.isNotEmpty) ...[
+          const _SectionTitle(title: '值得关注', caption: '成绩低于 75 分的课程，优先关注较低分项'),
+          _CourseGroup(courses: analysis.needsAttention),
+        ],
+        const SizedBox(height: 24),
+        Text(
+          '统计说明：均分为课程成绩的算术平均，未按学分加权；60 分及以上计为通过，90 分及以上计为优秀。等级制成绩按对应区间估算，暂无成绩的课程不参与分析。',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colors.onSurfaceVariant,
+            height: 1.6,
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _SemesterBarChart extends StatelessWidget {
-  const _SemesterBarChart({required this.analysis, required this.color});
+class _AnalysisCard extends StatelessWidget {
+  const _AnalysisCard({required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: EdgeInsets.zero,
+    child: Padding(padding: const EdgeInsets.all(18), child: child),
+  );
+}
 
-  final _AnalysisSnapshot analysis;
-  final Color color;
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title, required this.caption});
+  final String title;
+  final String caption;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 28, bottom: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          caption,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({
+    required this.width,
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+  final double width;
+  final String label;
+  final String value;
+  final IconData icon;
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final width = math.max(340.0, analysis.semesters.length * 68.0);
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SizedBox(
-        width: width,
-        height: 208,
-        child: CustomPaint(
-          painter: _BarPainter(
-            stats: analysis.semesters,
-            barColor: color,
-            gridColor: theme.dividerColor,
-            textColor: theme.colorScheme.onSurfaceVariant,
-          ),
+    return SizedBox(
+      width: width,
+      child: _AnalysisCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 22, color: theme.colorScheme.primary),
+            const SizedBox(height: 12),
+            Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -461,98 +272,102 @@ class _SemesterBarChart extends StatelessWidget {
 
 class _DistributionRow extends StatelessWidget {
   const _DistributionRow({required this.item});
-
   final _DistributionItem item;
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
+    final colors = Theme.of(context).colorScheme;
+    final label = switch (item.label) {
+      '90+' => '90 分及以上',
+      '<60' => '60 分以下',
+      _ => '${item.label} 分',
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 48,
-          child: Text(item.label, style: theme.textTheme.bodySmall),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: item.ratio,
-              minHeight: 9,
-              backgroundColor: theme.colorScheme.surfaceContainerHighest,
-              valueColor: AlwaysStoppedAnimation<Color>(item.color),
+        Wrap(
+          spacing: 16,
+          runSpacing: 4,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 56,
-          child: Text(
-            '${item.count} 门',
-            textAlign: TextAlign.end,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+            Text(
+              '${item.count} 门 · ${(item.ratio * 100).toStringAsFixed(1)}%',
+              style: TextStyle(color: colors.onSurfaceVariant),
             ),
-          ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        LinearProgressIndicator(
+          value: item.ratio,
+          minHeight: 8,
+          borderRadius: BorderRadius.circular(4),
+          color: colors.primary,
+          backgroundColor: colors.surfaceContainerHighest,
+          semanticsLabel: '$label，${item.count} 门',
         ),
       ],
     );
   }
 }
 
-class _SemesterRow extends StatelessWidget {
-  const _SemesterRow({required this.stat});
-
+class _SemesterCard extends StatelessWidget {
+  const _SemesterCard({required this.stat});
   final _SemesterStat stat;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final trendColor = stat.delta == null
-        ? theme.colorScheme.onSurfaceVariant
-        : stat.delta! >= 0
-        ? const Color(0xFF4C8A72)
-        : const Color(0xFFD9785E);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
-      child: Row(
+    final delta = stat.delta;
+    final change = delta == null
+        ? '首个学期'
+        : delta == 0
+        ? '较上一学期持平'
+        : '较上一学期${delta > 0 ? '上升' : '下降'} ${delta.abs().toStringAsFixed(1)} 分';
+    return _AnalysisCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  stat.name,
-                  softWrap: true,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${stat.courseCount} 门课程 · 通过率 ${stat.passRate.toStringAsFixed(0)}%',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+          Text(
+            stat.name,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
             ),
           ),
-          if (stat.delta != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 14),
-              child: Text(
-                '${stat.delta! >= 0 ? '+' : ''}${stat.delta!.toStringAsFixed(1)}',
-                style: theme.textTheme.labelMedium?.copyWith(color: trendColor),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 20,
+            runSpacing: 8,
+            children: [
+              Text(
+                '均分 ${stat.average.toStringAsFixed(1)} 分',
+                style: theme.textTheme.titleMedium,
               ),
-            ),
+              Text(
+                '通过率 ${stat.passRate.toStringAsFixed(1)}%',
+                style: theme.textTheme.bodyMedium,
+              ),
+              Text(
+                '${stat.courseCount} 门课程',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: (stat.average / 100).clamp(0.0, 1.0),
+            minHeight: 6,
+            color: theme.colorScheme.primary,
+            backgroundColor: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(3),
+          ),
+          const SizedBox(height: 10),
           Text(
-            stat.average.toStringAsFixed(1),
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: trendColor,
-            ),
+            change,
+            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -560,87 +375,148 @@ class _SemesterRow extends StatelessWidget {
   }
 }
 
-class _CourseInsightPanel extends StatelessWidget {
-  const _CourseInsightPanel({required this.analysis});
-
-  final _AnalysisSnapshot analysis;
-
+class _CourseGroup extends StatelessWidget {
+  const _CourseGroup({required this.courses});
+  final List<_CourseScore> courses;
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
-          children: [
-            if (analysis.topCourses.isNotEmpty)
-              _CourseGroup(
-                title: '表现亮眼',
-                icon: Icons.trending_up_rounded,
-                color: const Color(0xFF4C8A72),
-                courses: analysis.topCourses,
+  Widget build(BuildContext context) => _AnalysisCard(
+    child: Column(
+      children: [
+        for (var i = 0; i < courses.length; i++) ...[
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                courses[i].name,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
               ),
-            if (analysis.topCourses.isNotEmpty &&
-                analysis.needsAttention.isNotEmpty)
-              Divider(height: 24, color: theme.dividerColor),
-            if (analysis.needsAttention.isNotEmpty)
-              _CourseGroup(
-                title: '值得关注',
-                icon: Icons.flag_outlined,
-                color: const Color(0xFFD9785E),
-                courses: analysis.needsAttention,
+              const SizedBox(height: 6),
+              Text(
+                '${courses[i].score.toStringAsFixed(1)} 分',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
-          ],
-        ),
-      ),
-    );
-  }
+            ],
+          ),
+          if (i < courses.length - 1) const Divider(height: 28),
+        ],
+      ],
+    ),
+  );
 }
 
-class _CourseGroup extends StatelessWidget {
-  const _CourseGroup({
-    required this.title,
-    required this.icon,
-    required this.color,
-    required this.courses,
-  });
-
-  final String title;
-  final IconData icon;
-  final Color color;
-  final List<_CourseScore> courses;
-
+class _TrendChart extends StatelessWidget {
+  const _TrendChart({required this.stats});
+  final List<_SemesterStat> stats;
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colors = Theme.of(context).colorScheme;
+    final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          spacing: 20,
+          runSpacing: 8,
           children: [
-            Icon(icon, size: 18, color: color),
-            const SizedBox(width: 7),
-            Text(
-              title,
-              style: theme.textTheme.titleSmall?.copyWith(color: color),
-            ),
+            _Legend(color: colors.primary, label: '均分（分）'),
+            _Legend(color: colors.tertiary, label: '通过率（%）'),
           ],
         ),
-        const SizedBox(height: 8),
-        for (final course in courses)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
+        const SizedBox(height: 20),
+        Text(
+          '纵轴 0–100 · 横轴为学期顺序',
+          style: TextStyle(color: colors.onSurfaceVariant),
+        ),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final slot = math.max(84.0, 72 * scale);
+            final axisWidth = 32 * scale;
+            final chartHeight = math.max(160.0, 100 * scale);
+            final width = math.max(
+              constraints.maxWidth - axisWidth - 8,
+              stats.length * slot,
+            );
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: Text(course.name, softWrap: true)),
-                Text(
-                  course.score.toStringAsFixed(0),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: color,
+                SizedBox(
+                  width: axisWidth,
+                  height: chartHeight,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      for (final value in [100, 75, 50, 25, 0])
+                        Text(
+                          '$value',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: colors.onSurfaceVariant),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: width,
+                      child: Column(
+                        children: [
+                          Semantics(
+                            label: '学期均分和通过率趋势；详细数值见下方学期明细',
+                            image: true,
+                            child: SizedBox(
+                              height: chartHeight,
+                              width: width,
+                              child: CustomPaint(
+                                painter: _TrendPainter(
+                                  stats: stats,
+                                  averageColor: colors.primary,
+                                  passColor: colors.tertiary,
+                                  gridColor: colors.outlineVariant,
+                                  surface: colors.surface,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (var i = 0; i < stats.length; i++)
+                                Expanded(
+                                  child: Text(
+                                    '学期 ${i + 1}',
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        for (var i = 0; i < stats.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              '${i + 1} · ${stats[i].name}',
+              style: TextStyle(color: colors.onSurfaceVariant),
             ),
           ),
       ],
@@ -648,331 +524,131 @@ class _CourseGroup extends StatelessWidget {
   }
 }
 
+class _Legend extends StatelessWidget {
+  const _Legend({required this.color, required this.label});
+  final Color color;
+  final String label;
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 8),
+      Text(label),
+    ],
+  );
+}
+
 class _TrendPainter extends CustomPainter {
   _TrendPainter({
     required this.stats,
-    required this.lineColor,
+    required this.averageColor,
     required this.passColor,
     required this.gridColor,
-    required this.textColor,
+    required this.surface,
   });
-
   final List<_SemesterStat> stats;
-  final Color lineColor;
+  final Color averageColor;
   final Color passColor;
   final Color gridColor;
-  final Color textColor;
+  final Color surface;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (stats.isEmpty) return;
-    const left = 34.0;
-    const right = 12.0;
-    const top = 10.0;
-    const bottom = 30.0;
-    final chart = Rect.fromLTRB(
-      left,
-      top,
-      size.width - right,
-      size.height - bottom,
-    );
-    final gridPaint = Paint()
-      ..color = gridColor.withValues(alpha: 0.65)
-      ..strokeWidth = 0.8;
-    final labelStyle = TextStyle(fontSize: 10, color: textColor);
-
+    final chart = Rect.fromLTRB(0, 8, size.width, size.height - 8);
     for (var i = 0; i <= 4; i++) {
       final y = chart.top + chart.height * i / 4;
-      canvas.drawLine(Offset(chart.left, y), Offset(chart.right, y), gridPaint);
-      final label = '${100 - i * 25}';
-      _drawText(canvas, label, Offset(0, y - 6), labelStyle);
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(chart.right, y),
+        Paint()
+          ..color = gridColor
+          ..strokeWidth = 1,
+      );
     }
-
-    final averagePoints = <Offset>[];
-    final passPoints = <Offset>[];
-    for (var i = 0; i < stats.length; i++) {
-      final x = stats.length == 1
-          ? chart.center.dx
-          : chart.left + chart.width * i / (stats.length - 1);
-      final averageY = _valueToY(chart, stats[i].average);
-      final passY = _valueToY(chart, stats[i].passRate);
-      averagePoints.add(Offset(x, averageY));
-      passPoints.add(Offset(x, passY));
-      if (stats.length <= 7 || i.isEven || i == stats.length - 1) {
-        _drawText(
-          canvas,
-          _shortSemesterLabel(stats[i].name, i),
-          Offset(x - 16, chart.bottom + 9),
-          labelStyle,
-        );
+    void series(Color color, double Function(_SemesterStat) value) {
+      final points = [
+        for (var i = 0; i < stats.length; i++)
+          Offset(
+            size.width * (i + 0.5) / stats.length,
+            chart.bottom - chart.height * value(stats[i]).clamp(0, 100) / 100,
+          ),
+      ];
+      if (points.isEmpty) return;
+      final path = Path()..moveTo(points.first.dx, points.first.dy);
+      for (final point in points.skip(1)) {
+        path.lineTo(point.dx, point.dy);
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color
+          ..strokeWidth = 2.5
+          ..style = PaintingStyle.stroke,
+      );
+      for (final point in points) {
+        canvas.drawCircle(point, 4, Paint()..color = color);
+        canvas.drawCircle(point, 1.5, Paint()..color = surface);
       }
     }
 
-    _drawSeries(canvas, averagePoints, lineColor);
-    _drawSeries(canvas, passPoints, passColor);
-  }
-
-  double _valueToY(Rect chart, double value) {
-    final normalized = (value.clamp(0, 100).toDouble() / 100).clamp(0.0, 1.0);
-    return (chart.bottom - normalized * chart.height).clamp(
-      chart.top,
-      chart.bottom,
-    );
-  }
-
-  void _drawSeries(Canvas canvas, List<Offset> points, Color color) {
-    if (points.isEmpty) return;
-    final linePaint = Paint()
-      ..color = color
-      ..strokeWidth = 2.6
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final path = Path()..moveTo(points.first.dx, points.first.dy);
-    for (var i = 1; i < points.length; i++) {
-      path.lineTo(points[i].dx, points[i].dy);
-    }
-    canvas.drawPath(path, linePaint);
-    final dotPaint = Paint()..color = color;
-    for (final point in points) {
-      canvas.drawCircle(point, 4, dotPaint);
-      canvas.drawCircle(point, 1.8, Paint()..color = Colors.white);
-    }
-  }
-
-  void _drawText(Canvas canvas, String text, Offset offset, TextStyle style) {
-    final painter = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    painter.paint(canvas, offset);
+    series(passColor, (stat) => stat.passRate);
+    series(averageColor, (stat) => stat.average);
   }
 
   @override
-  bool shouldRepaint(covariant _TrendPainter oldDelegate) =>
-      oldDelegate.stats != stats ||
-      oldDelegate.lineColor != lineColor ||
-      oldDelegate.passColor != passColor;
+  bool shouldRepaint(covariant _TrendPainter old) =>
+      old.stats != stats ||
+      old.averageColor != averageColor ||
+      old.passColor != passColor ||
+      old.gridColor != gridColor ||
+      old.surface != surface;
 }
 
-class _PiePainter extends CustomPainter {
-  _PiePainter({required this.items});
-
-  final List<_DistributionItem> items;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final total = items.fold<int>(0, (sum, item) => sum + item.count);
-    if (total == 0) return;
-    final center = size.center(Offset.zero);
-    final radius = math.min(size.width, size.height) / 2;
-    final stroke = radius * 0.30;
-    final rect = Rect.fromCircle(center: center, radius: radius - stroke / 2);
-    var start = -math.pi / 2;
-    for (final item in items) {
-      if (item.count == 0) continue;
-      final sweep = item.count / total * math.pi * 2;
-      final paint = Paint()
-        ..color = item.color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = stroke
-        ..strokeCap = StrokeCap.butt;
-      canvas.drawArc(rect, start, sweep, false, paint);
-      start += sweep;
-    }
-    canvas.drawCircle(
-      center,
-      radius * 0.35,
-      Paint()..color = Colors.white.withValues(alpha: 0.92),
-    );
-    final totalPainter = TextPainter(
-      text: TextSpan(
-        text: '$total',
-        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    totalPainter.paint(
-      canvas,
-      center - Offset(totalPainter.width / 2, totalPainter.height / 2),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _PiePainter oldDelegate) =>
-      oldDelegate.items != items;
-}
-
-class _BarPainter extends CustomPainter {
-  _BarPainter({
-    required this.stats,
-    required this.barColor,
-    required this.gridColor,
-    required this.textColor,
-  });
-
-  final List<_SemesterStat> stats;
-  final Color barColor;
-  final Color gridColor;
-  final Color textColor;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (stats.isEmpty) return;
-    const left = 34.0;
-    const right = 12.0;
-    const top = 10.0;
-    const bottom = 35.0;
-    final chart = Rect.fromLTRB(
-      left,
-      top,
-      size.width - right,
-      size.height - bottom,
-    );
-    final labelStyle = TextStyle(fontSize: 10, color: textColor);
-    final gridPaint = Paint()
-      ..color = gridColor.withValues(alpha: 0.65)
-      ..strokeWidth = 0.8;
-    for (var i = 0; i <= 4; i++) {
-      final y = chart.top + chart.height * i / 4;
-      canvas.drawLine(Offset(chart.left, y), Offset(chart.right, y), gridPaint);
-      _drawText(canvas, '${100 - i * 10}', Offset(0, y - 6), labelStyle);
-    }
-    final slot = chart.width / stats.length;
-    final barWidth = math.min(34.0, slot * 0.54);
-    for (var i = 0; i < stats.length; i++) {
-      final x = chart.left + slot * i + (slot - barWidth) / 2;
-      final value = stats[i].average.clamp(60, 100).toDouble();
-      final topY = chart.bottom - ((value - 60) / 40) * chart.height;
-      final barRect = RRect.fromRectAndRadius(
-        Rect.fromLTRB(x, topY, x + barWidth, chart.bottom),
-        const Radius.circular(6),
-      );
-      canvas.drawRRect(
-        barRect,
-        Paint()..color = barColor.withValues(alpha: 0.86),
-      );
-      _drawText(
-        canvas,
-        _shortSemesterLabel(stats[i].name, i),
-        Offset(x + barWidth / 2 - 16, chart.bottom + 10),
-        labelStyle,
-      );
-      _drawText(
-        canvas,
-        stats[i].average.toStringAsFixed(1),
-        Offset(x + barWidth / 2 - 12, topY - 17),
-        labelStyle,
-      );
-    }
-  }
-
-  void _drawText(Canvas canvas, String text, Offset offset, TextStyle style) {
-    final painter = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    painter.paint(canvas, offset);
-  }
-
-  @override
-  bool shouldRepaint(covariant _BarPainter oldDelegate) =>
-      oldDelegate.stats != stats || oldDelegate.barColor != barColor;
-}
-
-String _shortSemesterLabel(String name, int index) {
-  final match = RegExp(r'(\d{4})[-—–至](\d{4}).*').firstMatch(name);
-  if (match != null) {
-    return '${match.group(1)!.substring(2)}-${match.group(2)!.substring(2)}';
-  }
-  final compact = name.replaceAll('学年', '').replaceAll('学期', '');
-  return compact.length > 7 ? '第${index + 1}学期' : compact;
-}
-
-class _AnalysisError extends StatelessWidget {
-  const _AnalysisError({required this.onRetry});
-
+class _AnalysisStatus extends StatelessWidget {
+  const _AnalysisStatus({required this.error, required this.onRetry});
+  final bool error;
   final VoidCallback onRetry;
-
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.cloud_off_rounded,
-              size: 48,
-              color: Theme.of(context).colorScheme.outline,
+  Widget build(BuildContext context) => Center(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            error ? Icons.cloud_off_outlined : Icons.insights_outlined,
+            size: 48,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            error ? '暂时无法获取完整成绩' : '还没有可分析的成绩',
+            style: Theme.of(context).textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            error ? '请检查网络或登录状态，稍后再试。' : '获取到成绩后，这里会显示统计和学期趋势。',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 12),
-            const Text(
-              '暂时无法获取完整成绩',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '请检查网络或登录状态，稍后再试。',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.tonalIcon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('重新获取'),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 20),
+          FilledButton.tonalIcon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('重新获取'),
+          ),
+        ],
       ),
-    );
-  }
-}
-
-class _AnalysisEmpty extends StatelessWidget {
-  const _AnalysisEmpty({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.auto_graph_rounded,
-              size: 48,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              '还没有可分析的成绩',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '获取到成绩后，这里会自动生成学期趋势。',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('再试一次'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }
 
 class _AnalysisSnapshot {
@@ -1013,7 +689,9 @@ class _AnalysisSnapshot {
     final allCourses = <_CourseScore>[];
     var totalCredits = 0.0;
 
-    for (final entry in source.entries) {
+    final entries = source.entries.toList()
+      ..sort((a, b) => a.key.value.compareTo(b.key.value));
+    for (final entry in entries) {
       final scored = entry.value
           .map(_CourseScore.from)
           .whereType<_CourseScore>()
@@ -1137,7 +815,7 @@ class _CourseScore {
 
   static _CourseScore? from(ScoreModel model) {
     final value = double.tryParse(model.score);
-    if (value != null) {
+    if (value != null && value.isFinite && value >= 0 && value <= 100) {
       return _CourseScore(name: model.courseName, score: value);
     }
     final mapped = switch (model.score.trim()) {

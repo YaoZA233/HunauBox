@@ -207,10 +207,12 @@ class SunshineService {
     try {
       for (final interceptor
           in dio.interceptors.whereType<SessionCookieManager>()) {
-        await interceptor.cookieJar.delete(
+        await SessionCookieManager.clearHostCookies(interceptor.cookieJar, [
           Uri.parse(AppConstants.sunshineBaseUrl),
-          true,
-        );
+          Uri.parse('${AppConstants.sunshineBaseUrl}/form.aspx'),
+          Uri.parse('${AppConstants.sunshineBaseUrl}/AJAX/form.ashx'),
+          Uri.parse('${AppConstants.sunshineBaseUrl}/OAuthLogin.aspx'),
+        ]);
       }
       await _authorize(dio);
       var identity = await _identity(dio);
