@@ -1,39 +1,45 @@
 import 'package:flutter/material.dart';
 
-import 'empty_classroom_page.dart';
-import 'campus_card_recharge_page.dart';
-import 'campus_card_bill_page.dart';
-import 'campus_card_webview_page.dart';
-import 'payment_code_page.dart';
-import 'electricity_recharge_page.dart';
-import 'network_speed_test_page.dart';
-import 'xgxt_webview_page.dart';
-import 'timetable_page.dart';
-import 'vpn_converter_page.dart';
-import 'score_page.dart';
-import 'webview_detail_page.dart';
-import 'bus_tracking_page.dart';
-import 'dorm_service_page.dart';
-import 'questionnaire_list_page.dart';
 import '../models/app_constants.dart';
 import '../services/auth_guard.dart';
-import '../widgets/app_motion.dart';
-import 'sunshine_page.dart';
+import '../widgets/app_ui_kit.dart';
+import 'bus_tracking_page.dart';
+import 'campus_card_bill_page.dart';
+import 'campus_card_recharge_page.dart';
+import 'campus_card_webview_page.dart';
+import 'dorm_service_page.dart';
+import 'electricity_recharge_page.dart';
+import 'empty_classroom_page.dart';
+import 'exam_page.dart';
 import 'leave_page.dart';
+import 'network_speed_test_page.dart';
+import 'payment_code_page.dart';
+import 'questionnaire_list_page.dart';
 import 'repair_page.dart';
+import 'score_page.dart';
+import 'sunshine_page.dart';
+import 'timetable_page.dart';
+import 'vpn_converter_page.dart';
+import 'webview_detail_page.dart';
+import 'xgxt_webview_page.dart';
 
 class FunctionPage extends StatelessWidget {
   const FunctionPage({super.key});
 
-  Future<void> _openProtectedPage(BuildContext context, Widget page) async {
+  Future<void> _openProtected(BuildContext context, Widget page) async {
     final result = await AuthGuard.ensureLoggedIn(context);
     if (!result.allowed || !context.mounted) return;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  }
 
+  void _openPage(BuildContext context, Widget page) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(title: const Text('功能')),
@@ -41,483 +47,290 @@ class FunctionPage extends StatelessWidget {
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 22),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.md,
+                AppSpacing.lg,
+                AppSpacing.sm,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '全部功能',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    '校园服务、教务与生活工具',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    '服务与工具',
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
                     ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    '全部功能',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 22,
+                        ),
                   ),
                 ],
               ),
             ),
           ),
-          SliverList(
-            delegate: SliverChildListDelegate([
-              _buildCategorySection('校卡服务', [
-                _FunctionItem(
-                  Icons.receipt_long_outlined,
-                  '校园卡账单',
-                  '查询消费、充值、补助与转账记录',
-                  onTap: () =>
-                      _openProtectedPage(context, const CampusCardBillPage()),
+
+          // ── 校卡与生活服务 ────────────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: AppCellGroup(
+              title: '校卡与生活服务',
+              cells: [
+                AppCell(
+                  icon: Icons.receipt_long_outlined,
+                  title: '校园卡账单',
+                  subtitle: '查询消费、充值、补助与转账记录',
+                  onTap: () => _openProtected(context, const CampusCardBillPage()),
                 ),
-                _FunctionItem(
-                  Icons.qr_code_scanner_outlined,
-                  '校园卡付款码',
-                  '出示付款二维码消费',
-                  onTap: () {
-                    _openProtectedPage(context, const PaymentCodePage());
-                  },
+                AppCell(
+                  icon: Icons.qr_code_scanner_outlined,
+                  title: '校园卡付款码',
+                  subtitle: '出示付款二维码直接消费',
+                  onTap: () => _openProtected(context, const PaymentCodePage()),
                 ),
-                _FunctionItem(
-                  Icons.add_card_outlined,
-                  '校园卡充值',
-                  '校园卡在线充值',
-                  onTap: () {
-                    _openProtectedPage(context, const CampusCardRechargePage());
-                  },
+                AppCell(
+                  icon: Icons.add_card_outlined,
+                  title: '校园卡充值',
+                  subtitle: '校园一卡通在线充值服务',
+                  onTap: () => _openProtected(context, const CampusCardRechargePage()),
                 ),
-                _FunctionItem(
-                  Icons.bolt_outlined,
-                  '电费充值',
-                  '寝室电费在线充值',
-                  onTap: () {
-                    _openProtectedPage(
-                      context,
-                      const ElectricityRechargePage(),
-                    );
-                  },
+                AppCell(
+                  icon: Icons.bolt_outlined,
+                  title: '电费充值',
+                  subtitle: '寝室电费实时查询与快捷缴费',
+                  onTap: () => _openProtected(context, const ElectricityRechargePage()),
                 ),
-                _FunctionItem(
-                  Icons.credit_card_outlined,
-                  '校园卡',
-                  '查看校园卡信息',
-                  onTap: () {
-                    _openProtectedPage(context, const CampusCardWebViewPage());
-                  },
+                AppCell(
+                  icon: Icons.credit_card_outlined,
+                  title: '校园卡服务',
+                  subtitle: '一卡通管理、挂失与流水查询',
+                  onTap: () => _openProtected(context, const CampusCardWebViewPage()),
                 ),
-                _FunctionItem(
-                  Icons.report_problem_outlined,
-                  '校园卡挂失登记',
-                  '校园卡遗失后在线登记挂失',
-                  requiresLogin: false,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const WebViewDetailPage(
-                          title: '校园卡挂失登记',
-                          url: AppConstants.campusCardLossUrl,
-                          showWebBack: true,
-                        ),
-                      ),
-                    );
-                  },
+                AppCell(
+                  icon: Icons.report_problem_outlined,
+                  title: '校园卡挂失',
+                  subtitle: '快速办理校园卡挂失登记',
+                  onTap: () => _openProtected(
+                    context,
+                    const WebViewDetailPage(
+                      title: '校园卡挂失登记',
+                      url: AppConstants.campusCardLossUrl,
+                      showWebBack: true,
+                    ),
+                  ),
                 ),
-              ]),
-              _buildCategorySection('学习教务', [
-                _FunctionItem(
-                  Icons.wb_sunny_outlined,
-                  '阳光服务',
-                  '提交诉求并跟踪办理进度',
-                  onTap: () =>
-                      _openProtectedPage(context, const SunshinePage()),
+                AppCell(
+                  icon: Icons.airport_shuttle_outlined,
+                  title: '实时校车',
+                  subtitle: '校内通勤车辆实时动态与班次时刻',
+                  onTap: () => _openPage(context, const BusTrackingPage()),
                 ),
-                _FunctionItem(
-                  Icons.event_available_outlined,
-                  '请假申请',
-                  '在线提交请假并查看审核状态',
-                  onTap: () => _openProtectedPage(context, const LeavePage()),
+              ],
+            ),
+          ),
+
+          // ── 教务与学业 ──────────────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: AppCellGroup(
+              title: '教务与学业',
+              cells: [
+                AppCell(
+                  icon: Icons.calendar_month_outlined,
+                  title: '课表查询',
+                  subtitle: '学期课程时间与教室安排',
+                  onTap: () => _openProtected(context, const TimetablePage()),
                 ),
-                _FunctionItem(
-                  Icons.fact_check_outlined,
-                  '学工问卷',
-                  '填写通知问卷、查看提交记录',
-                  onTap: () {
-                    _openProtectedPage(context, const QuestionnaireListPage());
-                  },
+                AppCell(
+                  icon: Icons.workspace_premium_outlined,
+                  title: '成绩查询',
+                  subtitle: '学期期末成绩与绩点分析',
+                  onTap: () => _openProtected(context, const ScorePage()),
                 ),
-                _FunctionItem(
-                  Icons.meeting_room_outlined,
-                  '空教室',
-                  '实时查找空闲教室',
-                  onTap: () {
-                    _openProtectedPage(context, const EmptyClassroomPage());
-                  },
+                AppCell(
+                  icon: Icons.event_note_outlined,
+                  title: '考试安排',
+                  subtitle: '期末考场、座号与时间安排',
+                  onTap: () => _openProtected(context, const ExamPage()),
                 ),
-                _FunctionItem(
-                  Icons.connect_without_contact_outlined,
-                  '学工系统',
-                  '进入学工系统',
-                  onTap: () {
-                    _openProtectedPage(context, const XgxtWebViewPage());
-                  },
+                AppCell(
+                  icon: Icons.meeting_room_outlined,
+                  title: '空教室查询',
+                  subtitle: '自习、研讨空闲教学场地检索',
+                  onTap: () => _openProtected(context, const EmptyClassroomPage()),
                 ),
-                _FunctionItem(
-                  Icons.verified_outlined,
-                  '电子证明系统（试运行）',
-                  '查看在读证明、最大成绩单和正考成绩单',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const WebViewDetailPage(
-                          title: '电子证明系统（试运行）',
-                          url: AppConstants.electronicCertificateUrl,
-                          showWebBack: true,
-                        ),
-                      ),
-                    );
-                  },
+                AppCell(
+                  icon: Icons.rate_review_outlined,
+                  title: '教学评价平台',
+                  subtitle: '学期课程与任课教师线上评教',
+                  onTap: () => _openProtected(
+                    context,
+                    WebViewDetailPage(
+                      title: '教学评价平台',
+                      url: AppConstants.teachingEvalUrl,
+                      showWebBack: true,
+                    ),
+                  ),
                 ),
-                _FunctionItem(
-                  Icons.rate_review_outlined,
-                  '教学评价平台',
-                  '查看并完成待评价任务',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => WebViewDetailPage(
-                          title: '教学评价平台',
-                          url: AppConstants.teachingEvalUrl,
-                          showWebBack: true,
-                        ),
-                      ),
-                    );
-                  },
+                AppCell(
+                  icon: Icons.calendar_today_outlined,
+                  title: '电子校历',
+                  subtitle: '学校学年学期时间进度表',
+                  onTap: () => _openPage(
+                    context,
+                    const WebViewDetailPage(
+                      title: '电子校历',
+                      url: AppConstants.schoolCalendarUrl,
+                      showWebBack: true,
+                    ),
+                  ),
                 ),
-                _FunctionItem(
-                  Icons.workspace_premium_outlined,
-                  '成绩查询',
-                  '查看课程成绩',
-                  onTap: () {
-                    _openProtectedPage(context, const ScorePage());
-                  },
+              ],
+            ),
+          ),
+
+          // ── 学生工作与宿舍 ───────────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: AppCellGroup(
+              title: '学生工作与事务',
+              cells: [
+                AppCell(
+                  icon: Icons.connect_without_contact_outlined,
+                  title: '学工系统',
+                  subtitle: '学工一体化业务办理门户',
+                  onTap: () => _openProtected(context, const XgxtWebViewPage()),
                 ),
-                _FunctionItem(
-                  Icons.auto_stories_outlined,
-                  '课程表',
-                  '查看本学期课表',
-                  onTap: () {
-                    _openProtectedPage(context, const TimetablePage());
-                  },
+                AppCell(
+                  icon: Icons.fact_check_outlined,
+                  title: '学工问卷',
+                  subtitle: '调查问卷填写与信息采集',
+                  onTap: () => _openProtected(context, const QuestionnaireListPage()),
                 ),
-                _FunctionItem(
-                  Icons.calendar_month_outlined,
-                  '电子校历',
-                  '查看学校校历安排',
-                  requiresLogin: false,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const WebViewDetailPage(
-                          title: '电子校历',
-                          url: AppConstants.schoolCalendarUrl,
-                          showWebBack: true,
-                        ),
-                      ),
-                    );
-                  },
+                AppCell(
+                  icon: Icons.wb_sunny_outlined,
+                  title: '阳光校园',
+                  subtitle: '阳光心理、咨询与服务',
+                  onTap: () => _openProtected(context, const SunshinePage()),
                 ),
-                _FunctionItem(
-                  Icons.library_books_outlined,
-                  '图书荐购',
-                  '提交图书采购推荐',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const WebViewDetailPage(
-                          title: '图书荐购',
-                          url: AppConstants.bookRecommendationUrl,
-                          showWebBack: true,
-                        ),
-                      ),
-                    );
-                  },
+                AppCell(
+                  icon: Icons.assignment_return_outlined,
+                  title: '请假审批',
+                  subtitle: '节假日与事假离校出校申请',
+                  onTap: () => _openProtected(context, const LeavePage()),
                 ),
-                _FunctionItem(
-                  Icons.auto_awesome_outlined,
-                  '湖南农业大学DeepSeek大模型',
-                  '使用学校提供的 DeepSeek 智能问答服务',
-                  requiresLogin: false,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const WebViewDetailPage(
-                          title: '湖南农业大学DeepSeek大模型',
-                          url: AppConstants.deepSeekUrl,
-                          showWebBack: true,
-                        ),
-                      ),
-                    );
-                  },
+                AppCell(
+                  icon: Icons.apartment_outlined,
+                  title: '学生公寓',
+                  subtitle: '宿舍分配、调整与公寓综合服务',
+                  onTap: () => _openProtected(context, const DormServicePage()),
                 ),
-              ]),
-              _buildCategorySection('校园生活', [
-                _FunctionItem(
-                  Icons.airport_shuttle_outlined,
-                  '实时校车',
-                  '基于定位打开校车追踪',
-                  onTap: () {
-                    _openProtectedPage(context, const BusTrackingPage());
-                  },
+                AppCell(
+                  icon: Icons.build_circle_outlined,
+                  title: '后勤报修平台',
+                  subtitle: '寝室与公共设施维修报障',
+                  onTap: () => _openProtected(context, const RepairPage()),
                 ),
-                _FunctionItem(
-                  Icons.build_circle_outlined,
-                  '报修平台',
-                  '提交校园报修工单',
-                  onTap: () {
-                    _openProtectedPage(context, const RepairPage());
-                  },
+              ],
+            ),
+          ),
+
+          // ── 校园生活与工具 ───────────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: AppCellGroup(
+              title: '校园生活与网络工具',
+              cells: [
+                AppCell(
+                  icon: Icons.event_seat_outlined,
+                  title: '场馆预约',
+                  subtitle: '体育馆、羽毛球场等活动场地预约',
+                  onTap: () => _openPage(
+                    context,
+                    const WebViewDetailPage(
+                      title: '场馆预约',
+                      url: AppConstants.gymReservationUrl,
+                      showWebBack: true,
+                    ),
+                  ),
                 ),
-                _FunctionItem(
-                  Icons.event_seat_outlined,
-                  '场馆预约',
-                  '预约场馆资源',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const WebViewDetailPage(
-                          title: '场馆预约',
-                          url: AppConstants.gymReservationUrl,
-                          showWebBack: true,
-                        ),
-                      ),
-                    );
-                  },
+                AppCell(
+                  icon: Icons.local_activity_outlined,
+                  title: '通识大讲堂',
+                  subtitle: '学术讲座、通识报告预约与打卡',
+                  onTap: () => _openPage(
+                    context,
+                    const WebViewDetailPage(
+                      title: '通识教育大讲堂',
+                      url: AppConstants.lecturesUrl,
+                      showWebBack: true,
+                    ),
+                  ),
                 ),
-                _FunctionItem(
-                  Icons.apartment_outlined,
-                  '学生公寓',
-                  '查看宿舍楼、楼层、房间和床号',
-                  onTap: () {
-                    _openProtectedPage(context, const DormServicePage());
-                  },
+                AppCell(
+                  icon: Icons.celebration_outlined,
+                  title: '活动广场',
+                  subtitle: '校园文化与社团活动发布平台',
+                  onTap: () => _openPage(
+                    context,
+                    const WebViewDetailPage(
+                      title: '活动广场',
+                      url: AppConstants.activitySquareUrl,
+                      showWebBack: true,
+                    ),
+                  ),
                 ),
-                _FunctionItem(
-                  Icons.local_activity_outlined,
-                  '通识教育大讲堂',
-                  '查看并参与通识讲堂活动',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const WebViewDetailPage(
-                          title: '通识教育大讲堂',
-                          url: AppConstants.lecturesUrl,
-                          showWebBack: true,
-                        ),
-                      ),
-                    );
-                  },
+                AppCell(
+                  icon: Icons.library_books_outlined,
+                  title: '图书荐购',
+                  subtitle: '向校图书馆推荐采购新书文献',
+                  onTap: () => _openPage(
+                    context,
+                    const WebViewDetailPage(
+                      title: '图书荐购',
+                      url: AppConstants.bookRecommendationUrl,
+                      showWebBack: true,
+                    ),
+                  ),
                 ),
-                _FunctionItem(
-                  Icons.celebration_outlined,
-                  '活动广场',
-                  '查看校园活动与报名信息',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const WebViewDetailPage(
-                          title: '活动广场',
-                          url: AppConstants.activitySquareUrl,
-                          showWebBack: true,
-                        ),
-                      ),
-                    );
-                  },
+                AppCell(
+                  icon: Icons.auto_awesome_outlined,
+                  title: 'DeepSeek大模型',
+                  subtitle: '学校部署的 AI 助手服务平台',
+                  onTap: () => _openPage(
+                    context,
+                    const WebViewDetailPage(
+                      title: '湖南农业大学DeepSeek大模型',
+                      url: AppConstants.deepSeekUrl,
+                      showWebBack: true,
+                    ),
+                  ),
                 ),
-              ]),
-              _buildCategorySection('网络工具', [
-                _FunctionItem(
-                  Icons.vpn_lock_outlined,
-                  'VPN转换',
-                  '校园网接入与转换',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const VpnConverterPage(),
-                      ),
-                    );
-                  },
+                AppCell(
+                  icon: Icons.vpn_lock_outlined,
+                  title: 'VPN转换',
+                  subtitle: '校外访问校内知网与内网系统转换',
+                  onTap: () => _openPage(context, const VpnConverterPage()),
                 ),
-                _FunctionItem(
-                  Icons.speed_outlined,
-                  '测速工具',
-                  '检测当前网络速度',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const NetworkSpeedTestPage(),
-                      ),
-                    );
-                  },
+                AppCell(
+                  icon: Icons.speed_outlined,
+                  title: '测速工具',
+                  subtitle: '校园网与宽带网络测速',
+                  onTap: () => _openPage(context, const NetworkSpeedTestPage()),
                 ),
-              ]),
-              const SizedBox(height: 100),
-            ]),
+              ],
+            ),
+          ),
+
+          const SliverToBoxAdapter(
+            child: SizedBox(height: AppSpacing.xxxl * 2),
           ),
         ],
       ),
     );
   }
-
-  Widget _buildCategorySection(String title, List<_FunctionItem> items) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
-          child: Builder(
-            builder: (context) {
-              return Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              );
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Builder(
-            builder: (context) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerLowest,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                ),
-                child: Column(
-                  children: items.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final item = entry.value;
-                    return _buildListTile(
-                      item,
-                      isLast: index == items.length - 1,
-                      context: context,
-                    );
-                  }).toList(),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 18),
-      ],
-    );
-  }
-
-  Widget _buildListTile(
-    _FunctionItem item, {
-    required bool isLast,
-    required BuildContext context,
-  }) {
-    return AppPressable(
-      onTap: () async {
-        if (item.requiresLogin) {
-          final result = await AuthGuard.ensureLoggedIn(context);
-          if (!result.allowed || !context.mounted) return;
-        }
-
-        item.onTap?.call();
-      },
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          border: isLast
-              ? null
-              : Border(
-                  bottom: BorderSide(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outlineVariant.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primaryContainer.withValues(alpha: 0.4),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Icon(
-                  item.icon,
-                  size: 22,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    item.subtitle,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.32,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FunctionItem {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback? onTap;
-  final bool requiresLogin;
-
-  _FunctionItem(
-    this.icon,
-    this.title,
-    this.subtitle, {
-    this.onTap,
-    this.requiresLogin = true,
-  });
 }

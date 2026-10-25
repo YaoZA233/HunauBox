@@ -75,6 +75,11 @@ class QuickActionCatalog {
       icon: Icons.auto_stories_outlined,
     ),
     QuickActionItem(
+      id: 'exam',
+      label: '考试安排',
+      icon: Icons.event_note_outlined,
+    ),
+    QuickActionItem(
       id: 'repair',
       label: '报修平台',
       icon: Icons.build_circle_outlined,

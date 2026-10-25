@@ -286,7 +286,6 @@ class XgxtLoginService {
       final hasSessionCookie = cookies.any(
         (cookie) => cookie.name == 'JSESSIONID' && cookie.value.isNotEmpty,
       );
-      // A pre-authentication JSESSIONID and an HTTP 200 page are insufficient.
       return hasSessionCookie && await _probeSession();
     }
     _logger.w('学工 CAS 重定向次数超限，会话未建立');
@@ -316,6 +315,7 @@ class XgxtLoginService {
           options: _options.copyWith(
             headers: {
               ...?_options.headers,
+              'Accept': 'application/json, text/javascript, */*; q=0.01',
               'Cache-Control': 'no-cache',
               'X-Requested-With': 'XMLHttpRequest',
               'Referer': AppConstants.xgxtWapUrl,

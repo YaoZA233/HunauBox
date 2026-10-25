@@ -13,6 +13,7 @@ import '../services/agent_settings_store.dart';
 import '../widgets/app_motion.dart';
 import '../widgets/weather_widgets.dart';
 import 'agent_page.dart';
+import 'balance_overview_page.dart';
 import 'function_page.dart';
 import 'home_page.dart';
 import 'homework_page.dart';
@@ -83,18 +84,79 @@ class MainNavigator extends ConsumerWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(34),
+                left: Radius.circular(24),
               ),
               child: ColoredBox(
                 color: hasBackground
                     ? colors.surface.withValues(alpha: 0.72)
                     : colors.surface,
-                child: const HomePage(),
+                child: const _SwipeableHomePanel(),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 可左右滑动的主页面板：第一页为首页，第二页为余额概览。
+class _SwipeableHomePanel extends StatefulWidget {
+  const _SwipeableHomePanel();
+
+  @override
+  State<_SwipeableHomePanel> createState() => _SwipeablePanelState();
+}
+
+class _SwipeablePanelState extends State<_SwipeableHomePanel> {
+  final PageController _controller = PageController();
+  int _currentPage = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Stack(
+      children: [
+        PageView(
+          controller: _controller,
+          onPageChanged: (page) => setState(() => _currentPage = page),
+          children: const [
+            HomePage(),
+            BalanceOverviewPage(),
+          ],
+        ),
+        // 底部页面指示点
+        Positioned(
+          bottom: MediaQuery.paddingOf(context).bottom + 14,
+          left: 0,
+          right: 0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(2, (index) {
+              final active = index == _currentPage;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: active ? 18 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: active
+                      ? colors.primary
+                      : colors.onSurfaceVariant.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              );
+            }),
+          ),
+        ),
+      ],
     );
   }
 }

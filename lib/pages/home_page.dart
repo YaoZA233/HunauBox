@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +21,7 @@ import '../utils/ics_parser.dart';
 import '../utils/week_parser.dart';
 import '../widgets/login_bottom_sheet.dart';
 import '../widgets/app_motion.dart';
+import '../widgets/app_ui_kit.dart';
 import '../widgets/weather_widgets.dart';
 import 'function_page.dart';
 import 'empty_classroom_page.dart';
@@ -41,6 +43,7 @@ import 'questionnaire_list_page.dart';
 import 'sunshine_page.dart';
 import 'leave_page.dart';
 import 'repair_page.dart';
+import 'exam_page.dart';
 import '../models/app_constants.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -536,207 +539,214 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   Widget _buildScheduleHero(CourseModel? course) {
     final colors = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasSemester = _firstWeekMonday != null;
     final progress = (_progressPercent / 100).clamp(0.0, 1.0);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark
-            ? colors.surfaceContainerHigh
-            : colors.primaryContainer.withValues(alpha: 0.42),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.outlineVariant),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(7),
-        child: Stack(
-          children: [
-            Positioned(
-              right: -42,
-              top: -54,
-              child: Container(
-                width: 176,
-                height: 176,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    width: 28,
-                    color: colors.primary.withValues(alpha: 0.08),
+    return AppCard(
+      variant: AppCardVariant.outlined,
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              AppBadge(
+                label: _courseStatusLabel(),
+                hasDot: true,
+                variant: course != null
+                    ? AppBadgeVariant.primary
+                    : AppBadgeVariant.neutral,
+              ),
+              const Spacer(),
+              if (hasSemester)
+                Text(
+                  '第 $_currentWeek 周',
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (_isLoadingTimetable)
+            const Text('正在同步课表...')
+          else ...[
+            Text(
+              course?.name ?? (_hasTimetable ? '今天没有后续课程' : '从导入课表开始'),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontSize: 24,
+                    height: 1.2,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            if (course != null) ...[
+              _buildCourseDetail(
+                icon: Icons.schedule_outlined,
+                text: _formatCourseTime(course),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              _buildCourseDetail(
+                icon: Icons.location_on_outlined,
+                text: course.classroom.trim().isEmpty
+                    ? '教室待定'
+                    : course.classroom,
+              ),
+            ] else
+              Text(
+                _hasTimetable ? '留一点时间给自己' : '导入后将在这里显示下一节课',
+                style: TextStyle(
+                  color: colors.onSurfaceVariant,
+                  fontSize: 13,
+                ),
+              ),
+          ],
+          const SizedBox(height: AppSpacing.xl),
+          Container(
+            padding: const EdgeInsets.only(top: AppSpacing.md),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: colors.outlineVariant.withValues(alpha: 0.4),
+                  width: 0.8,
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '学期进度',
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            hasSemester ? '$_progressPercent%' : '--',
+                            style: TextStyle(
+                              color: colors.primary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: AppRadius.roundedSm,
+                        child: LinearProgressIndicator(
+                          minHeight: 5,
+                          value: hasSemester ? progress : 0,
+                          backgroundColor: colors.surfaceContainerHighest,
                           color: colors.primary,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(height: 5),
                       Text(
-                        _courseStatusLabel(),
+                        hasSemester
+                            ? '还剩 $_remainingDays 天 · 共 $_totalWeeks 周'
+                            : '导入课表后自动计算',
                         style: TextStyle(
-                          color: colors.primary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+                          color: colors.onSurfaceVariant,
+                          fontSize: 11,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 22),
-                  if (_isLoadingTimetable)
-                    const Text('正在同步课表...')
-                  else ...[
-                    Text(
-                      course?.name ?? (_hasTimetable ? '今天没有后续课程' : '从导入课表开始'),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            fontSize: 28,
-                            height: 1.15,
-                            fontWeight: FontWeight.w800,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (course != null) ...[
-                      _buildCourseDetail(
-                        icon: Icons.schedule_outlined,
-                        text: _formatCourseTime(course),
-                      ),
-                      const SizedBox(height: 6),
-                      _buildCourseDetail(
-                        icon: Icons.location_on_outlined,
-                        text: course.classroom.trim().isEmpty
-                            ? '教室待定'
-                            : course.classroom,
-                      ),
-                    ] else
-                      Text(
-                        _hasTimetable ? '留一点时间给自己' : '导入后将在这里显示下一节课',
-                        style: TextStyle(color: colors.onSurfaceVariant),
-                      ),
-                  ],
-                  const SizedBox(height: 30),
-                  Container(
-                    padding: const EdgeInsets.only(top: 16),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: colors.outlineVariant),
-                      ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                hasSemester ? '第 $_currentWeek 周' : '学期进度',
-                                style: TextStyle(
-                                  color: colors.onSurfaceVariant,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const SizedBox(height: 7),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(2),
-                                child: LinearProgressIndicator(
-                                  minHeight: 6,
-                                  value: hasSemester ? progress : 0,
-                                  backgroundColor: colors.surface.withValues(
-                                    alpha: 0.7,
-                                  ),
-                                  color: colors.primary,
-                                ),
-                              ),
-                              const SizedBox(height: 7),
-                              Text(
-                                hasSemester
-                                    ? '还剩 $_remainingDays 天 · 共 $_totalWeeks 周'
-                                    : '导入课表后自动计算',
-                                style: TextStyle(
-                                  color: colors.onSurfaceVariant,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 18),
-                        Text(
-                          hasSemester ? '$_progressPercent%' : '--',
-                          style: TextStyle(
-                            color: colors.primary,
-                            fontSize: 31,
-                            height: 1,
-                            fontWeight: FontWeight.w300,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _handleQuickActionTap('timetable'),
-                      icon: const Icon(Icons.calendar_month_outlined, size: 19),
-                      label: Text(_hasTimetable ? '查看课表' : '导入课表'),
-                    ),
-                  ),
-                ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _handleQuickActionTap('timetable'),
+              icon: const Icon(Icons.calendar_month_outlined, size: 18),
+              label: Text(_hasTimetable ? '查看完整课表' : '导入课表'),
+              style: OutlinedButton.styleFrom(
+                shape: const RoundedRectangleBorder(
+                  borderRadius: AppRadius.roundedMd,
+                ),
+                side: BorderSide(
+                  color: colors.outlineVariant.withValues(alpha: 0.6),
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildStatement() {
     final colors = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '一言',
-          style: TextStyle(
-            color: colors.primary,
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
+    return AppCard(
+      variant: AppCardVariant.filled,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.format_quote_rounded,
+                size: 16,
+                color: colors.primary,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                '一言',
+                style: TextStyle(
+                  color: colors.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(height: 9),
-        Text(
-          _hitokotoText,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontSize: 20,
-            height: 1.45,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        if (_hitokotoFrom.isNotEmpty) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           Text(
-            '— $_hitokotoFrom',
-            style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+            _hitokotoText,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              fontWeight: FontWeight.w500,
+              color: colors.onSurface,
+            ),
           ),
+          if (_hitokotoFrom.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '— $_hitokotoFrom',
+                style: TextStyle(
+                  color: colors.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -970,14 +980,23 @@ class _HomePageState extends ConsumerState<HomePage> {
     final colors = Theme.of(context).colorScheme;
     final hasSemester = _firstWeekMonday != null;
     final progress = (_progressPercent / 100).clamp(0.0, 1.0);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(8),
-        border: Border(left: BorderSide(color: colors.primary, width: 4)),
-      ),
-      child: ConstrainedBox(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: colors.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(16),
+            border: Border(
+              left: BorderSide(color: colors.primary, width: 4),
+              top: BorderSide(color: colors.outlineVariant),
+              right: BorderSide(color: colors.outlineVariant),
+              bottom: BorderSide(color: colors.outlineVariant),
+            ),
+          ),
+          child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 146),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -1105,7 +1124,9 @@ class _HomePageState extends ConsumerState<HomePage> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildCourseDetail({required IconData icon, required String text}) {
@@ -1330,39 +1351,10 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildQuickAction(IconData icon, String label, {VoidCallback? onTap}) {
-    final colors = Theme.of(context).colorScheme;
-    return AppPressable(
+    return AppServiceItem(
+      icon: icon,
+      label: label,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: colors.primaryContainer.withValues(alpha: 0.72),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Icon(icon, size: 22, color: colors.onPrimaryContainer),
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 10,
-              height: 1.2,
-              color: colors.onSurface,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
     );
   }
 
@@ -1381,6 +1373,13 @@ class _HomePageState extends ConsumerState<HomePage> {
       if (!mounted) return;
       _loadPreviewCourses();
       _loadSemesterProgress();
+      return;
+    }
+
+    if (id == 'exam') {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ExamPage()));
       return;
     }
 

@@ -149,9 +149,13 @@ class SunshineService {
 
   Future<void> _authorize(Dio dio) async {
     var uri = Uri.parse(AppConstants.sunshineAuthorizationUrl);
-    final visited = <Uri>{};
-    for (var i = 0; i < 8; i++) {
-      if (!visited.add(uri)) throw const SunshineException('阳光服务授权跳转异常，请稍后重试');
+    // CAS OAuth legitimately revisits the same authorize URL once:
+    // authorize -> cas/login -> callbackAuthorize -> authorize -> OAuthLogin.
+    // Only a self-redirect or a third visit of the same URL is a real loop.
+    final visits = <Uri, int>{};
+    for (var i = 0; i < 10; i++) {
+      final count = visits.update(uri, (n) => n + 1, ifAbsent: () => 1);
+      if (count > 2) throw const SunshineException('阳光服务授权跳转异常，请稍后重试');
       final response = await dio.getUri(uri, options: _navigationOptions);
       if (!const [301, 302, 303, 307, 308].contains(response.statusCode)) {
         return;
@@ -176,6 +180,7 @@ class SunshineService {
           ].contains(next.host)) {
         throw const SunshineException('阳光服务返回了非预期的认证跳转');
       }
+      if (next == uri) throw const SunshineException('阳光服务授权跳转异常，请稍后重试');
       uri = next;
     }
     throw const SunshineException('阳光服务授权跳转次数超限');

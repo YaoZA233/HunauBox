@@ -219,7 +219,7 @@ class _NetworkSpeedTestPageState extends State<NetworkSpeedTestPage>
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: colors.surface,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           '测速工具',

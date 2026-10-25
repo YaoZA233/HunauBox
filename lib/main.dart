@@ -35,6 +35,7 @@ class SmartHunanAgriApp extends ConsumerWidget {
 
     ThemeData buildTheme(Brightness brightness) {
       final isDark = brightness == Brightness.dark;
+      final hasBg = background.hasImage;
       final generatedScheme = ColorScheme.fromSeed(
         seedColor: themeColor,
         brightness: brightness,
@@ -48,28 +49,66 @@ class SmartHunanAgriApp extends ConsumerWidget {
         primary: themeColor,
         onPrimary: isDark ? Colors.black : Colors.white,
         surface: isDark ? const Color(0xFF121212) : Colors.white,
-        surfaceContainerLowest: isDark ? const Color(0xFF121212) : Colors.white,
-        surfaceContainerLow: isDark ? const Color(0xFF181818) : Colors.white,
-        surfaceContainer: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        surfaceContainerLowest: isDark
+            ? (hasBg
+                ? const Color(0xFF121212).withValues(alpha: 0.72)
+                : const Color(0xFF121212))
+            : (hasBg
+                ? Colors.white.withValues(alpha: 0.78)
+                : Colors.white),
+        surfaceContainerLow: isDark
+            ? (hasBg
+                ? const Color(0xFF181818).withValues(alpha: 0.74)
+                : const Color(0xFF181818))
+            : (hasBg
+                ? Colors.white.withValues(alpha: 0.80)
+                : Colors.white),
+        surfaceContainer: isDark
+            ? (hasBg
+                ? const Color(0xFF1E1E1E).withValues(alpha: 0.76)
+                : const Color(0xFF1E1E1E))
+            : (hasBg
+                ? Colors.white.withValues(alpha: 0.82)
+                : Colors.white),
         surfaceContainerHigh: isDark
-            ? const Color(0xFF242424)
+            ? (hasBg
+                ? const Color(0xFF242424).withValues(alpha: 0.78)
+                : const Color(0xFF242424))
             : const Color(0xFFF8F9FA),
         surfaceContainerHighest: isDark
-            ? const Color(0xFF2B2B2B)
+            ? (hasBg
+                ? const Color(0xFF2B2B2B).withValues(alpha: 0.80)
+                : const Color(0xFF2B2B2B))
             : const Color(0xFFF1F3F4),
         onSurface: isDark ? Colors.white : const Color(0xFF202124),
         onSurfaceVariant: isDark
             ? const Color(0xFFBDC1C6)
             : const Color(0xFF5F6368),
-        outline: isDark ? const Color(0xFF5F6368) : const Color(0xFFDADCE0),
+        outline: isDark
+            ? (hasBg
+                ? const Color(0xFFFFFFFF).withValues(alpha: 0.16)
+                : const Color(0xFF5F6368))
+            : const Color(0xFFDADCE0),
         outlineVariant: isDark
-            ? const Color(0xFF3C4043)
-            : const Color(0xFFE8EAED),
+            ? (hasBg
+                ? const Color(0xFFFFFFFF).withValues(alpha: 0.12)
+                : const Color(0xFF3C4043))
+            : (hasBg
+                ? const Color(0xFF000000).withValues(alpha: 0.08)
+                : const Color(0xFFE8EAED)),
       );
       final surface = isDark ? const Color(0xFF121212) : Colors.white;
-      final card = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+      final card = isDark
+          ? (hasBg
+              ? const Color(0xFF1E1E1E).withValues(alpha: 0.74)
+              : const Color(0xFF1E1E1E))
+          : (hasBg
+              ? Colors.white.withValues(alpha: 0.80)
+              : Colors.white);
       final outline = isDark
-          ? const Color(0xFF3C4043)
+          ? (hasBg
+              ? const Color(0xFFFFFFFF).withValues(alpha: 0.14)
+              : const Color(0xFF3C4043))
           : const Color(0xFFDADCE0);
       final textTheme = ThemeData(brightness: brightness).textTheme.apply(
         bodyColor: scheme.onSurface,
@@ -140,7 +179,13 @@ class SmartHunanAgriApp extends ConsumerWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: isDark ? const Color(0xFF2B2B2B) : const Color(0xFFF1F3F4),
+          fillColor: isDark
+              ? (hasBg
+                  ? const Color(0xFF2B2B2B).withValues(alpha: 0.72)
+                  : const Color(0xFF2B2B2B))
+              : (hasBg
+                  ? const Color(0xFFF1F3F4).withValues(alpha: 0.82)
+                  : const Color(0xFFF1F3F4)),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 16,

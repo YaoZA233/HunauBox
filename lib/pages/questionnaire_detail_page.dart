@@ -259,10 +259,9 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
                 ),
               )
             : ListView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
                 children: [
                   _header(total),
-                  const SizedBox(height: 20),
                   if (detail != null)
                     ...detail.questions.asMap().entries.map(
                       (e) => _question(e.value, e.key),
@@ -275,17 +274,15 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
                     ),
                   if (_submissionError != null)
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(14, 12, 0, 12),
                       decoration: BoxDecoration(
-                        color: colors.errorContainer,
-                        borderRadius: BorderRadius.circular(14),
+                        border: Border(
+                          left: BorderSide(color: colors.error, width: 2),
+                        ),
                       ),
                       child: Text(
                         _submissionError!,
-                        style: TextStyle(
-                          color: colors.onErrorContainer,
-                          height: 1.6,
-                        ),
+                        style: TextStyle(color: colors.error, height: 1.6),
                       ),
                     ),
                 ],
@@ -332,6 +329,12 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
                       ),
                       const SizedBox(width: 12),
                       FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                         onPressed: _submitting
                             ? null
                             : _requiresStatusCheck
@@ -382,22 +385,19 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            QuestionnaireBadge(label: _readOnly ? '查看记录' : '信息登记'),
-            QuestionnaireBadge(
-              label: '$total 道题',
-              color: colors.onSurfaceVariant,
-            ),
-          ],
+        Text(
+          '${_readOnly ? '查看记录' : '信息登记'}  /  $total 道题',
+          style: TextStyle(
+            fontSize: 12,
+            color: colors.primary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 14),
         Text(
           title.isEmpty ? '学工问卷' : title,
           style: const TextStyle(
-            fontSize: 25,
+            fontSize: 27,
             fontWeight: FontWeight.w700,
             height: 1.35,
           ),
@@ -420,14 +420,12 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
             style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
           ),
         ],
-        const SizedBox(height: 16),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: total == 0 ? 0 : _answeredCount / total,
-            minHeight: 5,
-            backgroundColor: colors.surfaceContainerHighest,
-          ),
+        const SizedBox(height: 24),
+        LinearProgressIndicator(
+          value: total == 0 ? 0 : _answeredCount / total,
+          minHeight: 2,
+          backgroundColor: colors.outlineVariant.withValues(alpha: 0.5),
+          semanticsLabel: '填写进度，已填写 $_answeredCount / $total 题',
         ),
       ],
     );
@@ -438,63 +436,73 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
     final invalid = _invalidQuestion == q.dm;
     return Container(
       key: _questionKeys[q.dm],
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(vertical: 26),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: invalid
-              ? colors.error
-              : colors.outlineVariant.withValues(alpha: 0.65),
+        border: Border(
+          bottom: BorderSide(
+            color: invalid
+                ? colors.error
+                : colors.outlineVariant.withValues(alpha: 0.65),
+          ),
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                (index + 1).toString().padLeft(2, '0'),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: colors.primary,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                q.typeLabel,
-                style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
-              ),
-              const Spacer(),
-              if (q.required)
-                Text(
-                  '必填',
+              SizedBox(
+                width: 40,
+                child: Text(
+                  (index + 1).toString().padLeft(2, '0'),
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: invalid ? colors.error : colors.onSurfaceVariant,
-                  ),
-                )
-              else
-                Text(
-                  '选填',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colors.onSurfaceVariant,
+                    fontSize: 22,
+                    height: 1.3,
+                    fontWeight: FontWeight.w500,
+                    color: invalid ? colors.error : colors.primary,
                   ),
                 ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      q.title,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 4,
+                      children: [
+                        Text(
+                          q.typeLabel,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                        Text(
+                          q.required ? '必填' : '选填',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: invalid
+                                ? colors.error
+                                : colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            q.title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              height: 1.5,
-            ),
           ),
           if (q.desc.isNotEmpty) ...[
             const SizedBox(height: 6),
@@ -515,12 +523,8 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
           else if (q.isDate)
             InkWell(
               onTap: _editable ? () => _pickDate(q) : null,
-              borderRadius: BorderRadius.circular(12),
               child: InputDecorator(
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                decoration: _answerDecoration(invalid).copyWith(
                   suffixIcon: const Icon(
                     Icons.calendar_today_outlined,
                     size: 19,
@@ -549,7 +553,7 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
                   ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\- ]'))]
                   : null,
               onChanged: (value) => _answer(q, value),
-              decoration: InputDecoration(
+              decoration: _answerDecoration(invalid).copyWith(
                 hintText: _readOnly
                     ? '未填写'
                     : q.isPhone
@@ -559,10 +563,6 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
                   fontSize: 14,
                   color: colors.onSurfaceVariant,
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                contentPadding: const EdgeInsets.all(14),
               ),
             ),
           if (invalid) ...[
@@ -577,6 +577,24 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
     );
   }
 
+  InputDecoration _answerDecoration(bool invalid) {
+    final colors = Theme.of(context).colorScheme;
+    return InputDecoration(
+      filled: false,
+      border: const UnderlineInputBorder(),
+      enabledBorder: UnderlineInputBorder(
+        borderSide: BorderSide(color: invalid ? colors.error : colors.outline),
+      ),
+      focusedBorder: UnderlineInputBorder(
+        borderSide: BorderSide(
+          color: invalid ? colors.error : colors.primary,
+          width: 2,
+        ),
+      ),
+      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 0),
+    );
+  }
+
   Widget _choices(QuestionnaireQuestion q) {
     if (q.options.isEmpty) return const Text('选项暂未加载，请返回列表刷新');
     final colors = Theme.of(context).colorScheme;
@@ -585,16 +603,11 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
     final options = Column(
       children: q.options.map((option) {
         final checked = selected.contains(option.dm);
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            color: checked
-                ? colors.primaryContainer.withValues(alpha: 0.5)
-                : colors.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: checked ? colors.primary : Colors.transparent,
-            ),
+        return ListTileTheme(
+          data: ListTileThemeData(
+            minVerticalPadding: 10,
+            horizontalTitleGap: 12,
+            textColor: checked && _editable ? colors.primary : colors.onSurface,
           ),
           child: q.isMultiChoice
               ? CheckboxListTile(
@@ -621,9 +634,6 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
                   ),
                   controlAffinity: ListTileControlAffinity.leading,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 6),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
                 )
               : RadioListTile<String>(
                   value: option.dm,
@@ -633,9 +643,6 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
                     style: const TextStyle(fontSize: 14, height: 1.4),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 6),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
                 ),
         );
       }).toList(),

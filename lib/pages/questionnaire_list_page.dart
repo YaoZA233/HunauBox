@@ -129,82 +129,99 @@ class _QuestionnaireListPageState extends State<QuestionnaireListPage> {
               onRefresh: _load,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
                 children: [
                   if (_loading) const LinearProgressIndicator(),
-                  Container(
-                    padding: const EdgeInsets.all(22),
-                    decoration: BoxDecoration(
-                      color: colors.primaryContainer.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(22),
+                  Text(
+                    '我的问卷',
+                    style: TextStyle(
+                      color: colors.onSurface,
+                      fontSize: 30,
+                      height: 1.3,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.8,
                     ),
-                    child: Row(
+                  ),
+                  const SizedBox(height: 10),
+                  Text.rich(
+                    TextSpan(
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '问卷待办',
-                                style: TextStyle(
-                                  color: colors.primary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                pendingCount == 0
-                                    ? '暂无待填写问卷'
-                                    : '还有 $pendingCount 份等待填写',
-                                style: const TextStyle(
-                                  fontSize: 21,
-                                  height: 1.3,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '查看通知问卷，按时完成信息登记',
-                                style: TextStyle(
-                                  color: colors.onSurfaceVariant,
-                                  fontSize: 13,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ],
+                        TextSpan(
+                          text: pendingCount == 0
+                              ? '暂无待填写问卷'
+                              : '$pendingCount 份待填写',
+                          style: TextStyle(
+                            color: colors.primary,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.fact_check_outlined,
-                          color: colors.primary,
-                          size: 44,
-                        ),
+                        TextSpan(text: '  /  共 ${_items.length} 份问卷'),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: QuestionnaireFilter.values.map((filter) {
-                        final count = _items.where(filter.matches).length;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text('${filter.label} $count'),
-                            selected: _filter == filter,
-                            onSelected: (_) => setState(() => _filter = filter),
-                            showCheckmark: false,
-                            visualDensity: VisualDensity.comfortable,
-                          ),
-                        );
-                      }).toList(),
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.6,
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 28),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: colors.outlineVariant),
+                      ),
+                    ),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: QuestionnaireFilter.values.map((filter) {
+                          final count = _items.where(filter.matches).length;
+                          final selected = _filter == filter;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 24),
+                            child: Semantics(
+                              selected: selected,
+                              button: true,
+                              child: InkWell(
+                                onTap: () => setState(() => _filter = filter),
+                                child: Container(
+                                  constraints: const BoxConstraints(
+                                    minHeight: 48,
+                                  ),
+                                  alignment: Alignment.center,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        width: 2,
+                                        color: selected
+                                            ? colors.primary
+                                            : Colors.transparent,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '${filter.label} $count',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: selected
+                                          ? colors.primary
+                                          : colors.onSurfaceVariant,
+                                      fontWeight: selected
+                                          ? FontWeight.w700
+                                          : FontWeight.w400,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
                   if (_error != null)
                     QuestionnaireStatePanel(
                       icon: Icons.wifi_off_rounded,
@@ -235,99 +252,81 @@ class _QuestionnaireListPageState extends State<QuestionnaireListPage> {
                           ? '目前没有需要填写的问卷，稍后可下拉刷新。'
                           : '这里会显示学工系统发布的问卷。',
                     ),
-                  ...filtered.map(_itemCard),
+                  ...filtered.map(_itemRow),
                 ],
               ),
             ),
     );
   }
 
-  Widget _itemCard(QuestionnaireItem item) {
+  Widget _itemRow(QuestionnaireItem item) {
     final colors = Theme.of(context).colorScheme;
-    final color = item.isPending
-        ? colors.primary
-        : item.isSubmitted
-        ? colors.tertiary
-        : colors.onSurfaceVariant;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: colors.surfaceContainerLowest,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(
-            color: colors.outlineVariant.withValues(alpha: 0.65),
+    final color = item.isPending ? colors.primary : colors.onSurfaceVariant;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _open(item),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: colors.outlineVariant.withValues(alpha: 0.65),
+              ),
+            ),
           ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => _open(item),
-          child: IntrinsicHeight(
-            child: Row(
-              children: [
-                Container(
-                  width: 4,
-                  color: color.withValues(alpha: item.isPending ? 1 : 0.35),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            QuestionnaireBadge(
-                              label: item.statusLabel,
-                              color: color,
-                            ),
-                            const Spacer(),
-                            Icon(
-                              Icons.arrow_forward_rounded,
-                              size: 19,
-                              color: color,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          item.title.isEmpty ? '未命名问卷' : item.title,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            height: 1.45,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.schedule_rounded,
-                              size: 16,
-                              color: colors.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                item.endTime.isEmpty
-                                    ? '未设置截止时间'
-                                    : '截止 ${item.endTime}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  height: 1.4,
-                                  color: colors.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    item.isPending
+                        ? Icons.circle
+                        : item.isSubmitted
+                        ? Icons.check_rounded
+                        : Icons.remove_rounded,
+                    size: item.isPending ? 6 : 14,
+                    color: color,
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    item.statusLabel,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.title.isEmpty ? '未命名问卷' : item.title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        height: 1.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Icon(Icons.chevron_right_rounded, size: 22, color: color),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                item.endTime.isEmpty ? '未设置截止时间' : '截止 ${item.endTime}',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.5,
+                  color: colors.onSurfaceVariant,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

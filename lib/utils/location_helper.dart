@@ -39,7 +39,7 @@ class LocationHelper {
       final lastPosition = await Geolocator.getLastKnownPosition();
       if (lastPosition != null) {
         final timestamp = lastPosition.timestamp;
-        if (timestamp != null && DateTime.now().difference(timestamp).inMinutes < 1) {
+        if (DateTime.now().difference(timestamp).inMinutes < 1) {
           return lastPosition;
         }
       }

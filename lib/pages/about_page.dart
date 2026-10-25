@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/app_update_service.dart';
 import '../widgets/app_markdown.dart';
+import '../widgets/app_ui_kit.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key, this.updateService});
@@ -12,9 +13,16 @@ class AboutPage extends StatefulWidget {
 }
 
 class _AboutPageState extends State<AboutPage> {
-  static final Uri _repositoryUri = Uri.parse(AppUpdateService.repositoryUrl);
+  static final Uri _githubRepositoryUri = Uri.parse(
+    AppUpdateService.githubRepositoryUrl,
+  );
+  static final Uri _giteeRepositoryUri = Uri.parse(
+    AppUpdateService.giteeRepositoryUrl,
+  );
+
   late final _updateService = widget.updateService ?? AppUpdateService();
   String _currentVersion = '1.0.5';
+  UpdateSource _currentSource = UpdateSource.gitee;
   AppRelease? _release;
   bool _checking = false;
   bool _downloading = false;
@@ -35,6 +43,12 @@ class _AboutPageState extends State<AboutPage> {
         setState(() => _currentVersion = info.version);
       }
     } catch (_) {}
+
+    try {
+      final source = await AppUpdateService.getPreferredSource();
+      if (mounted) setState(() => _currentSource = source);
+    } catch (_) {}
+
     await _checkForUpdate(silent: true);
   }
 
@@ -45,7 +59,11 @@ class _AboutPageState extends State<AboutPage> {
       _error = null;
     });
     try {
-      final release = await _updateService.fetchLatest();
+      try {
+        final source = await AppUpdateService.getPreferredSource();
+        if (mounted) setState(() => _currentSource = source);
+      } catch (_) {}
+      final release = await _updateService.fetchLatest(_currentSource);
       if (!mounted) return;
       if (_updateService.compareVersions(release.version, _currentVersion) >
           0) {
@@ -54,9 +72,13 @@ class _AboutPageState extends State<AboutPage> {
       } else {
         setState(() => _release = null);
         if (!silent) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('当前已是最新版本 $_currentVersion')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '当前已是最新版本 $_currentVersion (${_currentSource.label} 源)',
+              ),
+            ),
+          );
         }
       }
     } catch (e) {
@@ -143,9 +165,9 @@ class _AboutPageState extends State<AboutPage> {
                               ).textTheme.headlineSmall,
                             ),
                           ),
-                          Icon(
-                            Icons.auto_awesome_rounded,
-                            color: colors.primary,
+                          AppBadge(
+                            label: '${release.source.label} 源',
+                            variant: AppBadgeVariant.primary,
                           ),
                         ],
                       ),
@@ -232,7 +254,7 @@ class _AboutPageState extends State<AboutPage> {
                                 _downloading
                                     ? '${(_progress * 100).round()}%'
                                     : release.apk == null
-                                    ? '暂无 APK'
+                                    ? '前往网页下载'
                                     : '下载 APK',
                               ),
                             ),
@@ -261,21 +283,19 @@ class _AboutPageState extends State<AboutPage> {
     return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
   }
 
-  Future<void> _openRepository(BuildContext context) async {
-    final launched = await launchUrl(
-      _repositoryUri,
-      mode: LaunchMode.externalApplication,
-    );
+  Future<void> _openUrl(BuildContext context, Uri uri, String label) async {
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && context.mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('无法打开项目仓库链接')));
+      ).showSnackBar(SnackBar(content: Text('无法打开 $label 链接')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(title: const Text('关于应用')),
       body: ListView(
@@ -354,7 +374,7 @@ class _AboutPageState extends State<AboutPage> {
             value: _checking
                 ? '检查中…'
                 : _release == null
-                ? '点击检查'
+                ? '点击检查 (${_currentSource.label}源)'
                 : '发现 ${_release!.version}',
             onTap: () => _checkForUpdate(silent: false),
           ),
@@ -368,10 +388,17 @@ class _AboutPageState extends State<AboutPage> {
             ),
           const SizedBox(height: 10),
           _AboutRow(
+            icon: Icons.alt_route_rounded,
+            label: 'Gitee 仓库 (推荐)',
+            value: '查看 Gitee',
+            onTap: () => _openUrl(context, _giteeRepositoryUri, 'Gitee 仓库'),
+          ),
+          const SizedBox(height: 10),
+          _AboutRow(
             icon: Icons.code_rounded,
-            label: '开源项目',
+            label: 'GitHub 仓库',
             value: '查看 GitHub',
-            onTap: () => _openRepository(context),
+            onTap: () => _openUrl(context, _githubRepositoryUri, 'GitHub 仓库'),
           ),
           const SizedBox(height: 32),
           Text(

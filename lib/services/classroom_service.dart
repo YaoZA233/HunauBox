@@ -109,7 +109,7 @@ class ClassroomService {
 
       return classroomList
           .whereType<Map>()
-          .map((json) => ClassroomModel.fromJson(Map<String, dynamic>.from(json as Map)))
+          .map((json) => ClassroomModel.fromJson(Map<String, dynamic>.from(json)))
           .toList();
     } catch (e) {
       _logger.e('❌ Query classrooms failed: $e');

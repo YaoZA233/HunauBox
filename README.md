@@ -79,7 +79,7 @@
 - **网页服务**：`flutter_inappwebview`、`webview_flutter`
 - **数据解析**：`html`
 - **本地存储与安全**：Shared Preferences、Path Provider、Flutter Secure Storage、Crypto、Pointy Castle
-- **版本更新**：通过 GitHub Releases 查询版本、展示更新说明并下载 APK 安装包
+- **版本更新**：默认通过 Gitee Releases 查询版本、展示更新说明并下载 APK 安装包；可在设置的“更新下载渠道”中切换 Gitee / GitHub，选择会保存在本机，并同时用于检查版本和下载 APK。关于应用页提供两个仓库入口。发布时需在对应仓库的 Releases 上传 APK 附件；没有发布版本时会提示切换更新源。
 - **系统能力**：定位、二维码扫描、课程通知、图片选择、分享、URL 调起
 - **界面与工具**：Material 3、Flutter SVG、Intl、Flutter Native Splash
 

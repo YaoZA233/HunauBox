@@ -1,31 +1,5 @@
 import 'package:flutter/material.dart';
 
-class QuestionnaireBadge extends StatelessWidget {
-  const QuestionnaireBadge({super.key, required this.label, this.color});
-  final String label;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final foreground = color ?? Theme.of(context).colorScheme.primary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: foreground.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: foreground,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
 class QuestionnaireStatePanel extends StatelessWidget {
   const QuestionnaireStatePanel({
     super.key,
@@ -47,14 +21,7 @@ class QuestionnaireStatePanel extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: colors.primaryContainer.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Icon(icon, size: 36, color: colors.primary),
-          ),
+          Icon(icon, size: 36, color: colors.primary),
           const SizedBox(height: 20),
           Text(
             title,

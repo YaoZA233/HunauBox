@@ -76,7 +76,7 @@ class ProfilePage extends StatelessWidget {
         : '暂未获取';
 
     return Scaffold(
-      backgroundColor: colors.surface,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(title: const Text('个人中心'), centerTitle: false),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),

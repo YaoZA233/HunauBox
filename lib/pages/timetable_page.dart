@@ -66,6 +66,20 @@ class _TimetablePageState extends State<TimetablePage> {
       appBar: AppBar(
         title: const Text('我的课表'),
         actions: [
+          if (hasTimetable)
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.onSurface,
+              ),
+              icon: Icon(
+                _dailyView
+                    ? Icons.calendar_view_week_outlined
+                    : Icons.view_agenda_outlined,
+                size: 18,
+              ),
+              label: Text(_dailyView ? '周视图' : '日视图'),
+              onPressed: () => setState(() => _dailyView = !_dailyView),
+            ),
           PopupMenuButton<_TimetableAction>(
             tooltip: '课表功能',
             enabled: !_isLoading,
@@ -108,27 +122,6 @@ class _TimetablePageState extends State<TimetablePage> {
       ),
       body: Column(
         children: [
-          if (hasTimetable)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(
-                    value: false,
-                    icon: Icon(Icons.calendar_view_week_outlined),
-                    label: Text('周视图'),
-                  ),
-                  ButtonSegment(
-                    value: true,
-                    icon: Icon(Icons.view_agenda_outlined),
-                    label: Text('日视图'),
-                  ),
-                ],
-                selected: {_dailyView},
-                onSelectionChanged: (selection) =>
-                    setState(() => _dailyView = selection.single),
-              ),
-            ),
           if (_errorMessage != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

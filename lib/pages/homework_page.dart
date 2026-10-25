@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -37,7 +39,7 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
       ),
       body: homeworkState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => _buildErrorState(),
+        error: (_, _) => _buildErrorState(),
         data: _buildContent,
       ),
     );
@@ -99,7 +101,7 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
                   homework: visibleItems[index],
                   onTap: () => _openHomework(visibleItems[index]),
                 ),
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
               ),
             ),
         ],
@@ -396,83 +398,90 @@ class _HomeworkItem extends StatelessWidget {
     final urgent = !completed && _isUrgent();
     final accent = completed ? colors.primary : urgent ? colors.error : colors.tertiary;
 
-    return Material(
-      color: colors.surfaceContainerLowest,
+    return ClipRRect(
       borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 16, 12, 15),
-          decoration: BoxDecoration(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Material(
+          color: colors.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: colors.outlineVariant.withValues(alpha: .8)),
-            boxShadow: [
-              BoxShadow(
-                color: colors.shadow.withValues(alpha: 0.045),
-                blurRadius: 14,
-                offset: const Offset(0, 5),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(16, 16, 12, 15),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: colors.outlineVariant),
+                boxShadow: [
+                  BoxShadow(
+                    color: colors.shadow.withValues(alpha: 0.045),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 4,
-                height: 66,
-                margin: const EdgeInsets.only(right: 13),
-                decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(99)),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 4,
+                    height: 66,
+                    margin: const EdgeInsets.only(right: 13),
+                    decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(99)),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            homework.courseName.isEmpty ? '课程作业' : homework.courseName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700),
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                homework.courseName.isEmpty ? '课程作业' : homework.courseName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            if (homework.isManual)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                decoration: BoxDecoration(color: colors.secondaryContainer, borderRadius: BorderRadius.circular(99)),
+                                child: Text('手动', style: TextStyle(color: colors.onSecondaryContainer, fontSize: 10, fontWeight: FontWeight.w700)),
+                              ),
+                          ],
                         ),
-                        if (homework.isManual)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(color: colors.secondaryContainer, borderRadius: BorderRadius.circular(99)),
-                            child: Text('手动', style: TextStyle(color: colors.onSecondaryContainer, fontSize: 10, fontWeight: FontWeight.w700)),
-                          ),
+                        const SizedBox(height: 7),
+                        Text(
+                          homework.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 16, height: 1.28, fontWeight: FontWeight.w800, color: completed ? colors.onSurfaceVariant : colors.onSurface, decoration: completed ? TextDecoration.lineThrough : null),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Icon(completed ? Icons.check_circle_outline_rounded : Icons.schedule_rounded, size: 16, color: accent),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                deadline,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: completed ? colors.onSurfaceVariant : accent),
+                              ),
+                            ),
+                            const Icon(Icons.arrow_outward_rounded, size: 17),
+                          ],
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 7),
-                    Text(
-                      homework.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 16, height: 1.28, fontWeight: FontWeight.w800, color: completed ? colors.onSurfaceVariant : colors.onSurface, decoration: completed ? TextDecoration.lineThrough : null),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(completed ? Icons.check_circle_outline_rounded : Icons.schedule_rounded, size: 16, color: accent),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(
-                            deadline,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: completed ? colors.onSurfaceVariant : accent),
-                          ),
-                        ),
-                        const Icon(Icons.arrow_outward_rounded, size: 17),
-                      ],
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
