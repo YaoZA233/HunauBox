@@ -11,6 +11,8 @@ import 'dorm_service_page.dart';
 import 'electricity_recharge_page.dart';
 import 'empty_classroom_page.dart';
 import 'exam_page.dart';
+import 'chaoxing_courses_page.dart';
+import 'chaoxing_messages_page.dart';
 import 'leave_page.dart';
 import 'network_speed_test_page.dart';
 import 'payment_code_page.dart';
@@ -141,6 +143,18 @@ class FunctionPage extends StatelessWidget {
             child: AppCellGroup(
               title: '教务与学业',
               cells: [
+                AppCell(
+                  icon: Icons.school_outlined,
+                  title: '学习通课程',
+                  subtitle: '查看我的课程、教师与任务点进度',
+                  onTap: () => _openProtected(context, const ChaoxingCoursesPage()),
+                ),
+                AppCell(
+                  icon: Icons.forum_outlined,
+                  title: '学习通消息',
+                  subtitle: '查看课程群聊和学习通会话',
+                  onTap: () => _openProtected(context, const ChaoxingMessagesPage()),
+                ),
                 AppCell(
                   icon: Icons.calendar_month_outlined,
                   title: '课表查询',

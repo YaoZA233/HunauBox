@@ -44,6 +44,8 @@ import 'sunshine_page.dart';
 import 'leave_page.dart';
 import 'repair_page.dart';
 import 'exam_page.dart';
+import 'chaoxing_courses_page.dart';
+import 'chaoxing_messages_page.dart';
 import '../models/app_constants.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -1385,6 +1387,20 @@ class _HomePageState extends ConsumerState<HomePage>
       await Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const ExamPage()));
+      return;
+    }
+
+    if (id == 'chaoxing_courses') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ChaoxingCoursesPage()),
+      );
+      return;
+    }
+
+    if (id == 'chaoxing_messages') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ChaoxingMessagesPage()),
+      );
       return;
     }
 

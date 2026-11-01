@@ -15,6 +15,16 @@ class QuickActionItem {
 class QuickActionCatalog {
   static const items = <QuickActionItem>[
     QuickActionItem(
+      id: 'chaoxing_messages',
+      label: '学习通消息',
+      icon: Icons.forum_outlined,
+    ),
+    QuickActionItem(
+      id: 'chaoxing_courses',
+      label: '学习通课程',
+      icon: Icons.school_outlined,
+    ),
+    QuickActionItem(
       id: 'campus_card_bill',
       label: '校园卡账单',
       icon: Icons.receipt_long_outlined,
