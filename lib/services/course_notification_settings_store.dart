@@ -9,6 +9,7 @@ class CourseNotificationSettings {
     this.homeworkEnabled = false,
     this.homeworkDeadlineEnabled = false,
     this.homeworkMinutesBefore = 15,
+    this.liveActivityEnabled = false,
   });
 
   final bool enabled;
@@ -17,6 +18,7 @@ class CourseNotificationSettings {
   final bool homeworkEnabled;
   final bool homeworkDeadlineEnabled;
   final int homeworkMinutesBefore;
+  final bool liveActivityEnabled;
 
   CourseNotificationSettings copyWith({
     bool? enabled,
@@ -25,6 +27,7 @@ class CourseNotificationSettings {
     bool? homeworkEnabled,
     bool? homeworkDeadlineEnabled,
     int? homeworkMinutesBefore,
+    bool? liveActivityEnabled,
   }) {
     return CourseNotificationSettings(
       enabled: enabled ?? this.enabled,
@@ -35,6 +38,7 @@ class CourseNotificationSettings {
           homeworkDeadlineEnabled ?? this.homeworkDeadlineEnabled,
       homeworkMinutesBefore:
           homeworkMinutesBefore ?? this.homeworkMinutesBefore,
+      liveActivityEnabled: liveActivityEnabled ?? this.liveActivityEnabled,
     );
   }
 }
@@ -45,6 +49,7 @@ class CourseNotificationSettingsStore {
   static final instance = CourseNotificationSettingsStore._();
   static const _enabledKey = 'course_notification_enabled';
   static const _minutesKey = 'course_notification_minutes_before';
+  static const _liveActivityKey = 'course_live_activity_enabled';
   static const _messageEnabledKey = 'message_notification_enabled';
   static const _homeworkEnabledKey = 'homework_notification_enabled';
   static const _homeworkDeadlineEnabledKey =
@@ -61,6 +66,7 @@ class CourseNotificationSettingsStore {
     final prefs = await SharedPreferences.getInstance();
     settings.value = CourseNotificationSettings(
       enabled: prefs.getBool(_enabledKey) ?? false,
+      liveActivityEnabled: prefs.getBool(_liveActivityKey) ?? false,
       minutesBefore: _validMinutes(prefs.getInt(_minutesKey) ?? 15),
       messageEnabled: prefs.getBool(_messageEnabledKey) ?? false,
       homeworkEnabled: prefs.getBool(_homeworkEnabledKey) ?? false,
@@ -77,6 +83,7 @@ class CourseNotificationSettingsStore {
     settings.value = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_enabledKey, value.enabled);
+    await prefs.setBool(_liveActivityKey, value.liveActivityEnabled);
     await prefs.setInt(_minutesKey, _validMinutes(value.minutesBefore));
     await prefs.setBool(_messageEnabledKey, value.messageEnabled);
     await prefs.setBool(_homeworkEnabledKey, value.homeworkEnabled);

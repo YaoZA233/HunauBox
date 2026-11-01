@@ -126,9 +126,9 @@ class _SwipeablePanelState extends State<_SwipeableHomePanel> {
         PageView(
           controller: _controller,
           onPageChanged: (page) => setState(() => _currentPage = page),
-          children: const [
-            HomePage(),
-            BalanceOverviewPage(),
+          children: [
+            HomePage(isActive: _currentPage == 0),
+            BalanceOverviewPage(isActive: _currentPage == 1),
           ],
         ),
         // 底部页面指示点

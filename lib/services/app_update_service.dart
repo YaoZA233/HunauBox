@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum UpdateSource {
@@ -128,19 +129,24 @@ class AppUpdateException implements Exception {
 }
 
 class AppUpdateService {
-  AppUpdateService({Dio? dio, Future<Directory> Function()? documentsDirectory})
-    : _dio =
-          dio ??
-          Dio(
-            BaseOptions(
-              connectTimeout: const Duration(seconds: 12),
-              receiveTimeout: const Duration(seconds: 20),
-              followRedirects: false,
-              validateStatus: (status) => status != null && status < 500,
-            ),
-          ),
-      _documentsDirectory =
-          documentsDirectory ?? getApplicationDocumentsDirectory;
+  AppUpdateService({
+    Dio? dio,
+    Future<Directory> Function()? documentsDirectory,
+    Future<Directory?> Function()? publicDownloadsDirectory,
+  }) : _dio =
+           dio ??
+           Dio(
+             BaseOptions(
+               connectTimeout: const Duration(seconds: 12),
+               receiveTimeout: const Duration(seconds: 20),
+               followRedirects: false,
+               validateStatus: (status) => status != null && status < 500,
+             ),
+           ),
+       _documentsDirectory =
+           documentsDirectory ?? getApplicationDocumentsDirectory,
+       _publicDownloadsDirectory =
+           publicDownloadsDirectory ?? defaultPublicDownloadsDirectory;
 
   // Gitee 相关常量 (默认源)
   static const giteeRepositoryUrl = 'https://gitee.com/YaoZA233/HunauBox';
@@ -164,8 +170,39 @@ class AppUpdateService {
 
   static const _sourcePrefKey = 'app_update_channel_source';
 
+  /// Android 公共下载目录，用户可在文件管理器 Download 中找到安装包
+  static const androidPublicDownloadPath = '/storage/emulated/0/Download';
+
   final Dio _dio;
   final Future<Directory> Function() _documentsDirectory;
+  final Future<Directory?> Function() _publicDownloadsDirectory;
+
+  /// 返回可写的公共 Download 目录；不可用（非 Android / 无权限）时返回 null
+  static Future<Directory?> defaultPublicDownloadsDirectory() async {
+    if (!Platform.isAndroid) return null;
+    final directory = Directory(androidPublicDownloadPath);
+    if (await _isWritable(directory)) return directory;
+    try {
+      // Android 10 及以下写入公共目录需要存储权限，Android 11+ 探测已直接成功
+      final status = await Permission.storage.request();
+      if (status.isGranted && await _isWritable(directory)) return directory;
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<bool> _isWritable(Directory directory) async {
+    try {
+      if (!await directory.exists()) {
+        await directory.create(recursive: true);
+      }
+      final probe = File('${directory.path}/.hunau_box_write_probe');
+      await probe.writeAsString('probe');
+      await probe.delete();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// 获取用户设置的更新源，默认是 Gitee
   static Future<UpdateSource> getPreferredSource() async {
@@ -322,11 +359,10 @@ class AppUpdateService {
         '该版本尚未上传 APK 安装包，请前往 ${release.source.label} 发布页下载',
       );
     }
-    final directory = await _documentsDirectory();
-    final updateDirectory = Directory('${directory.path}/updates');
-    await updateDirectory.create(recursive: true);
+    final directory =
+        await _publicDownloadsDirectory() ?? await _fallbackUpdateDirectory();
     final safeName = asset.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
-    final file = File('${updateDirectory.path}/$safeName');
+    final file = File('${directory.path}/$safeName');
     try {
       await _dio.download(
         asset.downloadUrl,
@@ -353,5 +389,12 @@ class AppUpdateService {
       } catch (_) {}
       throw const AppUpdateException('安装包下载失败，请稍后重试');
     }
+  }
+
+  Future<Directory> _fallbackUpdateDirectory() async {
+    final directory = await _documentsDirectory();
+    final updateDirectory = Directory('${directory.path}/updates');
+    await updateDirectory.create(recursive: true);
+    return updateDirectory;
   }
 }

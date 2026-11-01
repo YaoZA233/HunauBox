@@ -55,7 +55,11 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends ConsumerState<HomePage> {
+class _HomePageState extends ConsumerState<HomePage>
+    with AutomaticKeepAliveClientMixin<HomePage> {
+  @override
+  bool get wantKeepAlive => true;
+
   final _quickActionStore = QuickActionStore.instance;
   final _authService = AuthService();
   bool _isLoggedIn = false;
@@ -363,6 +367,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final displayCourse = _currentCourse ?? _nextCourse;
     final colors = Theme.of(context).colorScheme;
 

@@ -3,6 +3,7 @@ import '../models/message_model.dart';
 import '../services/notice_service.dart';
 import '../services/app_logger.dart';
 import '../services/course_notification_service.dart';
+import '../services/unified_capsule_service.dart';
 
 class NoticeState {
   final List<MessageModel> messages;
@@ -69,6 +70,25 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
       );
       await CourseNotificationService.instance.notifyNewMessages(
         result.messages,
+      );
+      final capsule = UnifiedCapsuleService.instance;
+      final enabled = await capsule.loadEnabledTypes();
+      await capsule.patch(
+        enabledTypes: enabled,
+        messages: result.messages
+            .map(
+              (m) => MessageData(
+                id: m.uuid.isNotEmpty ? m.uuid : m.idCode,
+                title: m.title,
+                sender: m.createrName,
+                content: m.content,
+                time:
+                    DateTime.tryParse(m.sendTime)?.millisecondsSinceEpoch ??
+                    DateTime.now().millisecondsSinceEpoch,
+                read: m.isRead,
+              ),
+            )
+            .toList(),
       );
       _logger.i('Notice refreshed: ${result.messages.length} messages');
     } catch (e) {

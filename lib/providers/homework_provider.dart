@@ -7,6 +7,7 @@ import '../services/homework_storage.dart';
 import '../services/app_cookie_manager.dart';
 import '../services/secure_storage_helper.dart';
 import '../services/course_notification_service.dart';
+import '../services/unified_capsule_service.dart';
 
 final homeworkServiceProvider = Provider((ref) {
   final dio = Dio();
@@ -66,6 +67,24 @@ class HomeworkNotifier extends StateNotifier<AsyncValue<List<HomeworkModel>>> {
       state = AsyncValue.data(combined);
       await CourseNotificationService.instance.notifyNewHomework(
         scraped.where((item) => item.status == HomeworkStatus.pending).toList(),
+      );
+      final capsule = UnifiedCapsuleService.instance;
+      await capsule.patch(
+        enabledTypes: await capsule.loadEnabledTypes(),
+        homework: combined
+            .where(
+              (item) =>
+                  item.status == HomeworkStatus.pending && item.endTime != null,
+            )
+            .map(
+              (item) => HomeworkData(
+                id: item.id,
+                title: item.title,
+                course: item.courseName,
+                deadline: item.endTime!.millisecondsSinceEpoch,
+              ),
+            )
+            .toList(),
       );
       await CourseNotificationService.instance.rescheduleIfEnabled();
     } catch (e, st) {

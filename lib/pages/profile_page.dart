@@ -8,6 +8,7 @@ import '../services/agent_settings_store.dart';
 import '../services/agent_conversation_store.dart';
 import '../services/auth_service.dart';
 import '../services/electricity_service.dart';
+import '../services/campus_card_service.dart';
 import '../services/secure_storage_helper.dart';
 import 'about_page.dart';
 import 'help_feedback_page.dart';
@@ -36,6 +37,8 @@ class ProfilePage extends StatelessWidget {
     final agentSettings = container.read(agentSettingsProvider);
     final conversations = container.read(agentConversationsProvider);
     await AuthService.cancelPendingLogins();
+    await ElectricityService.instance.clearSession();
+    await CampusCardService.instance.clearSession();
     try {
       await agentSettings.clear();
     } catch (_) {
@@ -53,6 +56,7 @@ class ProfilePage extends StatelessWidget {
     }
     await storage.clearAll();
     await ElectricityService.instance.clearSavedRoom();
+    await ElectricityService.instance.clearSavedRoom(slot: 1);
     try {
       await AppCookieManager().clearAllCookies();
     } catch (_) {}

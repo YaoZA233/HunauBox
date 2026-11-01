@@ -1,15 +1,15 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart' as dio_cookie;
+import 'package:cookie_jar/cookie_jar.dart';
 import 'session_cookie_manager.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../models/app_constants.dart';
 import 'app_cookie_manager.dart';
 import 'app_logger.dart';
 import '../utils/dkyw_crypto.dart';
+import 'finance_cache_store.dart';
 
 enum PaymentMethod { wechat, alipay }
 
@@ -66,13 +66,18 @@ class CampusCardService {
     required Dio dio,
     String? openid,
     CampusCardInfo? cachedInfo,
-    required Future<String?> Function() authorize,
+    Future<String?> Function()? authorize,
     required Future<void> Function() clearSession,
+    CookieJar? cookieJar,
   }) : _authorizeOverride = authorize,
        _clearSessionOverride = clearSession {
     _dio = dio;
     _openid = openid;
     _cachedInfo = cachedInfo;
+    if (cookieJar != null) {
+      SessionCookieManager.install(_dio, cookieJar);
+      _cookiesReady = true;
+    }
   }
 
   CampusCardService._internal() {
@@ -100,6 +105,32 @@ class CampusCardService {
   Future<String?> Function()? _authorizeOverride;
   Future<void> Function()? _clearSessionOverride;
   bool _creatingWeChatOrder = false;
+  bool _creatingAlipayOrder = false;
+  Future<String?>? _authInProgress;
+  Future<CampusCardInfo>? _infoInProgress;
+  Future<Map<String, dynamic>>? _paymentCodeInProgress;
+  DateTime? infoUpdatedAt;
+  CampusCardInfo? _displayInfo;
+
+  Future<FinanceSnapshot?> getStoredCardInfo() =>
+      FinanceCacheStore.read('card');
+
+  /// Drain read requests before logout clears cookies and account credentials.
+  Future<void> clearSession() async {
+    try {
+      await _infoInProgress;
+    } catch (_) {}
+    try {
+      await _authInProgress;
+    } catch (_) {}
+    try {
+      await _paymentCodeInProgress;
+    } catch (_) {}
+    _openid = null;
+    _cachedInfo = null;
+    _displayInfo = null;
+    infoUpdatedAt = null;
+  }
 
   bool _cookiesReady = false;
 
@@ -118,85 +149,112 @@ class CampusCardService {
       return;
     }
     await AppCookieManager().initialize();
-    await AppCookieManager().dioCookieJar.delete(
-      Uri.parse('https://fin-serv.hunau.edu.cn'),
+    await SessionCookieManager.clearHostCookies(
+      AppCookieManager().dioCookieJar,
+      [Uri.parse('https://fin-serv.hunau.edu.cn')],
     );
   }
 
   Future<String?> authenticate() async {
+    if (_authInProgress != null) return _authInProgress!;
+    final future = _authenticateHttp();
+    _authInProgress = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_authInProgress, future)) _authInProgress = null;
+    }
+  }
+
+  Future<void> _ensureDioReady() async {
+    if (_cookiesReady || _authorizeOverride != null) return;
+    await AppCookieManager().initialize();
+    SessionCookieManager.install(_dio, AppCookieManager().dioCookieJar);
+    _cookiesReady = true;
+  }
+
+  Future<String?> _authenticateHttp() async {
     if (_authorizeOverride != null) {
       return _openid = await _authorizeOverride!();
     }
-    if (!_cookiesReady) {
-      await AppCookieManager().initialize();
-      if (_dio.interceptors.whereType<dio_cookie.CookieManager>().isEmpty) {
-        _dio.interceptors.add(
-          SessionCookieManager(AppCookieManager().dioCookieJar),
-        );
-      }
-      _cookiesReady = true;
-    }
-    _logger.i('🚀 Starting background authentication for Campus Card...');
-
-    final completer = Completer<String?>();
-    HeadlessInAppWebView? webView;
-
+    await _ensureDioReady();
+    final deadline = DateTime.now().add(const Duration(seconds: 25));
+    var url = Uri.parse(AppConstants.campusCardUrl);
+    final cancelToken = CancelToken();
+    String? referer;
     try {
-      webView = HeadlessInAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri(AppConstants.campusCardUrl)),
-        initialSettings: InAppWebViewSettings(
-          javaScriptEnabled: true,
-          domStorageEnabled: true,
-          userAgent: AppConstants.campusCardUA,
-          loadsImagesAutomatically: false,
-        ),
-        onLoadStart: (controller, url) async {
-          final urlString = url?.toString() ?? '';
-          _logger.d('🔗 OAuth LoadStart: $urlString');
-
-          // 不能在导航开始时完成授权：目标页的会话 Cookie 尚未写入。
-        },
-        onLoadStop: (controller, url) async {
-          final urlString = url?.toString() ?? '';
-          _logger.d('🏁 OAuth LoadStop: $urlString');
-
-          final uri = Uri.tryParse(urlString);
-          if (uri?.host == 'fin-serv.hunau.edu.cn' &&
-              uri?.path == '/homeCX/openHomePage') {
-            final id = uri!.queryParameters['openid'];
-            if (id != null && id.isNotEmpty && !completer.isCompleted) {
-              await AppCookieManager().syncMultiDomainCookiesFromWebView(
-                urlString,
-              );
-              if (!completer.isCompleted) {
-                _openid = id;
-                completer.complete(id);
-              }
-            }
-          }
-        },
-      );
-
-      await webView.run();
-
-      final result = await completer.future.timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          _logger.e('❌ Campus Card Authentication timeout');
-          return null;
-        },
-      );
-
-      return result;
+      for (var step = 0; step < 10; step++) {
+        final remaining = deadline.difference(DateTime.now());
+        if (remaining <= Duration.zero) throw TimeoutException('财务授权超时');
+        final started = Stopwatch()..start();
+        final response = await _dio
+            .getUri(
+              url,
+              cancelToken: cancelToken,
+              options: Options(
+                followRedirects: false,
+                responseType: ResponseType.plain,
+                receiveTimeout: remaining,
+                headers: {
+                  'User-Agent': AppConstants.campusCardUA,
+                  'Referer': ?referer,
+                },
+              ),
+            )
+            .timeout(
+              remaining,
+              onTimeout: () {
+                cancelToken.cancel('财务授权超时');
+                throw TimeoutException('财务授权超时');
+              },
+            );
+        _logger.d(
+          '财务授权 $step ${url.host}${url.path}: '
+          '${response.statusCode}, ${started.elapsedMilliseconds}ms',
+        );
+        if (_isInvalidSessionPage(response)) return null;
+        final status = response.statusCode ?? 0;
+        final location = response.headers.value('location');
+        if (status >= 300 && status < 400 && location != null) {
+          final next = url.resolve(location);
+          if (!['http', 'https'].contains(next.scheme)) return null;
+          referer = url.toString();
+          url = next;
+          continue;
+        }
+        // Only accept the completed financial homepage, after its Cookie save.
+        if (status == 200 &&
+            url.host == 'fin-serv.hunau.edu.cn' &&
+            url.path.toLowerCase() == '/homecx/openhomepage') {
+          final id = url.queryParameters['openid'];
+          if (id != null && id.isNotEmpty) return _openid = id;
+        }
+        return null;
+      }
+      return null;
     } catch (e) {
-      _logger.e('❌ Campus Card Authentication failed: $e');
+      _logger.w('财务 HTTP 授权失败 (${e.runtimeType})');
       return null;
     } finally {
-      webView?.dispose();
+      if (!cancelToken.isCancelled) cancelToken.cancel('授权流程已结束');
     }
   }
 
   Future<Map<String, dynamic>> fetchPaymentCode({bool isRetry = false}) async {
+    if (_paymentCodeInProgress != null) return _paymentCodeInProgress!;
+    final future = _fetchPaymentCode(isRetry: isRetry);
+    _paymentCodeInProgress = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_paymentCodeInProgress, future)) {
+        _paymentCodeInProgress = null;
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchPaymentCode({bool isRetry = false}) async {
+    await _ensureDioReady();
     if (_openid == null) {
       final authResult = await authenticate();
       if (authResult == null) throw Exception('授权失败，无法获取付款码');
@@ -222,13 +280,14 @@ class CampusCardService {
       if (response.statusCode == 200 && response.data != null) {
         final html = response.data.toString();
 
-        if ((html.contains('cas/login') || html.contains('统一身份认证')) &&
-            !html.contains('id="qrcode"')) {
+        if (_isInvalidSessionPage(response)) {
           _logger.w('⚠️ Session expired detected in fetchPaymentCode');
           if (!isRetry) {
-            _openid = null;
-            return fetchPaymentCode(isRetry: true);
+            await invalidateSession();
+            return _fetchPaymentCode(isRetry: true);
           }
+          await invalidateSession();
+          throw _CampusCardSessionExpired();
         }
 
         final qrMatch = RegExp(
@@ -256,10 +315,6 @@ class CampusCardService {
 
         if (qrBase64 == null || paycode == null) {
           _logger.e('❌ Failed to parse QR code or paycode from HTML');
-          if (!isRetry) {
-            _openid = null;
-            return fetchPaymentCode(isRetry: true);
-          }
           throw Exception('解析付款码页面失败');
         }
 
@@ -274,23 +329,53 @@ class CampusCardService {
       throw Exception('网络请求失败: ${response.statusCode}');
     } catch (e) {
       _logger.e('❌ fetchPaymentCode error: $e');
-      if (!isRetry && e.toString().contains('Exception')) {
-        _logger.i('🔄 Retrying fetchPaymentCode due to error...');
-        _openid = null;
-        return fetchPaymentCode(isRetry: true);
-      }
       rethrow;
     }
   }
 
   Future<CampusCardInfo> fetchRechargeInfo({bool isRetry = false}) async {
+    if (_infoInProgress != null) return _infoInProgress!;
+    final future = _refreshInfo(isRetry: isRetry);
+    _infoInProgress = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_infoInProgress, future)) _infoInProgress = null;
+    }
+  }
+
+  Future<CampusCardInfo> _refreshInfo({bool isRetry = false}) async {
+    final owner = await FinanceCacheStore.account();
+    final elapsed = Stopwatch()..start();
+    try {
+      final info = await _fetchRechargeInfo(isRetry: isRetry);
+      infoUpdatedAt = DateTime.now();
+      _displayInfo = info;
+      await FinanceCacheStore.write(owner, 'card', {
+        'name': info.name,
+        'idserial': info.idserial,
+        'balance': info.balance,
+      }, infoUpdatedAt!);
+      return info;
+    } catch (e) {
+      _logger.w('校园卡余额更新失败 (${e.runtimeType})');
+      rethrow;
+    } finally {
+      _logger.d('校园卡余额查询耗时 ${elapsed.elapsedMilliseconds}ms');
+    }
+  }
+
+  CampusCardInfo? get displayInfo => _displayInfo ?? _cachedInfo;
+
+  Future<CampusCardInfo> _fetchRechargeInfo({bool isRetry = false}) async {
+    await _ensureDioReady();
     if (_openid == null) {
       final authResult = await authenticate();
       if (authResult == null) throw Exception('授权失败');
     }
 
     final url =
-        'https://fin-serv.hunau.edu.cn/cardpay/openCardPay?openid=$_openid&displayflag=1&id=28';
+        'https://fin-serv.hunau.edu.cn/virtualcard/openVirtualcard?openid=$_openid&displayflag=1&id=27';
 
     try {
       final response = await _dio.get(
@@ -308,7 +393,7 @@ class CampusCardService {
         _logger.w('⚠️ Session expired detected in fetchRechargeInfo');
         if (!isRetry) {
           await invalidateSession();
-          return fetchRechargeInfo(isRetry: true);
+          return _fetchRechargeInfo(isRetry: true);
         }
         await invalidateSession();
         throw Exception('财务平台会话失效，请重新登录后重试');
@@ -332,28 +417,26 @@ class CampusCardService {
         }
 
         if (_cachedInfo == null) {
-          _logger.w('⚠️ Balance still missing, trying openHomePage...');
+          _logger.d('付款码页无卡片信息，尝试充值页');
           final homeResponse = await _dio.get(
-            'https://fin-serv.hunau.edu.cn/homeCX/openHomePage?openid=$_openid&usertype=2',
+            'https://fin-serv.hunau.edu.cn/cardpay/openCardPay?openid=$_openid&displayflag=1&id=28',
             options: Options(
               headers: {'User-Agent': AppConstants.campusCardUA},
             ),
           );
+          if (_isInvalidSessionPage(homeResponse)) {
+            throw _CampusCardSessionExpired();
+          }
           if (homeResponse.data != null) {
+            final text = RegExp(
+              r'<p class="bdb">(.*?)<\/p>',
+            ).firstMatch(homeResponse.data.toString())?.group(1);
+            if (text != null) _parseAndCacheInfo(text);
             _deepScanInfo(homeResponse.data.toString());
           }
         }
 
         if (_cachedInfo == null) {
-          _logger.w('⚠️ Trying openVirtualcard as last resort...');
-          await fetchPaymentCode(isRetry: isRetry);
-        }
-
-        if (_cachedInfo == null) {
-          if (!isRetry) {
-            _openid = null;
-            return fetchRechargeInfo(isRetry: true);
-          }
           throw Exception('无法获取卡片信息');
         }
 
@@ -362,59 +445,51 @@ class CampusCardService {
       throw Exception('网络请求失败: ${response.statusCode}');
     } catch (e) {
       _logger.e('❌ fetchRechargeInfo error: $e');
-      if (!isRetry) {
-        _openid = null;
-        return fetchRechargeInfo(isRetry: true);
+      if (!isRetry && e is _CampusCardSessionExpired) {
+        await invalidateSession();
+        return _fetchRechargeInfo(isRetry: true);
       }
       rethrow;
     }
   }
 
   Future<String> getAlipayForm(double amount) async {
-    if (amount < 1 || amount > 1000 || amount != amount.roundToDouble()) {
+    if (!amount.isFinite ||
+        amount < 1 ||
+        amount > 1000 ||
+        amount != amount.roundToDouble()) {
       throw Exception('充值金额必须是 1–1000 元的整数');
     }
-    if (_openid == null || _cachedInfo == null) {
-      await fetchRechargeInfo();
-    }
-
-    const url = 'https://fin-serv.hunau.edu.cn/alipay/transferFromAlipay2Card';
-    _logger.i(
-      '📡 [校园卡支付] 请求支付宝表单，amount=${amount.toStringAsFixed(0)}, openid=$_openid, idserial=${_cachedInfo?.idserial}',
-    );
-
+    if (_creatingAlipayOrder) throw Exception('充值订单正在创建，请勿重复提交');
+    _creatingAlipayOrder = true;
     try {
-      final response = await _dio.post(
-        url,
-        data: {
-          'txamt': amount.toStringAsFixed(0),
-          'payWay': '4',
-          'openid': _openid,
-          'idserial': _cachedInfo!.idserial,
-          'username': _cachedInfo!.name,
-          'disableidserialstart': '88,89',
-        },
-        options: Options(
-          contentType: Headers.formUrlEncodedContentType,
-          headers: {
-            'User-Agent': AppConstants.campusCardUA,
-            'Referer':
-                'https://fin-serv.hunau.edu.cn/cardpay/openCardPay?openid=$_openid&displayflag=1&id=28',
-          },
-        ),
-      );
-
-      if (response.statusCode == 200 && response.data != null) {
-        final html = response.data.toString();
-        _logger.i(
-          '📄 [校园卡支付] 表单响应长度=${html.length}, containsAlipayScheme=${html.contains('alipays://') || html.contains('alipay://')}',
-        );
-        return html;
+      final info = await fetchRechargeInfo();
+      try {
+        await _postCardPayJson('/myaccount/userlastbind', {
+          'payinfo': {'cardpayWay': '4'},
+          'idserial': info.idserial,
+        });
+      } on _CampusCardSessionExpired {
+        rethrow;
+      } catch (_) {
+        _logger.w('记录支付方式失败，继续请求支付宝订单');
       }
-      throw Exception('充值请求失败: ${response.statusCode}');
-    } catch (e) {
-      _logger.e('❌ getAlipayForm error: $e');
-      rethrow;
+      final data = await _postCardPayJson('/alipay/transferFromAlipay2Card', {
+        'txamt': amount.toStringAsFixed(0),
+        'payWay': '4',
+        'openid': _openid,
+        'idserial': info.idserial,
+      });
+      final result = data['resultData'];
+      if (data['success']?.toString() == 'true' && result is Map) {
+        final html = result['htmlpost']?.toString();
+        if (html != null && html.trim().isNotEmpty) return html;
+      }
+      throw Exception(data['message'] ?? data['msg'] ?? '未取得支付宝订单，请先查看充值记录');
+    } on DioException {
+      throw Exception('充值请求未能确认，请先查看充值记录，勿重复支付');
+    } finally {
+      _creatingAlipayOrder = false;
     }
   }
 
@@ -438,7 +513,7 @@ class CampusCardService {
       }
       // 记录本次支付方式；此接口失败不影响后续下单。
       try {
-        await _postWeChatJson('/myaccount/userlastbind', {
+        await _postCardPayJson('/myaccount/userlastbind', {
           'payinfo': {'cardpayWay': '1'},
           'idserial': info.idserial,
         });
@@ -449,7 +524,7 @@ class CampusCardService {
       }
 
       // 下单 POST 不自动重试：超时可能发生在服务端已创建订单之后。
-      final data = await _postWeChatJson('/wxpay/transferFromWx2Card', {
+      final data = await _postCardPayJson('/wxpay/transferFromWx2Card', {
         'txamt': amount.toStringAsFixed(0),
         'payWay': '1',
         'openid': _openid,
@@ -501,7 +576,7 @@ class CampusCardService {
     }
   }
 
-  Future<Map<String, dynamic>> _postWeChatJson(
+  Future<Map<String, dynamic>> _postCardPayJson(
     String path,
     Map<String, dynamic> payload,
   ) async {
@@ -527,16 +602,16 @@ class CampusCardService {
       throw _CampusCardSessionExpired();
     }
     if (response.statusCode != 200) {
-      throw Exception('微信充值接口请求失败（HTTP ${response.statusCode}），请先确认充值记录');
+      throw Exception('充值接口请求失败（HTTP ${response.statusCode}），请先确认充值记录');
     }
     dynamic decoded;
     try {
       decoded = DkywCrypto.decryptServerResponse(response.data);
     } catch (_) {
-      throw Exception('微信充值接口响应解密失败，请先确认充值记录再重试');
+      throw Exception('充值接口响应解密失败，请先确认充值记录再重试');
     }
     if (decoded is! Map) {
-      throw Exception('微信充值接口返回格式异常，请先确认充值记录再重试');
+      throw Exception('充值接口返回格式异常，请先确认充值记录再重试');
     }
     return Map<String, dynamic>.from(decoded);
   }

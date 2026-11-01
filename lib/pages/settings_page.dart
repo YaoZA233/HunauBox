@@ -19,6 +19,7 @@ import '../providers/motion_provider.dart';
 import 'motion_settings_page.dart';
 import '../providers/weather_provider.dart';
 import 'weather_settings_page.dart';
+import 'capsule_notifications_settings_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -389,6 +390,21 @@ class _SettingsPageState extends State<SettingsPage> {
                   builder: (context, settings, _) {
                     return Column(
                       children: [
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(
+                            Icons.notifications_active_rounded,
+                          ),
+                          title: const Text('通知与课程实况'),
+                          subtitle: const Text('课程、作业、校园通知与荣耀胶囊统一设置'),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  const CapsuleNotificationsSettingsPage(),
+                            ),
+                          ),
+                        ),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           title: const Text('下一节课提醒'),

@@ -12,6 +12,7 @@ import 'course_notification_settings_store.dart';
 import 'course_schedule_service.dart';
 import 'homework_storage.dart';
 import 'timetable_storage.dart';
+import 'live_course_service.dart';
 
 class CourseNotificationService with WidgetsBindingObserver {
   CourseNotificationService._();
@@ -24,7 +25,8 @@ class CourseNotificationService with WidgetsBindingObserver {
   static const _homeworkNotificationStartId = 1001;
   static const _seenMessagesKey = 'notification_seen_message_ids';
   static const _seenHomeworkKey = 'notification_seen_homework_ids';
-  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
   final Map<int, Timer> _foregroundTimers = <int, Timer>{};
   final Logger _logger = Logger();
   bool _initialized = false;
@@ -40,10 +42,15 @@ class CourseNotificationService with WidgetsBindingObserver {
     tz.setLocalLocation(tz.getLocation('Asia/Shanghai'));
     const settings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      iOS: DarwinInitializationSettings(requestAlertPermission: false, requestBadgePermission: false, requestSoundPermission: false),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
     );
     await _notifications.initialize(settings: settings);
-    _isForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _isForeground =
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     if (!_observerRegistered) {
       WidgetsBinding.instance.addObserver(this);
       _observerRegistered = true;
@@ -56,15 +63,21 @@ class CourseNotificationService with WidgetsBindingObserver {
     final foreground = state == AppLifecycleState.resumed;
     if (_isForeground == foreground) return;
     _isForeground = foreground;
-    _logger.i('App lifecycle changed: ${foreground ? "foreground" : "background"}');
+    _logger.i(
+      'App lifecycle changed: ${foreground ? "foreground" : "background"}',
+    );
 
     // 避免频繁重新调度：只在必要时重新调度
     // 从后台返回前台时，检查是否需要重新调度
     if (foreground) {
+      unawaited(LiveCourseService.instance.sync());
       final now = DateTime.now();
       // 如果上次调度超过30分钟或从未调度过，则重新调度
-      if (_lastReschedule == null || now.difference(_lastReschedule!) > const Duration(minutes: 30)) {
-        _logger.i('Rescheduling notifications on foreground (last schedule: $_lastReschedule)');
+      if (_lastReschedule == null ||
+          now.difference(_lastReschedule!) > const Duration(minutes: 30)) {
+        _logger.i(
+          'Rescheduling notifications on foreground (last schedule: $_lastReschedule)',
+        );
         unawaited(rescheduleIfEnabled());
       }
     }
@@ -73,7 +86,10 @@ class CourseNotificationService with WidgetsBindingObserver {
   Future<bool> requestPermission() async {
     await initialize();
     _logger.i('Requesting notification permissions');
-    final android = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final android = _notifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
 
     // 先请求精确闹钟权限（Android 12+必需）
     if (android != null) {
@@ -81,7 +97,8 @@ class CourseNotificationService with WidgetsBindingObserver {
       _logger.i('Exact alarm permission: $exactAlarmPermission');
 
       // 再请求通知权限
-      final notificationPermission = await android.requestNotificationsPermission();
+      final notificationPermission = await android
+          .requestNotificationsPermission();
       _logger.i('Notification permission: $notificationPermission');
 
       if (notificationPermission == true) {
@@ -89,9 +106,16 @@ class CourseNotificationService with WidgetsBindingObserver {
       }
     }
 
-    final ios = _notifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+    final ios = _notifications
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
     if (ios != null) {
-      final iosGranted = await ios.requestPermissions(alert: true, badge: true, sound: true);
+      final iosGranted = await ios.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
       _logger.i('iOS permission: $iosGranted');
       return iosGranted ?? false;
     }
@@ -111,7 +135,10 @@ class CourseNotificationService with WidgetsBindingObserver {
         final store = CourseNotificationSettingsStore.instance;
         await store.load();
         final settings = store.settings.value;
-        _logger.i('Reschedule: course=${settings.enabled}, homework=${settings.homeworkDeadlineEnabled}');
+        await LiveCourseService.instance.sync();
+        _logger.i(
+          'Reschedule: course=${settings.enabled}, homework=${settings.homeworkDeadlineEnabled}',
+        );
 
         if (!settings.enabled && !settings.homeworkDeadlineEnabled) {
           await initialize();
@@ -132,7 +159,12 @@ class CourseNotificationService with WidgetsBindingObserver {
     return _enqueueSchedule(() async {
       final store = CourseNotificationSettingsStore.instance;
       await store.load();
-      await _rescheduleInternal(store.settings.value.copyWith(minutesBefore: _validMinutes(minutesBefore)));
+      await _rescheduleInternal(
+        store.settings.value.copyWith(
+          minutesBefore: _validMinutes(minutesBefore),
+        ),
+      );
+      await LiveCourseService.instance.sync();
     });
   }
 
@@ -159,11 +191,15 @@ class CourseNotificationService with WidgetsBindingObserver {
     }
 
     if (settings.homeworkDeadlineEnabled) {
-      homeworkCount = await _scheduleHomeworkDeadlineReminders(settings.homeworkMinutesBefore);
+      homeworkCount = await _scheduleHomeworkDeadlineReminders(
+        settings.homeworkMinutesBefore,
+      );
       _logger.i('Scheduled $homeworkCount homework deadline reminders');
     }
 
-    _logger.i('Reschedule complete: $courseCount courses, $homeworkCount homework');
+    _logger.i(
+      'Reschedule complete: $courseCount courses, $homeworkCount homework',
+    );
   }
 
   Future<int> _scheduleCourseReminders(int minutesBefore) async {
@@ -199,7 +235,9 @@ class CourseNotificationService with WidgetsBindingObserver {
       final at = occurrence.start.subtract(Duration(minutes: minutesBefore));
       if (!at.isAfter(now)) continue;
 
-      final classroom = occurrence.course.classroom.trim().isEmpty ? '待定教室' : occurrence.course.classroom;
+      final classroom = occurrence.course.classroom.trim().isEmpty
+          ? '待定教室'
+          : occurrence.course.classroom;
       final success = await _scheduleNotification(
         id: id++,
         title: '下一节课：${occurrence.course.name}',
@@ -229,7 +267,8 @@ class CourseNotificationService with WidgetsBindingObserver {
   }
 
   Future<int> _scheduleHomeworkDeadlineReminders(int minutesBefore) async {
-    final homework = await HomeworkStorage().readHomeworkList() ?? const <HomeworkModel>[];
+    final homework =
+        await HomeworkStorage().readHomeworkList() ?? const <HomeworkModel>[];
     final now = DateTime.now();
     var id = _homeworkNotificationStartId;
     var scheduledCount = 0;
@@ -241,7 +280,9 @@ class CourseNotificationService with WidgetsBindingObserver {
       final at = deadline.subtract(Duration(minutes: minutesBefore));
       if (!at.isAfter(now)) continue;
 
-      final subject = item.courseName.trim().isEmpty ? item.title : '${item.courseName}：${item.title}';
+      final subject = item.courseName.trim().isEmpty
+          ? item.title
+          : '${item.courseName}：${item.title}';
       final success = await _scheduleNotification(
         id: id++,
         title: '作业截止提醒',
@@ -264,7 +305,9 @@ class CourseNotificationService with WidgetsBindingObserver {
       );
 
       if (success) scheduledCount++;
-      if (id >= _homeworkNotificationStartId + _maxScheduledNotifications) break;
+      if (id >= _homeworkNotificationStartId + _maxScheduledNotifications) {
+        break;
+      }
     }
 
     return scheduledCount;
@@ -283,7 +326,9 @@ class CourseNotificationService with WidgetsBindingObserver {
       return false;
     }
 
-    _logger.d('Scheduling notification $id: "$title" at $scheduledAt (in ${delay.inMinutes}m)');
+    _logger.d(
+      'Scheduling notification $id: "$title" at $scheduledAt (in ${delay.inMinutes}m)',
+    );
 
     // 使用混合策略：
     // 1. 近期通知（6小时内）：使用Timer（前台时）+ 系统调度器（后台保障）
@@ -305,7 +350,11 @@ class CourseNotificationService with WidgetsBindingObserver {
           );
           _logger.i('Notification $id shown successfully');
         } catch (e, stack) {
-          _logger.e('Failed to show notification $id', error: e, stackTrace: stack);
+          _logger.e(
+            'Failed to show notification $id',
+            error: e,
+            stackTrace: stack,
+          );
         }
       });
     }
@@ -325,7 +374,9 @@ class CourseNotificationService with WidgetsBindingObserver {
       _logger.d('Notification $id scheduled with exactAllowWhileIdle');
       return true;
     } catch (e) {
-      _logger.w('exactAllowWhileIdle failed for notification $id, trying inexact: $e');
+      _logger.w(
+        'exactAllowWhileIdle failed for notification $id, trying inexact: $e',
+      );
       try {
         // 降级到非精确模式
         await _notifications.zonedSchedule(
@@ -336,47 +387,137 @@ class CourseNotificationService with WidgetsBindingObserver {
           notificationDetails: notificationDetails,
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         );
-        _logger.w('Notification $id scheduled with inexactAllowWhileIdle (may be delayed)');
+        _logger.w(
+          'Notification $id scheduled with inexactAllowWhileIdle (may be delayed)',
+        );
         return true;
       } catch (e2, stack) {
-        _logger.e('Failed to schedule notification $id', error: e2, stackTrace: stack);
+        _logger.e(
+          'Failed to schedule notification $id',
+          error: e2,
+          stackTrace: stack,
+        );
         return false;
       }
     }
   }
 
-  Future<void> notifyNewMessages(List<MessageModel> messages) async => _notifyNewItems(ids: messages.map(_messageId).toList(), titleFor: (_) => '新校园通知', bodyFor: (i) => messages[i].title, preference: (s) => s.messageEnabled, seenKey: _seenMessagesKey, channelId: _messageChannelId, channelName: '消息通知');
+  Future<void> notifyNewMessages(List<MessageModel> messages) async =>
+      _notifyNewItems(
+        ids: messages.map(_messageId).toList(),
+        titleFor: (_) => '新校园通知',
+        bodyFor: (i) => messages[i].title,
+        preference: (s) => s.messageEnabled,
+        seenKey: _seenMessagesKey,
+        channelId: _messageChannelId,
+        channelName: '消息通知',
+      );
 
-  Future<void> notifyNewHomework(List<HomeworkModel> homework) async => _notifyNewItems(ids: homework.map((item) => item.id).toList(), titleFor: (_) => '新作业提醒', bodyFor: (i) { final item = homework[i]; return item.courseName.isEmpty ? item.title : '${item.courseName}：${item.title}'; }, preference: (s) => s.homeworkEnabled, seenKey: _seenHomeworkKey, channelId: _homeworkChannelId, channelName: '作业通知');
+  Future<void> notifyNewHomework(List<HomeworkModel> homework) async =>
+      _notifyNewItems(
+        ids: homework.map((item) => item.id).toList(),
+        titleFor: (_) => '新作业提醒',
+        bodyFor: (i) {
+          final item = homework[i];
+          return item.courseName.isEmpty
+              ? item.title
+              : '${item.courseName}：${item.title}';
+        },
+        preference: (s) => s.homeworkEnabled,
+        seenKey: _seenHomeworkKey,
+        channelId: _homeworkChannelId,
+        channelName: '作业通知',
+      );
 
-  Future<void> _notifyNewItems({required List<String> ids, required String Function(int) titleFor, required String Function(int) bodyFor, required bool Function(CourseNotificationSettings) preference, required String seenKey, required String channelId, required String channelName}) async {
+  Future<void> _notifyNewItems({
+    required List<String> ids,
+    required String Function(int) titleFor,
+    required String Function(int) bodyFor,
+    required bool Function(CourseNotificationSettings) preference,
+    required String seenKey,
+    required String channelId,
+    required String channelName,
+  }) async {
     await initialize();
     final store = CourseNotificationSettingsStore.instance;
     await store.load();
     final prefs = await SharedPreferences.getInstance();
     final previous = prefs.getStringList(seenKey);
     final clean = ids.where((id) => id.isNotEmpty).toSet().toList();
-    if (previous == null) { await prefs.setStringList(seenKey, clean); return; }
+    if (previous == null) {
+      await prefs.setStringList(seenKey, clean);
+      return;
+    }
     final indexes = <int>[];
-    for (var i = 0; i < ids.length; i++) { if (ids[i].isNotEmpty && !previous.contains(ids[i])) indexes.add(i); }
+    for (var i = 0; i < ids.length; i++) {
+      if (ids[i].isNotEmpty && !previous.contains(ids[i])) indexes.add(i);
+    }
     final seen = <String>{...previous, ...clean}.toList();
     if (seen.length > 500) seen.removeRange(0, seen.length - 500);
     await prefs.setStringList(seenKey, seen);
     if (!preference(store.settings.value)) return;
     for (final (position, index) in indexes.take(3).indexed) {
-      await _notifications.show(id: (DateTime.now().millisecondsSinceEpoch + position).remainder(1 << 31), title: titleFor(index), body: bodyFor(index), notificationDetails: NotificationDetails(android: AndroidNotificationDetails(channelId, channelName, channelDescription: channelName, importance: Importance.defaultImportance, priority: Priority.defaultPriority), iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true)));
+      await _notifications.show(
+        id: (DateTime.now().millisecondsSinceEpoch + position).remainder(
+          1 << 31,
+        ),
+        title: titleFor(index),
+        body: bodyFor(index),
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            channelId,
+            channelName,
+            channelDescription: channelName,
+            importance: Importance.defaultImportance,
+            priority: Priority.defaultPriority,
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+      );
     }
   }
 
-  String _messageId(MessageModel message) => message.uuid.isNotEmpty ? message.uuid : (message.idCode.isNotEmpty ? message.idCode : '${message.title}|${message.sendTime}');
+  String _messageId(MessageModel message) => message.uuid.isNotEmpty
+      ? message.uuid
+      : (message.idCode.isNotEmpty
+            ? message.idCode
+            : '${message.title}|${message.sendTime}');
 
   Future<void> _cancelScheduledNotifications() async {
-    for (var id = 1; id <= _maxScheduledNotifications; id++) await _notifications.cancel(id: id);
-    for (var id = _homeworkNotificationStartId; id < _homeworkNotificationStartId + _maxScheduledNotifications; id++) await _notifications.cancel(id: id);
+    for (var id = 1; id <= _maxScheduledNotifications; id++) {
+      await _notifications.cancel(id: id);
+    }
+    for (
+      var id = _homeworkNotificationStartId;
+      id < _homeworkNotificationStartId + _maxScheduledNotifications;
+      id++
+    ) {
+      await _notifications.cancel(id: id);
+    }
   }
 
-  void _cancelForegroundTimers() { for (final timer in _foregroundTimers.values) timer.cancel(); _foregroundTimers.clear(); }
-  Future<void> _enqueueSchedule(Future<void> Function() action) { final next = _scheduleOperation.then((_) => action()); _scheduleOperation = next.catchError((_) {}); return next; }
-  static int _validMinutes(int value) => const [10, 15, 20, 30].contains(value) ? value : 15;
-  static String _formatDateTime(DateTime value) { final v = value.toLocal(); String two(int n) => n.toString().padLeft(2, '0'); return '${v.month}月${v.day}日 ${two(v.hour)}:${two(v.minute)}'; }
+  void _cancelForegroundTimers() {
+    for (final timer in _foregroundTimers.values) {
+      timer.cancel();
+    }
+    _foregroundTimers.clear();
+  }
+
+  Future<void> _enqueueSchedule(Future<void> Function() action) {
+    final next = _scheduleOperation.then((_) => action());
+    _scheduleOperation = next.catchError((_) {});
+    return next;
+  }
+
+  static int _validMinutes(int value) =>
+      const [10, 15, 20, 30].contains(value) ? value : 15;
+  static String _formatDateTime(DateTime value) {
+    final v = value.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${v.month}月${v.day}日 ${two(v.hour)}:${two(v.minute)}';
+  }
 }

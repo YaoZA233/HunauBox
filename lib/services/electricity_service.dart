@@ -11,10 +11,20 @@ import '../utils/dkyw_crypto.dart';
 import 'app_cookie_manager.dart';
 import 'app_logger.dart';
 import 'campus_card_service.dart';
+import 'finance_cache_store.dart';
 
 class ElectricityService {
+  ElectricityService.forTesting({
+    required Dio dio,
+    required CampusCardService card,
+  }) : _dio = dio,
+       _cardOverride = card {
+    _cookiesReady = true;
+  }
+
   ElectricityService._internal()
-    : _dio = Dio(
+    : _cardOverride = null,
+      _dio = Dio(
         BaseOptions(
           connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 20),
@@ -29,12 +39,41 @@ class ElectricityService {
   static const _baseUrl = 'https://fin-serv.hunau.edu.cn';
   static const _factoryCode = 'E013';
   static const _savedRoomKey = 'saved_electricity_room';
+  static const _secondSavedRoomKey = 'saved_electricity_room_2';
+
+  static String _savedRoomKeyForSlot(int slot) {
+    assert(slot >= 0 && slot <= 1);
+    return slot == 0 ? _savedRoomKey : _secondSavedRoomKey;
+  }
 
   final _logger = AppLogger.instance;
   final Dio _dio;
+  final CampusCardService? _cardOverride;
   bool _cookiesReady = false;
+  Future<String>? _authInProgress;
+  String? _sessionOpenid;
+  bool _recharging = false;
+  final _balanceRequests = <String, Future<ElectricityBalanceInfo>>{};
 
-  CampusCardService get _cardService => CampusCardService.instance;
+  static String balanceCacheKey(SavedElectricityRoom room) =>
+      'electricity:${Uri.encodeComponent(jsonEncode(room.toJson()..remove('roomName')))}';
+
+  Future<void> clearSession() async {
+    try {
+      await _authInProgress;
+    } catch (_) {}
+    await Future.wait(
+      _balanceRequests.values.map((f) async {
+        try {
+          await f;
+        } catch (_) {}
+      }),
+    );
+    _sessionOpenid = null;
+  }
+
+  CampusCardService get _cardService =>
+      _cardOverride ?? CampusCardService.instance;
 
   Future<void> _ensureDioReady() async {
     if (_cookiesReady) return;
@@ -48,6 +87,17 @@ class ElectricityService {
   }
 
   Future<String> _ensureAuthenticated({bool force = false}) async {
+    if (_authInProgress != null) return _authInProgress!;
+    final future = _authenticate(force: force);
+    _authInProgress = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_authInProgress, future)) _authInProgress = null;
+    }
+  }
+
+  Future<String> _authenticate({bool force = false}) async {
     await _ensureDioReady();
     if (force) await _cardService.invalidateSession();
     if (_cardService.openid == null || _cardService.cachedInfo == null) {
@@ -56,13 +106,18 @@ class ElectricityService {
 
     final openid = _cardService.openid;
     if (openid == null || openid.isEmpty) throw Exception('电费服务授权失败');
+    if (!force && _sessionOpenid == openid) return openid;
 
     try {
-      await _dio.get(
+      final response = await _dio.get(
         '$_baseUrl/elepay/openElePay',
         queryParameters: {'openid': openid, 'displayflag': '1', 'id': '30'},
         options: Options(headers: {'User-Agent': AppConstants.campusCardUA}),
       );
+      if (response.statusCode == 200 &&
+          !response.realUri.path.contains('errorPage')) {
+        _sessionOpenid = openid;
+      }
     } catch (e) {
       _logger.w('初始化电费会话失败，将继续尝试接口请求: $e');
     }
@@ -75,7 +130,7 @@ class ElectricityService {
     Map<String, dynamic> payload, {
     bool isRetry = false,
   }) async {
-    final openid = _cardService.openid ?? await _ensureAuthenticated();
+    final openid = await _ensureAuthenticated();
     final response = await _dio.post(
       '$_baseUrl$path',
       queryParameters: {'openid': openid, 'connect_redirect': '1'},
@@ -101,7 +156,9 @@ class ElectricityService {
 
     final data = DkywCrypto.decryptServerResponse(response.data);
     _logger.d('电费接口 $path 响应已解密');
-    if (!isRetry && _isSessionExpired(data)) {
+    if (!isRetry &&
+        _isSessionExpired(data) &&
+        path != '/elepay/createPreThirdTrade') {
       _logger.w('电费会话已失效，重新授权后重试 $path');
       await _ensureAuthenticated(force: true);
       return _post(path, payload, isRetry: true);
@@ -155,24 +212,46 @@ class ElectricityService {
     required String roomId,
     required String mertype,
   }) async {
+    final room = SavedElectricityRoom(
+      areaName: areaName,
+      buildingName: buildingName,
+      roomId: roomId,
+      roomName: roomId,
+      mertype: mertype,
+    );
+    final key = balanceCacheKey(room);
+    if (_balanceRequests[key] != null) return _balanceRequests[key]!;
+    final future = _queryBalance(room, key);
+    _balanceRequests[key] = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_balanceRequests[key], future)) {
+        _balanceRequests.remove(key);
+      }
+    }
+  }
+
+  Future<ElectricityBalanceInfo> _queryBalance(
+    SavedElectricityRoom room,
+    String key,
+  ) async {
+    final owner = await FinanceCacheStore.account();
     final data = await _post('/channel/queryEleAccDetail', {
-      'schoolid': areaName,
-      'buildingid': buildingName,
-      'roomid': roomId,
-      'mertype': mertype,
+      'schoolid': room.areaName,
+      'buildingid': room.buildingName,
+      'roomid': room.roomId,
+      'mertype': room.mertype,
       'factorycode': _factoryCode,
     });
     _throwIfFailure(data, '获取电费余额失败');
 
-    if (data is Map && data['resultData'] is Map) {
-      return ElectricityBalanceInfo.fromJson(
-        Map<String, dynamic>.from(data['resultData'] as Map),
-      );
-    }
-    if (data is Map) {
-      return ElectricityBalanceInfo.fromJson(Map<String, dynamic>.from(data));
-    }
-    throw Exception('获取电费余额失败：响应格式异常');
+    if (data is! Map) throw Exception('获取电费余额失败：响应格式异常');
+    final result = Map<String, dynamic>.from(
+      data['resultData'] is Map ? data['resultData'] as Map : data,
+    );
+    await FinanceCacheStore.write(owner, key, result, DateTime.now());
+    return ElectricityBalanceInfo.fromJson(result);
   }
 
   Future<bool> recharge({
@@ -182,11 +261,42 @@ class ElectricityService {
     String? roomName,
     required String mertype,
     required double amount,
+    int roomSlot = 0,
   }) async {
-    if (amount < 1 || amount > 1000 || amount != amount.roundToDouble()) {
+    if (!amount.isFinite ||
+        amount < 1 ||
+        amount > 1000 ||
+        amount != amount.roundToDouble()) {
       throw Exception('充值金额必须是 1–1000 元的整数');
     }
+    if (_recharging) throw Exception('电费订单正在提交，请勿重复操作');
+    _recharging = true;
+    try {
+      return await _recharge(
+        areaName: areaName,
+        buildingName: buildingName,
+        roomId: roomId,
+        roomName: roomName,
+        mertype: mertype,
+        amount: amount,
+        roomSlot: roomSlot,
+      );
+    } on DioException {
+      throw Exception('电费订单未能确认，请先查看充值记录，勿重复支付');
+    } finally {
+      _recharging = false;
+    }
+  }
 
+  Future<bool> _recharge({
+    required String areaName,
+    required String buildingName,
+    required String roomId,
+    String? roomName,
+    required String mertype,
+    required double amount,
+    required int roomSlot,
+  }) async {
     await _ensureAuthenticated();
     final openid = _cardService.openid;
     final cardInfo = _cardService.cachedInfo;
@@ -205,8 +315,8 @@ class ElectricityService {
 
     final data = await _post('/elepay/createPreThirdTrade', {
       'payamt': amount.toStringAsFixed(0),
-      'openid': openid,
-      'idserial': cardInfo.idserial,
+      'openid': _cardService.openid,
+      'idserial': _cardService.cachedInfo!.idserial,
       'factorycode': _factoryCode,
       'buildingid': buildingName,
       'roomid': roomId,
@@ -235,6 +345,7 @@ class ElectricityService {
             : roomId,
         mertype: mertype,
       ),
+      slot: roomSlot,
     );
     return true;
   }
@@ -292,10 +403,10 @@ class ElectricityService {
         : message.toString();
   }
 
-  Future<SavedElectricityRoom?> getSavedRoom() async {
+  Future<SavedElectricityRoom?> getSavedRoom({int slot = 0}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_savedRoomKey);
+      final raw = prefs.getString(_savedRoomKeyForSlot(slot));
       if (raw == null || raw.isEmpty) return null;
       final decoded = jsonDecode(raw);
       if (decoded is Map) {
@@ -309,19 +420,22 @@ class ElectricityService {
     return null;
   }
 
-  Future<void> saveSavedRoom(SavedElectricityRoom room) async {
+  Future<void> saveSavedRoom(SavedElectricityRoom room, {int slot = 0}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_savedRoomKey, jsonEncode(room.toJson()));
+      await prefs.setString(
+        _savedRoomKeyForSlot(slot),
+        jsonEncode(room.toJson()),
+      );
     } catch (e) {
       _logger.w('保存电费房间失败: $e');
     }
   }
 
-  Future<void> clearSavedRoom() async {
+  Future<void> clearSavedRoom({int slot = 0}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_savedRoomKey);
+      await prefs.remove(_savedRoomKeyForSlot(slot));
     } catch (e) {
       _logger.w('清除已保存电费房间失败: $e');
     }

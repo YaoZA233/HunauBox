@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/app_update_notifier.dart';
 import '../services/app_update_service.dart';
 import '../widgets/app_markdown.dart';
 import '../widgets/app_ui_kit.dart';
 
 class AboutPage extends StatefulWidget {
-  const AboutPage({super.key, this.updateService});
+  const AboutPage({
+    super.key,
+    this.updateService,
+    this.updateNotifier,
+    this.openInstaller,
+  });
   final AppUpdateService? updateService;
+  final AppUpdateNotifier? updateNotifier;
+  final Future<bool> Function(String path)? openInstaller;
   @override
   State<AboutPage> createState() => _AboutPageState();
 }
@@ -21,6 +30,7 @@ class _AboutPageState extends State<AboutPage> {
   );
 
   late final _updateService = widget.updateService ?? AppUpdateService();
+  late final _updateNotifier = widget.updateNotifier ?? AppUpdateNotifier();
   String _currentVersion = '1.0.5';
   UpdateSource _currentSource = UpdateSource.gitee;
   AppRelease? _release;
@@ -100,22 +110,35 @@ class _AboutPageState extends State<AboutPage> {
       _progress = 0;
     });
     onChanged?.call();
+    await _updateNotifier.requestPermission();
     try {
       final file = await _updateService.downloadApk(
         release,
         onProgress: (received, total) {
+          _updateNotifier.showProgress(received: received, total: total);
           if (mounted && total > 0) {
             setState(() => _progress = received / total);
             onChanged?.call();
           }
         },
       );
+      await _updateNotifier.showCompleted(file.uri.pathSegments.last);
       if (!mounted) return;
       setState(() => _downloadedPath = file.path);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('安装包已下载到应用目录')));
+      final installResult = await (widget.openInstaller ??
+          _openInstaller)(file.path);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            installResult
+                ? '安装包已保存到 Download 目录，正在打开安装界面'
+                : '安装包已保存到 ${file.path}，请手动点击安装',
+          ),
+        ),
+      );
     } catch (e) {
+      await _updateNotifier.showFailed('$e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -124,6 +147,16 @@ class _AboutPageState extends State<AboutPage> {
     } finally {
       if (mounted) setState(() => _downloading = false);
       onChanged?.call();
+    }
+  }
+
+  /// 调用系统安装器打开 APK；返回是否成功拉起安装界面
+  Future<bool> _openInstaller(String path) async {
+    try {
+      final result = await OpenFilex.open(path);
+      return result.type == ResultType.done;
+    } catch (_) {
+      return false;
     }
   }
 

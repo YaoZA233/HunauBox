@@ -6,11 +6,16 @@ import '../models/electricity_model.dart';
 import '../services/app_logger.dart';
 import '../services/campus_card_service.dart';
 import '../services/electricity_service.dart';
+import '../services/finance_cache_store.dart';
 import '../widgets/campus_card_payment_sheet.dart';
 import '../widgets/payment_result_sheet.dart';
 
 class ElectricityRechargePage extends StatefulWidget {
-  const ElectricityRechargePage({super.key});
+  const ElectricityRechargePage({super.key, this.roomSlot = 0, this.service})
+    : assert(roomSlot >= 0 && roomSlot <= 1);
+
+  final int roomSlot;
+  final ElectricityService? service;
 
   @override
   State<ElectricityRechargePage> createState() =>
@@ -23,6 +28,9 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
 
   bool _isLoading = true;
   String? _error;
+  bool _editingRoom = false;
+  String? _balanceError;
+  DateTime? _balanceUpdatedAt;
 
   List<ElectricityArea> _areas = [];
   List<ElectricityBuilding> _buildings = [];
@@ -34,10 +42,16 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
   ElectricityBalanceInfo? _balance;
   bool _isBalanceLoading = false;
   int _balanceRequestId = 0;
+  Future<void> _selectionSave = Future<void>.value();
+  bool _isSavingSelection = false;
+  bool _isReturning = false;
 
   double? _selectedAmount;
   final List<double> _presetAmounts = [10, 20, 50, 100];
   bool _isPaying = false;
+
+  ElectricityService get _service =>
+      widget.service ?? ElectricityService.instance;
 
   @override
   void initState() {
@@ -51,15 +65,46 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
     super.dispose();
   }
 
-  Future<void> _initData() async {
+  Future<void> _initData({bool editRoom = false}) async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
-      final service = ElectricityService.instance;
-      final savedRoom = await service.getSavedRoom();
+      final service = _service;
+      final savedRoom = await service.getSavedRoom(slot: widget.roomSlot);
+      if (!mounted || _isReturning) return;
+      if (savedRoom != null && !editRoom) {
+        final snapshot = await FinanceCacheStore.read(
+          ElectricityService.balanceCacheKey(savedRoom),
+        );
+        if (!mounted || _isReturning) return;
+        setState(() {
+          _selectedArea = ElectricityArea(
+            id: savedRoom.areaName,
+            name: savedRoom.areaName,
+          );
+          _selectedBuilding = ElectricityBuilding(
+            id: savedRoom.buildingName,
+            name: savedRoom.buildingName,
+          );
+          _selectedRoom = ElectricityRoom(
+            id: savedRoom.roomId,
+            name: savedRoom.roomName,
+            mertype: savedRoom.mertype,
+          );
+          _balance = snapshot == null
+              ? null
+              : ElectricityBalanceInfo.fromJson(snapshot.data);
+          _balanceUpdatedAt = snapshot?.updatedAt;
+          _isLoading = false;
+          _editingRoom = false;
+        });
+        await _loadBalance();
+        return;
+      }
+      _editingRoom = true;
       _areas = await service.getAreas();
 
       if (_areas.isNotEmpty) {
@@ -97,8 +142,8 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
               savedRoomMatch ?? (_rooms.isNotEmpty ? _rooms.first : null);
         }
 
-        _saveCurrentSelection();
-        await _loadBalance();
+        await _saveCurrentSelection();
+        if (mounted && !_isReturning) _loadBalance();
       }
 
       if (mounted) {
@@ -119,7 +164,7 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
 
   Future<void> _loadBuildings(String areaName) async {
     try {
-      final service = ElectricityService.instance;
+      final service = _service;
       final buildings = await service.getBuildings(areaName);
       if (mounted) {
         setState(() {
@@ -141,7 +186,7 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
 
   Future<void> _loadRooms(String areaName, String buildingName) async {
     try {
-      final service = ElectricityService.instance;
+      final service = _service;
       final rooms = await service.getRooms(areaName, buildingName);
       if (mounted) {
         setState(() {
@@ -150,7 +195,7 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
           _balance = null;
           _balanceRequestId++;
         });
-        _saveCurrentSelection();
+        await _saveCurrentSelection();
         await _loadBalance();
       }
     } catch (e) {
@@ -158,21 +203,45 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
     }
   }
 
-  void _saveCurrentSelection() {
-    if (_selectedArea == null ||
+  Future<void> _saveCurrentSelection() async {
+    if (!mounted ||
+        _isReturning ||
+        _selectedArea == null ||
         _selectedBuilding == null ||
         _selectedRoom == null) {
       return;
     }
-    ElectricityService.instance.saveSavedRoom(
-      SavedElectricityRoom(
-        areaName: _selectedArea!.name,
-        buildingName: _selectedBuilding!.name,
-        roomId: _selectedRoom!.id,
-        roomName: _selectedRoom!.name,
-        mertype: _selectedRoom!.mertype,
-      ),
+    final room = SavedElectricityRoom(
+      areaName: _selectedArea!.name,
+      buildingName: _selectedBuilding!.name,
+      roomId: _selectedRoom!.id,
+      roomName: _selectedRoom!.name,
+      mertype: _selectedRoom!.mertype,
     );
+    // Serialize writes so a slower earlier selection cannot replace a newer one.
+    final save = _selectionSave.then(
+      (_) => _service.saveSavedRoom(room, slot: widget.roomSlot),
+    );
+    _selectionSave = save;
+    if (mounted) setState(() => _isSavingSelection = true);
+    await save;
+    if (mounted && identical(_selectionSave, save)) {
+      setState(() => _isSavingSelection = false);
+    }
+  }
+
+  Future<void> _handleBackNavigation(bool didPop, Object? result) async {
+    if (didPop) {
+      _isReturning = true;
+      return;
+    }
+    if (_isReturning) return;
+    _isReturning = true;
+    // The overview must read the completed write when this route returns.
+    while (mounted && _isSavingSelection) {
+      await _selectionSave;
+    }
+    if (mounted) Navigator.of(context).pop(result);
   }
 
   Future<void> _loadBalance() async {
@@ -182,21 +251,31 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
     if (area == null || building == null || room == null) return;
 
     final requestId = ++_balanceRequestId;
-    if (mounted) setState(() => _isBalanceLoading = true);
+    if (mounted) {
+      setState(() {
+        _isBalanceLoading = true;
+        _balanceError = null;
+      });
+    }
     try {
-      final balance = await ElectricityService.instance.getBalance(
+      final balance = await _service.getBalance(
         areaName: area.name,
         buildingName: building.name,
         roomId: room.id,
         mertype: room.mertype,
       );
       if (mounted && requestId == _balanceRequestId) {
-        setState(() => _balance = balance);
+        setState(() {
+          _balance = balance;
+          _balanceUpdatedAt = DateTime.now();
+        });
       }
     } catch (e) {
       _logger.w('Failed to load electricity balance: $e');
       if (mounted && requestId == _balanceRequestId) {
-        setState(() => _balance = null);
+        setState(
+          () => _balanceError = _balance == null ? '余额查询失败，请重试' : '更新失败，显示上次余额',
+        );
       }
     } finally {
       if (mounted && requestId == _balanceRequestId) {
@@ -249,7 +328,7 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
     setState(() => _isPaying = true);
 
     try {
-      final service = ElectricityService.instance;
+      final service = _service;
       final success = await service.recharge(
         areaName: _selectedArea!.name,
         buildingName: _selectedBuilding!.name,
@@ -257,6 +336,7 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
         roomName: _selectedRoom!.name,
         mertype: _selectedRoom!.mertype,
         amount: amount.toDouble(),
+        roomSlot: widget.roomSlot,
       );
 
       if (mounted) {
@@ -319,9 +399,9 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
     } catch (e) {
       _logger.e('Failed to fetch card info for electricity recharge: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('获取校园卡信息失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('获取校园卡信息失败: $e')));
       }
       return;
     } finally {
@@ -341,13 +421,14 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
         paymentMethod: method,
         successTitle: '电费充值成功',
         onCardRechargeSuccess: () async {
-          final success = await ElectricityService.instance.recharge(
+          final success = await _service.recharge(
             areaName: area.name,
             buildingName: building.name,
             roomId: room.id,
             roomName: room.name,
             mertype: room.mertype,
             amount: amount.toDouble(),
+            roomSlot: widget.roomSlot,
           );
           if (!success) throw Exception('电费充值失败');
         },
@@ -365,6 +446,14 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
 
   @override
   Widget build(BuildContext context) {
+    return PopScope<Object?>(
+      canPop: !_isSavingSelection,
+      onPopInvokedWithResult: _handleBackNavigation,
+      child: _buildPage(context),
+    );
+  }
+
+  Widget _buildPage(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(title: const Text('电费充值'), centerTitle: true),
@@ -470,7 +559,7 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                           ],
                         ),
                         Text(
-                          _isBalanceLoading
+                          _isBalanceLoading && _balance == null
                               ? '查询中...'
                               : _balance == null
                               ? '暂时无法获取'
@@ -481,49 +570,75 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _isBalanceLoading
+                              ? '正在更新余额…'
+                              : _balanceError ??
+                                    (_balanceUpdatedAt == null
+                                        ? '等待更新'
+                                        : '更新于 ${_balanceUpdatedAt!.month}/${_balanceUpdatedAt!.day} ${_balanceUpdatedAt!.hour.toString().padLeft(2, '0')}:${_balanceUpdatedAt!.minute.toString().padLeft(2, '0')}'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 32),
-                  _buildRoomSelectionBox(
-                    '校区',
-                    _areas.map((e) => e.name).toList(),
-                    _selectedArea?.name,
-                    (val) {
-                      final area = _areas.firstWhere((e) => e.name == val);
-                      setState(() => _selectedArea = area);
-                      _loadBuildings(area.name);
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _buildRoomSelectionBox(
-                    '楼栋',
-                    _buildings.map((e) => e.name).toList(),
-                    _selectedBuilding?.name,
-                    (val) {
-                      final building = _buildings.firstWhere(
-                        (e) => e.name == val,
-                      );
-                      setState(() => _selectedBuilding = building);
-                      _loadRooms(_selectedArea!.name, building.name);
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _buildRoomSelectionBox(
-                    '房间',
-                    _rooms.map((e) => e.name).toList(),
-                    _selectedRoom?.name,
-                    (val) {
-                      final room = _rooms.firstWhere((e) => e.name == val);
-                      setState(() {
-                        _selectedRoom = room;
-                        _balance = null;
-                      });
-                      _saveCurrentSelection();
-                      _loadBalance();
-                    },
-                  ),
-                  const SizedBox(height: 32),
+                  if (!_editingRoom)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => _initData(editRoom: true),
+                        icon: const Icon(Icons.edit_location_alt_outlined),
+                        label: const Text('更换房间'),
+                      ),
+                    ),
+                  if (_editingRoom) ...[
+                    _buildRoomSelectionBox(
+                      '校区',
+                      _areas.map((e) => e.name).toList(),
+                      _selectedArea?.name,
+                      (val) {
+                        final area = _areas.firstWhere((e) => e.name == val);
+                        setState(() => _selectedArea = area);
+                        _loadBuildings(area.name);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildRoomSelectionBox(
+                      '楼栋',
+                      _buildings.map((e) => e.name).toList(),
+                      _selectedBuilding?.name,
+                      (val) {
+                        final building = _buildings.firstWhere(
+                          (e) => e.name == val,
+                        );
+                        setState(() => _selectedBuilding = building);
+                        _loadRooms(_selectedArea!.name, building.name);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildRoomSelectionBox(
+                      '房间',
+                      _rooms.map((e) => e.name).toList(),
+                      _selectedRoom?.name,
+                      (val) async {
+                        final room = _rooms.firstWhere((e) => e.name == val);
+                        setState(() {
+                          _selectedRoom = room;
+                          _balance = null;
+                        });
+                        await _saveCurrentSelection();
+                        await _loadBalance();
+                      },
+                    ),
+                    const SizedBox(height: 32),
+                  ],
                   Text(
                     '选择充值金额',
                     style: TextStyle(
@@ -593,9 +708,10 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                       labelText: '其他金额',
                       prefixText: '¥ ',
                       filled: true,
-                      fillColor: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                      fillColor: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.3),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -632,7 +748,10 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                               : const Icon(Icons.credit_card_rounded, size: 20),
                           label: const Text(
                             '校园卡支付',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
@@ -645,15 +764,25 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                               child: FilledButton.icon(
                                 onPressed: _isPaying
                                     ? null
-                                    : () => _handleThirdPartyRecharge(PaymentMethod.wechat),
-                                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF07C160)),
+                                    : () => _handleThirdPartyRecharge(
+                                        PaymentMethod.wechat,
+                                      ),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF07C160),
+                                ),
                                 icon: SvgPicture.string(
                                   kWechatSvg,
                                   width: 20,
                                   height: 20,
-                                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                                  colorFilter: const ColorFilter.mode(
+                                    Colors.white,
+                                    BlendMode.srcIn,
+                                  ),
                                 ),
-                                label: const Text('微信支付', style: TextStyle(fontWeight: FontWeight.bold)),
+                                label: const Text(
+                                  '微信支付',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
                               ),
                             ),
                           ),
@@ -664,15 +793,25 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                               child: FilledButton.icon(
                                 onPressed: _isPaying
                                     ? null
-                                    : () => _handleThirdPartyRecharge(PaymentMethod.alipay),
-                                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1677FF)),
+                                    : () => _handleThirdPartyRecharge(
+                                        PaymentMethod.alipay,
+                                      ),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1677FF),
+                                ),
                                 icon: SvgPicture.string(
                                   kAlipaySvg,
                                   width: 20,
                                   height: 20,
-                                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                                  colorFilter: const ColorFilter.mode(
+                                    Colors.white,
+                                    BlendMode.srcIn,
+                                  ),
                                 ),
-                                label: const Text('支付宝支付', style: TextStyle(fontWeight: FontWeight.bold)),
+                                label: const Text(
+                                  '支付宝支付',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
                               ),
                             ),
                           ),
