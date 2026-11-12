@@ -159,7 +159,7 @@ lib/
 │   └── enhanced_live_course_service.dart  # Flutter 服务层
 ├── pages/
 │   └── enhanced_live_course_page.dart     # UI 页面
-└── test_enhanced_page.dart                 # 独立测试入口
+└── tool/enhanced_live_course_preview.dart  # 独立预览入口
 ```
 
 #### 设计特点：
@@ -172,7 +172,7 @@ lib/
 
 ### 1. 作为独立页面测试
 ```bash
-flutter run --target=lib/test_enhanced_page.dart
+flutter run --target=tool/enhanced_live_course_preview.dart
 ```
 
 ### 2. 集成到主应用

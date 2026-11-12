@@ -42,9 +42,9 @@
 
 ### 文档
 
-1. **NOTIFICATION_FIX.md** - 详细的技术文档
-2. **CHANGELOG_NOTIFICATION.md** - 更新日志
-3. **README_NOTIFICATION.md** (本文件) - 修复总结
+1. **[technical-fix.md](technical-fix.md)** - 详细的技术文档
+2. **[CHANGELOG.md](CHANGELOG.md)** - 更新日志
+3. **[notification-fix.md](notification-fix.md)** (本文件) - 修复总结
 
 ## 🎯 修复效果
 
@@ -146,9 +146,9 @@
 
 - **新增文件**: 4个
   - `lib/utils/notification_debug_helper.dart`
-  - `docs/NOTIFICATION_FIX.md`
-  - `CHANGELOG_NOTIFICATION.md`
-  - `README_NOTIFICATION.md`
+  - [`technical-fix.md`](technical-fix.md)
+  - [`CHANGELOG.md`](CHANGELOG.md)
+  - [`notification-fix.md`](notification-fix.md)
 
 - **修改行数**: ~150行
 - **新增行数**: ~250行

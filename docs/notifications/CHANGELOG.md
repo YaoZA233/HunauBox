@@ -145,7 +145,7 @@ try {
 3. **lib/pages/settings_page.dart**
    - 添加调试按钮（Debug模式）
 
-4. **docs/NOTIFICATION_FIX.md** (新增)
+4. **technical-fix.md** (新增)
    - 详细修复文档
 
 ---
@@ -200,7 +200,7 @@ try {
 
 ### 📚 相关文档
 
-- [详细修复文档](docs/NOTIFICATION_FIX.md)
+- [详细修复文档](technical-fix.md)
 - [flutter_local_notifications 官方文档](https://pub.dev/packages/flutter_local_notifications)
 
 ---

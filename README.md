@@ -102,10 +102,14 @@ smart_hunan_agri/
 │   ├── utils/                # 解析器、日期和工具类
 │   ├── widgets/              # 可复用组件
 │   └── main.dart             # 应用入口
+├── docs/                     # 功能指南、实现记录和维护笔记
+├── tool/                     # 本地预览和设备调试脚本
 ├── test/                     # Flutter 测试
 ├── pubspec.yaml              # 依赖和 Flutter 配置
 └── analysis_options.yaml     # Dart 静态检查配置
 ```
+
+更多专题文档请查看 [`docs/README.md`](docs/README.md)。本地构建产物、IDE 状态、调试截图和视觉预览输出均由 `.gitignore` 排除，不需要提交到仓库。
 
 ## 环境要求
 
@@ -230,6 +234,6 @@ flutter test
 
 ## 版本信息
 
-- 应用版本：`1.0.4+4`
+- 应用版本：`1.0.8-beta+8`
 - 项目名称：`smart_hunan_agri`
 - 应用展示名称：`HuanuBox`

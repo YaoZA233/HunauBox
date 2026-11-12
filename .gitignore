@@ -43,3 +43,19 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local IDE and build state
+.claude/
+.agents/
+android/.gradle/
+android/.kotlin/
+android/local.properties
+ios/Flutter/ephemeral/
+macos/Flutter/ephemeral/
+
+# Local visual assets and preview output
+/img_debug/
+/poster/
+/screenshots/
+/spark-output/
+/vibe_images(delate)/

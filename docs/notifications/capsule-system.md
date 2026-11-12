@@ -55,7 +55,7 @@ lib/
 │   ├── capsule_notifications_settings_page.dart  # 胶囊通知设置页
 │   ├── enhanced_live_course_page.dart  # 增强课程页
 │   └── live_course_page.dart  # 原始课程页
-└── test_capsule_settings.dart  # 测试入口
+└── tool/capsule_settings_preview.dart  # 手动预览入口
 ```
 
 ## 🚀 使用方式

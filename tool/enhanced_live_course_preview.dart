@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'pages/enhanced_live_course_page.dart';
+import 'package:smart_hunan_agri/pages/enhanced_live_course_page.dart';
 
 void main() {
   runApp(const TestEnhancedApp());

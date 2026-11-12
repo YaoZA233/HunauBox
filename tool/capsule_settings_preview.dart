@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'pages/capsule_notifications_settings_page.dart';
+import 'package:smart_hunan_agri/pages/capsule_notifications_settings_page.dart';
 
 void main() {
   runApp(const TestCapsuleSettingsApp());
