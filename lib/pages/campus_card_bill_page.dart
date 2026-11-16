@@ -126,7 +126,10 @@ class _CampusCardBillPageState extends State<CampusCardBillPage> {
                 if (_queried && !_loading && _error == null)
                   Text(
                     '${_records.length} 笔',
-                    style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.onSurfaceVariant,
+                    ),
                   ),
               ],
             ),
@@ -155,7 +158,6 @@ class _CampusCardBillPageState extends State<CampusCardBillPage> {
                       Divider(height: 1, color: colors.outlineVariant),
                   ],
                 ],
-                ),
               ),
           ],
         ),
@@ -169,9 +171,9 @@ class _CampusCardBillPageState extends State<CampusCardBillPage> {
       children: [
         Text(
           '查询范围',
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
         Row(

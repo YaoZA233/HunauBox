@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
 
 import '../services/course_notification_service.dart';
 import '../services/course_notification_settings_store.dart';
@@ -103,7 +102,8 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
   }
 
   Future<bool> _permission() async {
-    final granted = await CourseNotificationService.instance.requestPermission();
+    final granted = await CourseNotificationService.instance
+        .requestPermission();
     if (!granted && mounted) _message('请先在系统设置中允许通知');
     return granted;
   }
@@ -263,10 +263,7 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  colors.primary,
-                  colors.secondary,
-                ],
+                colors: [colors.primary, colors.secondary],
               ),
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
@@ -297,7 +294,11 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
     );
   }
 
-  Widget _buildActionButtons(ThemeData theme, ColorScheme colors, bool supported) {
+  Widget _buildActionButtons(
+    ThemeData theme,
+    ColorScheme colors,
+    bool supported,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -306,24 +307,22 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
           onPressed: !supported || _busy
               ? null
               : () => _run(() async {
-                    if (!await _permission()) return;
-                    if (!_store.settings.value.liveActivityEnabled) {
-                      await _store.save(
-                        _store.settings.value.copyWith(
-                          liveActivityEnabled: true,
-                        ),
-                      );
-                    }
-                    final started = await EnhancedLiveCourseService.instance
-                        .startCurrent();
-                    if (mounted) {
-                      _message(
-                        started
-                            ? '✅ 本节课程实况已启动！下拉通知栏查看精美展示'
-                            : '⏰ 当前没有进行中的课程\n请确认已导入课表',
-                      );
-                    }
-                  }),
+                  if (!await _permission()) return;
+                  if (!_store.settings.value.liveActivityEnabled) {
+                    await _store.save(
+                      _store.settings.value.copyWith(liveActivityEnabled: true),
+                    );
+                  }
+                  final started = await EnhancedLiveCourseService.instance
+                      .startCurrent();
+                  if (mounted) {
+                    _message(
+                      started
+                          ? '✅ 本节课程实况已启动！下拉通知栏查看精美展示'
+                          : '⏰ 当前没有进行中的课程\n请确认已导入课表',
+                    );
+                  }
+                }),
           style: FilledButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
@@ -333,10 +332,7 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
           icon: const Icon(Icons.play_circle_filled_rounded),
           label: const Text(
             '开始本节课程',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(height: 12),
@@ -346,14 +342,14 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
           onPressed: !supported || _busy
               ? null
               : () => _run(() async {
-                    if (!await _permission()) return;
-                    await EnhancedLiveCourseService.instance.showSample(
-                      upcoming: _upcoming,
-                    );
-                    if (mounted) {
-                      _message('📱 示例通知已发送到通知栏\n2 分钟后将自动消失');
-                    }
-                  }),
+                  if (!await _permission()) return;
+                  await EnhancedLiveCourseService.instance.showSample(
+                    upcoming: _upcoming,
+                  );
+                  if (mounted) {
+                    _message('📱 示例通知已发送到通知栏\n2 分钟后将自动消失');
+                  }
+                }),
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 16),
             side: BorderSide(color: colors.primary, width: 2),
@@ -364,10 +360,7 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
           icon: const Icon(Icons.phonelink_ring_rounded),
           label: const Text(
             '发送预览到通知栏',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
         ),
         const SizedBox(height: 8),
@@ -384,7 +377,11 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
     );
   }
 
-  Widget _buildDeviceInfoCard(ThemeData theme, ColorScheme colors, bool supported) {
+  Widget _buildDeviceInfoCard(
+    ThemeData theme,
+    ColorScheme colors,
+    bool supported,
+  ) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -512,10 +509,7 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            colors.tertiaryContainer,
-            colors.secondaryContainer,
-          ],
+          colors: [colors.tertiaryContainer, colors.secondaryContainer],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -567,28 +561,26 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
     );
   }
 
-  Widget _buildSettingsButton(ThemeData theme, ColorScheme colors, bool supported) {
+  Widget _buildSettingsButton(
+    ThemeData theme,
+    ColorScheme colors,
+    bool supported,
+  ) {
     return OutlinedButton.icon(
       onPressed: !supported || _busy
           ? null
           : () => _run(
-                EnhancedLiveCourseService.instance.openNotificationSettings,
-              ),
+              EnhancedLiveCourseService.instance.openNotificationSettings,
+            ),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 14),
         side: BorderSide(color: colors.outline),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       icon: Icon(Icons.settings_outlined, size: 20, color: colors.onSurface),
-      label: Text(
-        '打开系统通知设置',
-        style: TextStyle(color: colors.onSurface),
-      ),
+      label: Text('打开系统通知设置', style: TextStyle(color: colors.onSurface)),
     );
   }
-}
 
   Widget _buildPreviewToggle(ThemeData theme, ColorScheme colors) {
     return Container(
@@ -660,10 +652,7 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                colors.surfaceContainer,
-                colors.surfaceContainerHigh,
-              ],
+              colors: [colors.surfaceContainer, colors.surfaceContainerHigh],
             ),
             boxShadow: [
               BoxShadow(
@@ -679,7 +668,10 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
               if (hasDynamicIsland)
                 Container(
                   margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black87,
                     borderRadius: BorderRadius.circular(32),
@@ -719,7 +711,12 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
 
               // Main Content
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, hasDynamicIsland ? 8 : 20, 20, 20),
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  hasDynamicIsland ? 8 : 20,
+                  20,
+                  20,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -952,11 +949,7 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.info_rounded,
-            size: 20,
-            color: colors.primary,
-          ),
+          Icon(Icons.info_rounded, size: 20, color: colors.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -1014,20 +1007,21 @@ class _EnhancedLiveCoursePageState extends State<EnhancedLiveCoursePage>
             onChanged: !supported || _busy
                 ? null
                 : (value) => _run(() async {
-                      if (value && !await _permission()) return;
-                      final previous = _store.settings.value;
-                      await _store.save(
-                        previous.copyWith(liveActivityEnabled: value),
-                      );
-                      try {
-                        await EnhancedLiveCourseService.instance.sync();
-                      } catch (_) {
-                        await _store.save(previous);
-                        rethrow;
-                      }
-                    }),
+                    if (value && !await _permission()) return;
+                    final previous = _store.settings.value;
+                    await _store.save(
+                      previous.copyWith(liveActivityEnabled: value),
+                    );
+                    try {
+                      await EnhancedLiveCourseService.instance.sync();
+                    } catch (_) {
+                      await _store.save(previous);
+                      rethrow;
+                    }
+                  }),
           ),
         );
       },
     );
   }
+}
