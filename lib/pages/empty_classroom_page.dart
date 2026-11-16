@@ -288,7 +288,7 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
     required String label,
     required List<String> items,
     required String? value,
-    required ValueChanged<String?> onChanged,
+    required ValueChanged<String?>? onChanged,
   }) {
     final theme = Theme.of(context);
     return Column(

@@ -154,6 +154,7 @@ class _CampusCardBillPageState extends State<CampusCardBillPage> {
                     if (i < _records.length - 1)
                       Divider(height: 1, color: colors.outlineVariant),
                   ],
+                ],
                 ),
               ),
           ],
