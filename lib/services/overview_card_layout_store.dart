@@ -31,6 +31,7 @@ class OverviewCardLayoutStore {
 
   static const String key = 'overview_card_layout';
   static const String legacyOrderKey = 'overview_card_order';
+  static const String chaoxingMigrationKey = 'overview_chaoxing_cards_added_v1';
 
   static const List<String> knownCardIds = [
     'notice',
@@ -41,11 +42,15 @@ class OverviewCardLayoutStore {
     'recent_bill',
     'electricity_1',
     'electricity_2',
+    'chaoxing_messages',
+    'chaoxing_courses',
   ];
 
   static const Map<String, OverviewCardSize> defaultSizes = {
     'notice': OverviewCardSize.small,
     'homework': OverviewCardSize.small,
+    'chaoxing_messages': OverviewCardSize.small,
+    'chaoxing_courses': OverviewCardSize.small,
     'upcoming_homework': OverviewCardSize.large,
     'exam': OverviewCardSize.large,
     'campus_card': OverviewCardSize.large,
@@ -68,12 +73,43 @@ class OverviewCardLayoutStore {
             .map(OverviewCardSlot.decode)
             .whereType<OverviewCardSlot>()
             .toList();
-        return layout.isEmpty && encoded.isNotEmpty ? defaultLayout : layout;
+        return _addNewCards(
+          preferences,
+          layout.isEmpty && encoded.isNotEmpty ? defaultLayout : layout,
+        );
       }
-      return _migrateLegacyOrder(preferences) ?? defaultLayout;
+      final legacy = _migrateLegacyOrder(preferences);
+      return legacy == null ? defaultLayout : _addNewCards(preferences, legacy);
     } on TypeError {
       return defaultLayout;
     }
+  }
+
+  Future<List<OverviewCardSlot>> _addNewCards(
+    SharedPreferences preferences,
+    List<OverviewCardSlot> layout,
+  ) async {
+    if (layout.isEmpty || preferences.getBool(chaoxingMigrationKey) == true) {
+      return layout;
+    }
+    final ids = layout.map((slot) => slot.cardId).toSet();
+    final next = [
+      ...layout,
+      for (final id in ['chaoxing_messages', 'chaoxing_courses'])
+        if (!ids.contains(id))
+          OverviewCardSlot(cardId: id, size: defaultSizes[id]!),
+    ];
+    try {
+      if (await preferences.setStringList(
+        key,
+        next.map((slot) => slot.encode()).toList(),
+      )) {
+        await preferences.setBool(chaoxingMigrationKey, true);
+      }
+    } catch (_) {
+      /* Retry the migration the next time the layout is read. */
+    }
+    return next;
   }
 
   Future<void> save(List<OverviewCardSlot> layout) async {
@@ -86,6 +122,7 @@ class OverviewCardLayoutStore {
       if (!saved) {
         throw StateError('Failed to persist overview card layout.');
       }
+      await preferences.setBool(chaoxingMigrationKey, true);
     } catch (_) {
       await preferences.reload();
       rethrow;

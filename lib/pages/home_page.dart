@@ -44,6 +44,8 @@ import 'sunshine_page.dart';
 import 'leave_page.dart';
 import 'repair_page.dart';
 import 'exam_page.dart';
+import 'chaoxing_courses_page.dart';
+import 'chaoxing_messages_page.dart';
 import '../models/app_constants.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -583,10 +585,10 @@ class _HomePageState extends ConsumerState<HomePage>
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontSize: 24,
-                    height: 1.2,
-                    fontWeight: FontWeight.w700,
-                  ),
+                fontSize: 24,
+                height: 1.2,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
             if (course != null) ...[
@@ -604,10 +606,7 @@ class _HomePageState extends ConsumerState<HomePage>
             ] else
               Text(
                 _hasTimetable ? '留一点时间给自己' : '导入后将在这里显示下一节课',
-                style: TextStyle(
-                  color: colors.onSurfaceVariant,
-                  fontSize: 13,
-                ),
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
               ),
           ],
           const SizedBox(height: AppSpacing.xl),
@@ -709,11 +708,7 @@ class _HomePageState extends ConsumerState<HomePage>
         children: [
           Row(
             children: [
-              Icon(
-                Icons.format_quote_rounded,
-                size: 16,
-                color: colors.primary,
-              ),
+              Icon(Icons.format_quote_rounded, size: 16, color: colors.primary),
               const SizedBox(width: AppSpacing.xs),
               Text(
                 '一言',
@@ -743,10 +738,7 @@ class _HomePageState extends ConsumerState<HomePage>
               alignment: Alignment.centerRight,
               child: Text(
                 '— $_hitokotoFrom',
-                style: TextStyle(
-                  color: colors.onSurfaceVariant,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
               ),
             ),
           ],
@@ -1002,136 +994,136 @@ class _HomePageState extends ConsumerState<HomePage>
             ),
           ),
           child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 146),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              flex: 6,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(
+            constraints: const BoxConstraints(minHeight: 146),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.schedule_rounded,
-                        size: 17,
-                        color: colors.primary,
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.schedule_rounded,
+                            size: 17,
+                            color: colors.primary,
+                          ),
+                          const SizedBox(width: 7),
+                          Text(
+                            statusLabel,
+                            style: TextStyle(
+                              color: colors.primary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 7),
+                      const SizedBox(height: 12),
+                      if (_isLoadingTimetable)
+                        Text('正在同步课表...', style: _overviewTitleStyle(colors))
+                      else if (!hasCourse)
+                        Text(
+                          _hasTimetable ? '暂无后续课程' : '尚未导入课表',
+                          style: _overviewTitleStyle(colors),
+                        )
+                      else ...[
+                        Text(
+                          displayCourse!.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: _overviewTitleStyle(colors),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildCourseDetail(
+                          icon: Icons.schedule_outlined,
+                          text: _formatCourseTime(displayCourse),
+                        ),
+                        const SizedBox(height: 5),
+                        _buildCourseDetail(
+                          icon: Icons.location_on_outlined,
+                          text: displayCourse.classroom.trim().isEmpty
+                              ? '教室待定'
+                              : displayCourse.classroom,
+                        ),
+                        if (_currentCourse != null && _nextCourse != null) ...[
+                          const SizedBox(height: 9),
+                          _buildCourseDetail(
+                            icon: Icons.skip_next_rounded,
+                            text:
+                                '下一节：${_nextCourse!.name} · ${_formatCourseTime(_nextCourse!)}',
+                          ),
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  height: 112,
+                  child: VerticalDivider(
+                    width: 1,
+                    thickness: 1,
+                    color: colors.outlineVariant,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 92,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
                       Text(
-                        statusLabel,
+                        hasSemester ? '第$_currentWeek周' : '学期进度',
                         style: TextStyle(
-                          color: colors.primary,
                           fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        hasSemester ? '$_progressPercent%' : '--',
+                        style: TextStyle(
+                          fontSize: 25,
+                          fontWeight: FontWeight.w800,
+                          color: colors.secondary,
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: LinearProgressIndicator(
+                          minHeight: 5,
+                          value: hasSemester ? progress : 0,
+                          backgroundColor: colors.surfaceContainerHighest,
+                          valueColor: AlwaysStoppedAnimation(colors.secondary),
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        hasSemester
+                            ? '余$_remainingDays天 / $_totalWeeks周'
+                            : '导入课表后显示',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colors.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  if (_isLoadingTimetable)
-                    Text('正在同步课表...', style: _overviewTitleStyle(colors))
-                  else if (!hasCourse)
-                    Text(
-                      _hasTimetable ? '暂无后续课程' : '尚未导入课表',
-                      style: _overviewTitleStyle(colors),
-                    )
-                  else ...[
-                    Text(
-                      displayCourse!.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: _overviewTitleStyle(colors),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildCourseDetail(
-                      icon: Icons.schedule_outlined,
-                      text: _formatCourseTime(displayCourse),
-                    ),
-                    const SizedBox(height: 5),
-                    _buildCourseDetail(
-                      icon: Icons.location_on_outlined,
-                      text: displayCourse.classroom.trim().isEmpty
-                          ? '教室待定'
-                          : displayCourse.classroom,
-                    ),
-                    if (_currentCourse != null && _nextCourse != null) ...[
-                      const SizedBox(height: 9),
-                      _buildCourseDetail(
-                        icon: Icons.skip_next_rounded,
-                        text:
-                            '下一节：${_nextCourse!.name} · ${_formatCourseTime(_nextCourse!)}',
-                      ),
-                    ],
-                  ],
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(width: 16),
-            SizedBox(
-              height: 112,
-              child: VerticalDivider(
-                width: 1,
-                thickness: 1,
-                color: colors.outlineVariant,
-              ),
-            ),
-            const SizedBox(width: 16),
-            SizedBox(
-              width: 92,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    hasSemester ? '第$_currentWeek周' : '学期进度',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    hasSemester ? '$_progressPercent%' : '--',
-                    style: TextStyle(
-                      fontSize: 25,
-                      fontWeight: FontWeight.w800,
-                      color: colors.secondary,
-                    ),
-                  ),
-                  const SizedBox(height: 9),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      minHeight: 5,
-                      value: hasSemester ? progress : 0,
-                      backgroundColor: colors.surfaceContainerHighest,
-                      valueColor: AlwaysStoppedAnimation(colors.secondary),
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    hasSemester
-                        ? '余$_remainingDays天 / $_totalWeeks周'
-                        : '导入课表后显示',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
-    ),
-  ),
-);
+    );
   }
 
   Widget _buildCourseDetail({required IconData icon, required String text}) {
@@ -1356,11 +1348,7 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   Widget _buildQuickAction(IconData icon, String label, {VoidCallback? onTap}) {
-    return AppServiceItem(
-      icon: icon,
-      label: label,
-      onTap: onTap,
-    );
+    return AppServiceItem(icon: icon, label: label, onTap: onTap);
   }
 
   Future<void> _handleQuickActionTap(String id) async {
@@ -1385,6 +1373,20 @@ class _HomePageState extends ConsumerState<HomePage>
       await Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const ExamPage()));
+      return;
+    }
+
+    if (id == 'chaoxing_courses') {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ChaoxingCoursesPage()));
+      return;
+    }
+
+    if (id == 'chaoxing_messages') {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ChaoxingMessagesPage()));
       return;
     }
 
@@ -1426,6 +1428,32 @@ class _HomePageState extends ConsumerState<HomePage>
     if (id == 'ele_recharge') {
       await Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const ElectricityRechargePage()),
+      );
+      return;
+    }
+
+    if (id == 'tuition_payment') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const WebViewDetailPage(
+            title: '学费与学杂费缴费',
+            url: AppConstants.tuitionPaymentUrl,
+            showWebBack: true,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (id == 'physical_fitness_score') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const WebViewDetailPage(
+            title: '体测成绩',
+            url: AppConstants.physicalFitnessScoreUrl,
+            showWebBack: true,
+          ),
+        ),
       );
       return;
     }

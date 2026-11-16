@@ -11,6 +11,8 @@ import 'dorm_service_page.dart';
 import 'electricity_recharge_page.dart';
 import 'empty_classroom_page.dart';
 import 'exam_page.dart';
+import 'chaoxing_courses_page.dart';
+import 'chaoxing_messages_page.dart';
 import 'leave_page.dart';
 import 'network_speed_test_page.dart';
 import 'payment_code_page.dart';
@@ -69,9 +71,9 @@ class FunctionPage extends StatelessWidget {
                   Text(
                     '全部功能',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 22,
-                        ),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 22,
+                    ),
                   ),
                 ],
               ),
@@ -87,7 +89,8 @@ class FunctionPage extends StatelessWidget {
                   icon: Icons.receipt_long_outlined,
                   title: '校园卡账单',
                   subtitle: '查询消费、充值、补助与转账记录',
-                  onTap: () => _openProtected(context, const CampusCardBillPage()),
+                  onTap: () =>
+                      _openProtected(context, const CampusCardBillPage()),
                 ),
                 AppCell(
                   icon: Icons.qr_code_scanner_outlined,
@@ -99,19 +102,35 @@ class FunctionPage extends StatelessWidget {
                   icon: Icons.add_card_outlined,
                   title: '校园卡充值',
                   subtitle: '校园一卡通在线充值服务',
-                  onTap: () => _openProtected(context, const CampusCardRechargePage()),
+                  onTap: () =>
+                      _openProtected(context, const CampusCardRechargePage()),
                 ),
                 AppCell(
                   icon: Icons.bolt_outlined,
                   title: '电费充值',
                   subtitle: '寝室电费实时查询与快捷缴费',
-                  onTap: () => _openProtected(context, const ElectricityRechargePage()),
+                  onTap: () =>
+                      _openProtected(context, const ElectricityRechargePage()),
+                ),
+                AppCell(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: '学费与学杂费缴费',
+                  subtitle: '学费、学杂费、书籍费等缴费查询',
+                  onTap: () => _openProtected(
+                    context,
+                    const WebViewDetailPage(
+                      title: '学费与学杂费缴费',
+                      url: AppConstants.tuitionPaymentUrl,
+                      showWebBack: true,
+                    ),
+                  ),
                 ),
                 AppCell(
                   icon: Icons.credit_card_outlined,
                   title: '校园卡服务',
                   subtitle: '一卡通管理、挂失与流水查询',
-                  onTap: () => _openProtected(context, const CampusCardWebViewPage()),
+                  onTap: () =>
+                      _openProtected(context, const CampusCardWebViewPage()),
                 ),
                 AppCell(
                   icon: Icons.report_problem_outlined,
@@ -142,6 +161,20 @@ class FunctionPage extends StatelessWidget {
               title: '教务与学业',
               cells: [
                 AppCell(
+                  icon: Icons.school_outlined,
+                  title: '学习通课程',
+                  subtitle: '查看我的课程、教师与任务点进度',
+                  onTap: () =>
+                      _openProtected(context, const ChaoxingCoursesPage()),
+                ),
+                AppCell(
+                  icon: Icons.forum_outlined,
+                  title: '学习通消息',
+                  subtitle: '查看课程群聊和学习通会话',
+                  onTap: () =>
+                      _openProtected(context, const ChaoxingMessagesPage()),
+                ),
+                AppCell(
                   icon: Icons.calendar_month_outlined,
                   title: '课表查询',
                   subtitle: '学期课程时间与教室安排',
@@ -154,6 +187,19 @@ class FunctionPage extends StatelessWidget {
                   onTap: () => _openProtected(context, const ScorePage()),
                 ),
                 AppCell(
+                  icon: Icons.directions_run_outlined,
+                  title: '体测成绩',
+                  subtitle: '查看大学生体质健康测试成绩',
+                  onTap: () => _openProtected(
+                    context,
+                    const WebViewDetailPage(
+                      title: '体测成绩',
+                      url: AppConstants.physicalFitnessScoreUrl,
+                      showWebBack: true,
+                    ),
+                  ),
+                ),
+                AppCell(
                   icon: Icons.event_note_outlined,
                   title: '考试安排',
                   subtitle: '期末考场、座号与时间安排',
@@ -163,7 +209,8 @@ class FunctionPage extends StatelessWidget {
                   icon: Icons.meeting_room_outlined,
                   title: '空教室查询',
                   subtitle: '自习、研讨空闲教学场地检索',
-                  onTap: () => _openProtected(context, const EmptyClassroomPage()),
+                  onTap: () =>
+                      _openProtected(context, const EmptyClassroomPage()),
                 ),
                 AppCell(
                   icon: Icons.rate_review_outlined,
@@ -210,7 +257,8 @@ class FunctionPage extends StatelessWidget {
                   icon: Icons.fact_check_outlined,
                   title: '学工问卷',
                   subtitle: '调查问卷填写与信息采集',
-                  onTap: () => _openProtected(context, const QuestionnaireListPage()),
+                  onTap: () =>
+                      _openProtected(context, const QuestionnaireListPage()),
                 ),
                 AppCell(
                   icon: Icons.wb_sunny_outlined,

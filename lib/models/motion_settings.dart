@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 enum AppTransition {
   slide('平滑滑动', '页面沿操作方向平滑移入', Icons.swipe_outlined),
   fade('淡入淡出', '柔和交替，减少大幅移动', Icons.gradient_rounded),
-  perspective('透视', '带有空间倾斜与纵深的切换', Icons.view_in_ar_outlined),
   stack('层叠挤压', '新页面推进，原页面向后收拢', Icons.layers_outlined),
-  cube('立方体', '页面沿立方体侧面旋转', Icons.view_in_ar_rounded),
   none('无动画', '立即切换页面', Icons.flash_on_outlined);
 
   const AppTransition(this.label, this.description, this.icon);

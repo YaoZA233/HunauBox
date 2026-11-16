@@ -56,6 +56,7 @@ class DormService {
   final SecureStorageHelper _credentials;
   final Future<void> Function()? _prepareSession;
   final Future<bool> Function()? _reauthenticate;
+  final Future<DormInfo?> Function()? _fetchDirectInfo;
   final Future<DormInfo?> Function()? _fetchRenderedInfo;
   final Future<bool> Function()? _ensureWebVpnSession;
   bool _cookiesReady = false;
@@ -66,6 +67,7 @@ class DormService {
     Dio? dio,
     Future<void> Function()? prepareSession,
     Future<bool> Function()? reauthenticate,
+    Future<DormInfo?> Function()? fetchDirectInfo,
     Future<DormInfo?> Function()? fetchRenderedInfo,
     Future<bool> Function()? ensureWebVpnSession,
   }) : _storage = storage ?? DormStorage(),
@@ -80,6 +82,7 @@ class DormService {
            ),
        _prepareSession = prepareSession,
        _reauthenticate = reauthenticate,
+       _fetchDirectInfo = fetchDirectInfo,
        _fetchRenderedInfo = fetchRenderedInfo,
        _ensureWebVpnSession = ensureWebVpnSession;
 
@@ -91,6 +94,13 @@ class DormService {
   }
 
   Future<DormInfo> fetchDormInfo() async {
+    // 优先走超星 OAuth 直连 gy.hunau.edu.cn 的纯 HTTP 快路径（无 WebView）。
+    final direct = await (_fetchDirectInfo?.call() ?? _fetchDirectDormInfo());
+    if (direct?.hasAny == true) {
+      await _saveCachedInfo(direct!);
+      return direct;
+    }
+
     try {
       await _prepareDormSession();
       return await _loadDormInfo();
@@ -102,6 +112,111 @@ class DormService {
       // Retry the complete page/data flow once after refreshing SSO.
       return _loadDormInfo();
     }
+  }
+
+  /// 直连学生公寓平台：超星 OAuth 建立会话后直接拉取床位 HTML 解析。
+  /// 失败时返回 null，让上层回退到 WebVPN + WebView 流程。
+  Future<DormInfo?> _fetchDirectDormInfo() async {
+    try {
+      await _ensureCookieJar();
+
+      // 已有 JSESSIONID 时直接探测，命中即秒开。
+      final probe = await _requestDormBedPage();
+      if (_isBedPageValid(probe)) {
+        final info = parseDormInfo(probe);
+        if (info.hasAny) return info;
+      }
+
+      if (!await _authenticateDormOAuth()) return null;
+
+      final bedHtml = await _requestDormBedPage();
+      if (!_isBedPageValid(bedHtml)) return null;
+      final info = parseDormInfo(bedHtml);
+      return info.hasAny ? info : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String> _requestDormBedPage() async {
+    final url =
+        '${AppConstants.dormitoryBedUrl}?_t_s_=${DateTime.now().millisecondsSinceEpoch}';
+    final response = await _dio.get<String>(
+      url,
+      options: Options(
+        responseType: ResponseType.plain,
+        followRedirects: false,
+        validateStatus: (status) => status != null && status < 500,
+        headers: {
+          'User-Agent': AppConstants.dormitoryUA,
+          'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'Referer': AppConstants.dormitoryWelcomeUrl,
+        },
+      ),
+    );
+    if (response.statusCode != 200) return '';
+    return response.data ?? '';
+  }
+
+  bool _isBedPageValid(String html) {
+    if (html.isEmpty || _looksLikeLoginPage(html)) return false;
+    return html.contains('我的床位') ||
+        html.contains('createRow') ||
+        html.contains('SFSchCalendar') ||
+        html.contains('wyDorm');
+  }
+
+  /// 执行超星 OAuth -> gy.hunau.edu.cn 会话建立的重定向链。
+  Future<bool> _authenticateDormOAuth() async {
+    String? currentUrl = AppConstants.dormitoryOAuthUrl;
+    String? referer;
+    for (var hop = 0; hop < 10 && currentUrl != null; hop++) {
+      final response = await _dio.get<String>(
+        currentUrl,
+        options: Options(
+          responseType: ResponseType.plain,
+          followRedirects: false,
+          maxRedirects: 0,
+          validateStatus: (status) => status != null && status < 500,
+          headers: {
+            'User-Agent': AppConstants.dormitoryUA,
+            'Accept':
+                'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Upgrade-Insecure-Requests': '1',
+            'Referer': ?referer,
+          },
+        ),
+      );
+
+      final status = response.statusCode ?? 0;
+      final location = response.headers.value('location') ?? '';
+      final body = response.data ?? '';
+
+      // 授权页未重定向且回显登录页，说明超星登录态已失效。
+      if (hop == 0 &&
+          status == 200 &&
+          (body.contains('passport2') || body.contains('login'))) {
+        return false;
+      }
+
+      if (const [301, 302, 303, 307, 308].contains(status) &&
+          location.isNotEmpty) {
+        referer = currentUrl;
+        var next = Uri.parse(currentUrl).resolve(location);
+        if (next.scheme == 'http' && next.host == 'gy.hunau.edu.cn') {
+          next = next.replace(scheme: 'https');
+        }
+        currentUrl = next.toString();
+        continue;
+      }
+
+      if (status == 200) return true;
+      currentUrl = null;
+    }
+    return false;
   }
 
   Future<void> _prepareDormSession() async {

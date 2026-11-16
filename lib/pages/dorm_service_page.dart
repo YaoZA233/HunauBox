@@ -41,7 +41,7 @@ class _DormServicePageState extends State<DormServicePage> {
       MaterialPageRoute(
         builder: (_) => const WebViewDetailPage(
           title: '学生公寓',
-          url: AppConstants.dormServiceUrl,
+          url: AppConstants.dormitoryOAuthUrl,
           showWebBack: true,
         ),
       ),

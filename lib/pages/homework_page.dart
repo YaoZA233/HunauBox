@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../models/homework_model.dart';
 import '../providers/homework_provider.dart';
 import '../services/app_cookie_manager.dart';
+import '../widgets/campus_loading_mark.dart';
 import 'webview_detail_page.dart';
 
 class HomeworkPage extends ConsumerStatefulWidget {
@@ -38,7 +37,7 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
         title: const Text('作业'),
       ),
       body: homeworkState.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: CampusLoadingMark(size: 38)),
         error: (_, _) => _buildErrorState(),
         data: _buildContent,
       ),
@@ -52,6 +51,9 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
     final allCompleted = homework
         .where((item) => item.status == HomeworkStatus.completed)
         .toList();
+    final allArchived = homework
+        .where((item) => item.status == HomeworkStatus.archived)
+        .toList();
     final filteredHomework = _filterHomework(homework);
     final pending = filteredHomework
         .where((item) => item.status == HomeworkStatus.pending)
@@ -59,7 +61,14 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
     final completed = filteredHomework
         .where((item) => item.status == HomeworkStatus.completed)
         .toList();
-    final visibleItems = _selectedTab == 0 ? pending : completed;
+    final archived = filteredHomework
+        .where((item) => item.status == HomeworkStatus.archived)
+        .toList();
+    final visibleItems = switch (_selectedTab) {
+      0 => pending,
+      1 => completed,
+      _ => archived,
+    };
 
     return RefreshIndicator(
       onRefresh: _refresh,
@@ -67,12 +76,14 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
             sliver: SliverToBoxAdapter(
               child: _buildOverview(
                 allPending.length,
                 allCompleted.length,
+                archivedCount: allArchived.length,
                 matchingCount: filteredHomework.length,
+                totalCount: homework.length,
               ),
             ),
           ),
@@ -81,27 +92,32 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
             sliver: SliverToBoxAdapter(child: _buildSearchField()),
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-            sliver: SliverToBoxAdapter(child: _buildSegmentedControl()),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+            sliver: SliverToBoxAdapter(
+              child: _buildSegmentedControl(
+                pending.length,
+                completed.length,
+                archived.length,
+              ),
+            ),
           ),
           if (visibleItems.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
               child: _buildEmptyState(
-                isPending: _selectedTab == 0,
+                selectedTab: _selectedTab,
                 hasSearch: _searchQuery.trim().isNotEmpty,
               ),
             )
           else
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-              sliver: SliverList.separated(
+              sliver: SliverList.builder(
                 itemCount: visibleItems.length,
                 itemBuilder: (context, index) => _HomeworkItem(
                   homework: visibleItems[index],
                   onTap: () => _openHomework(visibleItems[index]),
                 ),
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
               ),
             ),
         ],
@@ -134,76 +150,82 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
   Widget _buildOverview(
     int pendingCount,
     int completedCount, {
+    required int archivedCount,
     required int matchingCount,
+    required int totalCount,
   }) {
     final colors = Theme.of(context).colorScheme;
-    final total = pendingCount + completedCount;
-    final completion = total == 0 ? 0.0 : completedCount / total;
-    final hasSearch = _searchQuery.trim().isNotEmpty;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
-          colors: [colors.primary, Color.lerp(colors.primary, colors.tertiary, .62)!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final activeTotal = pendingCount + completedCount;
+    final completion = activeTotal == 0 ? 0.0 : completedCount / activeTotal;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('作业', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 13),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '$totalCount',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                height: 1,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text('项记录', style: TextStyle(color: colors.onSurfaceVariant)),
+            ),
+            const Spacer(),
+            Text(
+              '$pendingCount 项待完成',
+              style: TextStyle(
+                color: colors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-        boxShadow: [BoxShadow(color: colors.primary.withValues(alpha: .22), blurRadius: 22, offset: const Offset(0, 10))],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('本周学习节奏', style: TextStyle(color: colors.onPrimary.withValues(alpha: .78), fontSize: 13, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                Text(
-                  hasSearch ? '找到 $matchingCount 项相关作业' : pendingCount == 0 ? '安排已清空' : '还有 $pendingCount 项待处理',
-                  style: TextStyle(color: colors.onPrimary, fontSize: 24, height: 1.12, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  hasSearch ? '可按课程名、标题或备注继续筛选' : total == 0 ? '下拉刷新以同步学习通作业' : '已完成 $completedCount / $total',
-                  style: TextStyle(color: colors.onPrimary.withValues(alpha: .8), fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 76,
-            height: 76,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CircularProgressIndicator(value: completion, strokeWidth: 7, backgroundColor: colors.onPrimary.withValues(alpha: .2), valueColor: AlwaysStoppedAnimation(colors.onPrimary)),
-                Container(
-                  width: 52,
-                  height: 52,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: .94),
-                    shape: BoxShape.circle,
-                  ),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      '${(completion * 100).round()}%',
-                      style: TextStyle(
-                        color: colors.onPrimary,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                      ),
-                    ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: completion),
+                  duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 850),
+                  curve: Curves.easeInOutCubic,
+                  builder: (context, value, _) => LinearProgressIndicator(
+                    value: value,
+                    minHeight: 5,
+                    backgroundColor: colors.surfaceContainerHighest,
+                    color: colors.primary,
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
+            const SizedBox(width: 10),
+            Text(
+              '${(completion * 100).round()}%',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _searchQuery.trim().isNotEmpty
+              ? '当前匹配 $matchingCount 项'
+              : '已完成 $completedCount · 已归档 $archivedCount',
+          style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+        ),
+      ],
     );
   }
 
@@ -227,64 +249,53 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
                 icon: const Icon(Icons.close_rounded, size: 19),
               ),
         filled: true,
-        fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.72),
+        fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.42),
         contentPadding: const EdgeInsets.symmetric(vertical: 14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: .65)),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: colors.outlineVariant),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: colors.primary, width: 1.4),
         ),
       ),
     );
   }
 
-  Widget _buildSegmentedControl() {
+  Widget _buildSegmentedControl(
+    int pendingCount,
+    int completedCount,
+    int archivedCount,
+  ) {
     final colors = Theme.of(context).colorScheme;
-    const labels = ['待处理', '已完成'];
-    return Row(
-      children: List.generate(labels.length, (index) {
-        final selected = _selectedTab == index;
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(right: index == 0 ? 8 : 0),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: () => setState(() => _selectedTab = index),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? colors.onSurface
-                      : colors.surfaceContainerHighest.withValues(alpha: .62),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(
-                  labels[index],
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: selected ? colors.surface : colors.onSurfaceVariant,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      }),
+    return SegmentedButton<int>(
+      segments: [
+        ButtonSegment(value: 0, label: Text('待处理 $pendingCount')),
+        ButtonSegment(value: 1, label: Text('已完成 $completedCount')),
+        ButtonSegment(value: 2, label: Text('已归档 $archivedCount')),
+      ],
+      selected: {_selectedTab},
+      showSelectedIcon: false,
+      style: ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        textStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 12)),
+        side: WidgetStatePropertyAll(BorderSide(color: colors.outlineVariant)),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+        ),
+      ),
+      onSelectionChanged: (selection) =>
+          setState(() => _selectedTab = selection.first),
     );
   }
 
   Widget _buildEmptyState({
-    required bool isPending,
+    required int selectedTab,
     required bool hasSearch,
   }) {
     final colors = Theme.of(context).colorScheme;
@@ -295,7 +306,11 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              isPending ? Icons.task_alt_rounded : Icons.done_all_rounded,
+              selectedTab == 0
+                  ? Icons.task_alt_rounded
+                  : selectedTab == 1
+                  ? Icons.done_all_rounded
+                  : Icons.inventory_2_outlined,
               size: 42,
               color: colors.primary,
             ),
@@ -303,9 +318,11 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
             Text(
               hasSearch
                   ? '没有找到匹配的作业'
-                  : isPending
-                  ? '没有待完成的作业'
-                  : '暂时没有已完成的作业',
+                  : selectedTab == 0
+                  ? '没有待处理作业'
+                  : selectedTab == 1
+                  ? '没有已完成作业'
+                  : '没有已归档作业',
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
@@ -394,94 +411,106 @@ class _HomeworkItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final completed = homework.status == HomeworkStatus.completed;
+    final archived = homework.status == HomeworkStatus.archived;
     final deadline = _deadlineText();
-    final urgent = !completed && _isUrgent();
-    final accent = completed ? colors.primary : urgent ? colors.error : colors.tertiary;
+    final urgent = !completed && !archived && _isUrgent();
+    final accent = completed
+        ? colors.primary
+        : archived
+        ? colors.outline
+        : urgent
+        ? colors.error
+        : colors.tertiary;
+    final status = completed ? '已完成' : archived ? '已归档' : urgent ? '即将截止' : '待处理';
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Material(
-          color: colors.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(18),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(18),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(16, 16, 12, 15),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: colors.outlineVariant),
-                boxShadow: [
-                  BoxShadow(
-                    color: colors.shadow.withValues(alpha: 0.045),
-                    blurRadius: 14,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 90),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: colors.outlineVariant)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2, right: 12),
+                child: Icon(
+                  completed
+                      ? Icons.check_circle_outline
+                      : archived
+                      ? Icons.inventory_2_outlined
+                      : Icons.radio_button_unchecked,
+                  size: 19,
+                  color: accent,
+                ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 4,
-                    height: 66,
-                    margin: const EdgeInsets.only(right: 13),
-                    decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(99)),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                homework.courseName.isEmpty ? '课程作业' : homework.courseName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700),
-                              ),
+                        Expanded(
+                          child: Text(
+                            homework.courseName.isEmpty ? '课程作业' : homework.courseName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.onSurfaceVariant,
                             ),
-                            if (homework.isManual)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                                decoration: BoxDecoration(color: colors.secondaryContainer, borderRadius: BorderRadius.circular(99)),
-                                child: Text('手动', style: TextStyle(color: colors.onSecondaryContainer, fontSize: 10, fontWeight: FontWeight.w700)),
-                              ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 7),
-                        Text(
-                          homework.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 16, height: 1.28, fontWeight: FontWeight.w800, color: completed ? colors.onSurfaceVariant : colors.onSurface, decoration: completed ? TextDecoration.lineThrough : null),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Icon(completed ? Icons.check_circle_outline_rounded : Icons.schedule_rounded, size: 16, color: accent),
-                            const SizedBox(width: 5),
-                            Expanded(
-                              child: Text(
-                                deadline,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: completed ? colors.onSurfaceVariant : accent),
-                              ),
+                        if (homework.isManual) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            '手动',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colors.onSurfaceVariant,
                             ),
-                            const Icon(Icons.arrow_outward_rounded, size: 17),
-                          ],
-                        ),
+                          ),
+                        ],
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 5),
+                    Text(
+                      homework.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.3,
+                        fontWeight: FontWeight.w600,
+                        color: completed || archived
+                            ? colors.onSurfaceVariant
+                            : colors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      '$status · $deadline',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: accent,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(width: 5),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(Icons.chevron_right, size: 18, color: colors.outline),
+              ),
+            ],
           ),
         ),
       ),

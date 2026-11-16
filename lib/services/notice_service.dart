@@ -82,6 +82,42 @@ class NoticeService {
     }
   }
 
+  Future<NoticeResult> fetchAllMessageList() async {
+    final messages = <MessageModel>[];
+    final seenIds = <String>{};
+    final seenCursors = <String>{};
+    String? cursor;
+
+    // The endpoint returns a cursor page (usually 20 records) rather than the
+    // complete inbox. Keep advancing until the server signals the final page.
+    for (var page = 0; page < 500; page++) {
+      final result = await fetchMessageList(lastValue: cursor);
+      for (final message in result.messages) {
+        final id = message.uuid.isNotEmpty ? message.uuid : message.idCode;
+        final fallback = '${message.sendTime}|${message.createrName}|${message.title}';
+        if (seenIds.add(id.isNotEmpty ? id : fallback)) {
+          messages.add(message);
+        }
+      }
+
+      final nextCursor = result.nextLastValue;
+      if (!result.hasMore || nextCursor == null || nextCursor.isEmpty) {
+        return NoticeResult(messages: messages, hasMore: false);
+      }
+      if (!seenCursors.add(nextCursor)) {
+        _logger.w('Notice pagination cursor stopped advancing; ending refresh');
+        return NoticeResult(messages: messages, hasMore: false);
+      }
+      if (result.messages.isEmpty) {
+        _logger.w('Notice pagination returned an empty page; ending refresh');
+        return NoticeResult(messages: messages, hasMore: false);
+      }
+      cursor = nextCursor;
+    }
+
+    throw StateError('通知数量超出读取范围，请稍后重试');
+  }
+
   Future<Map<String, dynamic>> fetchNoticeDetail(String uuid) async {
     try {
       final url =

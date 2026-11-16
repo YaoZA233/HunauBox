@@ -7,8 +7,10 @@ import 'providers/background_provider.dart';
 import 'services/app_cookie_manager.dart';
 import 'services/course_notification_service.dart';
 import 'pages/main_navigator.dart';
+import 'pages/onboarding_page.dart';
 import 'providers/theme_provider.dart';
 import 'providers/motion_provider.dart';
+import 'providers/app_theme_provider.dart';
 import 'widgets/app_motion.dart';
 import 'pages/timetable_page.dart';
 import 'pages/live_course_page.dart';
@@ -16,11 +18,25 @@ import 'services/live_course_service.dart';
 import 'services/unified_capsule_service.dart';
 
 final _navigatorKey = GlobalKey<NavigatorState>();
+bool _homeReady = false;
+bool _pendingCourseTimetable = false;
 
 void _openCourseTimetable() {
+  if (!_homeReady || _navigatorKey.currentState == null) {
+    _pendingCourseTimetable = true;
+    return;
+  }
   _navigatorKey.currentState?.push(
     MaterialPageRoute<void>(builder: (_) => const TimetablePage()),
   );
+}
+
+void _onHomeReady() {
+  _homeReady = true;
+  if (_pendingCourseTimetable) {
+    _pendingCourseTimetable = false;
+    _openCourseTimetable();
+  }
 }
 
 void main() async {
@@ -47,235 +63,52 @@ void main() async {
   }
 }
 
-class SmartHunanAgriApp extends ConsumerWidget {
+class SmartHunanAgriApp extends ConsumerStatefulWidget {
   const SmartHunanAgriApp({super.key});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SmartHunanAgriApp> createState() => _SmartHunanAgriAppState();
+}
+
+class _SmartHunanAgriAppState extends ConsumerState<SmartHunanAgriApp> {
+  // Track the visual theme inputs so we only pay for MaterialApp's 200ms
+  // AnimatedTheme crossfade when colors/background/mode actually change.
+  // Motion-only changes snap instantly (Duration.zero) instead of lerping
+  // the whole ThemeData every frame for 200ms — the source of the jank when
+  // picking a transition in settings.
+  Color? _lastColor;
+  AppBackgroundSettings? _lastBackground;
+  ThemeMode? _lastMode;
+
+  @override
+  Widget build(BuildContext context) {
     final themeColor = ref.watch(themeColorProvider);
     final themeMode = ref.watch(themeModeProvider);
     final background = ref.watch(appBackgroundProvider);
     final motion = ref.watch(motionSettingsProvider);
-    final transitions = AppPageTransitionsBuilder(motion);
 
-    ThemeData buildTheme(Brightness brightness) {
-      final isDark = brightness == Brightness.dark;
-      final hasBg = background.hasImage;
-      final generatedScheme = ColorScheme.fromSeed(
-        seedColor: themeColor,
-        brightness: brightness,
-        dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
-      );
-      // ChillEast's light theme is intentionally white-first: one clear
-      // campus green accent, Google-style neutral text, and quiet borders.
-      // Keep the generated tonal roles so custom accent colors still work,
-      // while pinning the neutral surfaces to that same visual language.
-      final scheme = generatedScheme.copyWith(
-        primary: themeColor,
-        onPrimary: isDark ? Colors.black : Colors.white,
-        surface: isDark ? const Color(0xFF121212) : Colors.white,
-        surfaceContainerLowest: isDark
-            ? (hasBg
-                  ? const Color(0xFF121212).withValues(alpha: 0.72)
-                  : const Color(0xFF121212))
-            : (hasBg ? Colors.white.withValues(alpha: 0.78) : Colors.white),
-        surfaceContainerLow: isDark
-            ? (hasBg
-                  ? const Color(0xFF181818).withValues(alpha: 0.74)
-                  : const Color(0xFF181818))
-            : (hasBg ? Colors.white.withValues(alpha: 0.80) : Colors.white),
-        surfaceContainer: isDark
-            ? (hasBg
-                  ? const Color(0xFF1E1E1E).withValues(alpha: 0.76)
-                  : const Color(0xFF1E1E1E))
-            : (hasBg ? Colors.white.withValues(alpha: 0.82) : Colors.white),
-        surfaceContainerHigh: isDark
-            ? (hasBg
-                  ? const Color(0xFF242424).withValues(alpha: 0.78)
-                  : const Color(0xFF242424))
-            : const Color(0xFFF8F9FA),
-        surfaceContainerHighest: isDark
-            ? (hasBg
-                  ? const Color(0xFF2B2B2B).withValues(alpha: 0.80)
-                  : const Color(0xFF2B2B2B))
-            : const Color(0xFFF1F3F4),
-        onSurface: isDark ? Colors.white : const Color(0xFF202124),
-        onSurfaceVariant: isDark
-            ? const Color(0xFFBDC1C6)
-            : const Color(0xFF5F6368),
-        outline: isDark
-            ? (hasBg
-                  ? const Color(0xFFFFFFFF).withValues(alpha: 0.16)
-                  : const Color(0xFF5F6368))
-            : const Color(0xFFDADCE0),
-        outlineVariant: isDark
-            ? (hasBg
-                  ? const Color(0xFFFFFFFF).withValues(alpha: 0.12)
-                  : const Color(0xFF3C4043))
-            : (hasBg
-                  ? const Color(0xFF000000).withValues(alpha: 0.08)
-                  : const Color(0xFFE8EAED)),
-      );
-      final surface = isDark ? const Color(0xFF121212) : Colors.white;
-      final card = isDark
-          ? (hasBg
-                ? const Color(0xFF1E1E1E).withValues(alpha: 0.74)
-                : const Color(0xFF1E1E1E))
-          : (hasBg ? Colors.white.withValues(alpha: 0.80) : Colors.white);
-      final outline = isDark
-          ? (hasBg
-                ? const Color(0xFFFFFFFF).withValues(alpha: 0.14)
-                : const Color(0xFF3C4043))
-          : const Color(0xFFDADCE0);
-      final textTheme = ThemeData(brightness: brightness).textTheme.apply(
-        bodyColor: scheme.onSurface,
-        displayColor: scheme.onSurface,
-        fontFamily: 'sans-serif',
-      );
+    final visualChanged =
+        _lastColor != themeColor ||
+        _lastBackground?.hasImage != background.hasImage ||
+        _lastBackground?.imagePath != background.imagePath ||
+        _lastBackground?.blurSigma != background.blurSigma ||
+        _lastMode != themeMode;
+    _lastColor = themeColor;
+    _lastBackground = background;
+    _lastMode = themeMode;
 
-      return ThemeData(
-        extensions: [motion],
-        useMaterial3: true,
-        brightness: brightness,
-        primaryColor: themeColor,
-        colorScheme: scheme,
-        scaffoldBackgroundColor: background.hasImage
-            ? Colors.transparent
-            : surface,
-        textTheme: textTheme.copyWith(
-          headlineSmall: textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-            height: 1.16,
-          ),
-          titleLarge: textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-            height: 1.2,
-          ),
-          titleMedium: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            height: 1.25,
-          ),
-          bodyMedium: textTheme.bodyMedium?.copyWith(height: 1.45),
-          bodySmall: textTheme.bodySmall?.copyWith(height: 1.38),
-        ),
-        appBarTheme: AppBarTheme(
-          backgroundColor: surface.withValues(
-            alpha: background.hasImage ? 0.82 : 0.94,
-          ),
-          foregroundColor: scheme.onSurface,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          centerTitle: false,
-          surfaceTintColor: Colors.transparent,
-          titleTextStyle: textTheme.titleLarge?.copyWith(
-            color: scheme.onSurface,
-            fontSize: 20,
-          ),
-        ),
-        cardTheme: CardThemeData(
-          color: card,
-          elevation: 0,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: outline),
-          ),
-          margin: EdgeInsets.zero,
-        ),
-        dividerTheme: DividerThemeData(color: outline, thickness: 0.8),
-        listTileTheme: ListTileThemeData(
-          iconColor: scheme.onSurfaceVariant,
-          textColor: scheme.onSurface,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 2,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: isDark
-              ? (hasBg
-                    ? const Color(0xFF2B2B2B).withValues(alpha: 0.72)
-                    : const Color(0xFF2B2B2B))
-              : (hasBg
-                    ? const Color(0xFFF1F3F4).withValues(alpha: 0.82)
-                    : const Color(0xFFF1F3F4)),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: outline),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: outline),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: scheme.primary, width: 1.5),
-          ),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(0, 48),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ).copyWith(foregroundBuilder: AppPressScale.buttonBuilder),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: ButtonStyle(
-            foregroundBuilder: AppPressScale.buttonBuilder,
-            minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
-          ),
-        ),
-        textButtonTheme: const TextButtonThemeData(
-          style: ButtonStyle(foregroundBuilder: AppPressScale.buttonBuilder),
-        ),
-        iconButtonTheme: const IconButtonThemeData(
-          style: ButtonStyle(foregroundBuilder: AppPressScale.buttonBuilder),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, 48),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ).copyWith(foregroundBuilder: AppPressScale.buttonBuilder),
-        ),
-        snackBarTheme: SnackBarThemeData(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: isDark
-              ? const Color(0xFF2B2B2B)
-              : const Color(0xFF202124),
-          contentTextStyle: TextStyle(
-            color: isDark ? scheme.onSurface : Colors.white,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        pageTransitionsTheme: PageTransitionsTheme(
-          builders: {
-            for (final platform in TargetPlatform.values) platform: transitions,
-          },
-        ),
-      );
-    }
+    final baseLight = ref.watch(baseAppThemeProvider(Brightness.light));
+    final baseDark = ref.watch(baseAppThemeProvider(Brightness.dark));
 
     return MaterialApp(
       scrollBehavior: const AppScrollBehavior(),
       debugShowCheckedModeBanner: false,
-      theme: buildTheme(Brightness.light),
-      darkTheme: buildTheme(Brightness.dark),
+      theme: applyMotionToTheme(baseLight, motion),
+      darkTheme: applyMotionToTheme(baseDark, motion),
       themeMode: themeMode,
+      themeAnimationDuration: visualChanged
+          ? kThemeAnimationDuration
+          : Duration.zero,
       builder: (context, child) {
         if (child == null) return const SizedBox.shrink();
         if (!background.hasImage) {
@@ -314,7 +147,7 @@ class SmartHunanAgriApp extends ConsumerWidget {
       },
       navigatorKey: _navigatorKey,
       routes: {'/course-live': (_) => const LiveCoursePage()},
-      home: const MainNavigator(),
+      home: OnboardingGate(onReady: _onHomeReady, child: const MainNavigator()),
     );
   }
 }

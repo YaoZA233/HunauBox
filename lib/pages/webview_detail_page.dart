@@ -161,7 +161,11 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
               elevation: 0,
               scrolledUnderElevation: 0,
               automaticallyImplyLeading: false,
-              title: const Text(''),
+              title: Text(
+                widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               centerTitle: true,
               leadingWidth: widget.showWebBack ? 70 : 0,
               leading: widget.showWebBack

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/message_model.dart';
 import '../providers/notice_provider.dart';
+import '../widgets/campus_loading_mark.dart';
 import 'notice_detail_screen.dart';
 
 class NoticePage extends ConsumerStatefulWidget {
@@ -64,7 +65,7 @@ class _NoticePageState extends ConsumerState<NoticePage>
 
   Widget _buildBody(NoticeState noticeState) {
     if (noticeState.isLoading && noticeState.messages.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CampusLoadingMark(size: 38));
     }
     if (noticeState.errorMessage != null && noticeState.messages.isEmpty) {
       return _buildErrorState();
@@ -83,7 +84,7 @@ class _NoticePageState extends ConsumerState<NoticePage>
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 8),
             sliver: SliverToBoxAdapter(
               child: _buildOverview(
                 unreadCount: unread.length,
@@ -93,18 +94,18 @@ class _NoticePageState extends ConsumerState<NoticePage>
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
             sliver: SliverToBoxAdapter(child: _buildSearchField()),
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
             sliver: SliverToBoxAdapter(child: _buildFilterControl()),
           ),
           if (noticeState.isLoading)
             const SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                child: LinearProgressIndicator(minHeight: 2),
+                padding: EdgeInsets.symmetric(vertical: 5),
+                child: Center(child: CampusLoadingMark(size: 24)),
               ),
             ),
           if (visibleMessages.isEmpty)
@@ -117,15 +118,12 @@ class _NoticePageState extends ConsumerState<NoticePage>
             )
           else ...[
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              padding: const EdgeInsets.fromLTRB(20, 2, 20, 8),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
-                  (context, index) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _NoticeItem(
-                      message: visibleMessages[index],
-                      onTap: () => _openNotice(visibleMessages[index]),
-                    ),
+                  (context, index) => _NoticeItem(
+                    message: visibleMessages[index],
+                    onTap: () => _openNotice(visibleMessages[index]),
                   ),
                   childCount: visibleMessages.length,
                 ),
@@ -159,17 +157,18 @@ class _NoticePageState extends ConsumerState<NoticePage>
                 icon: const Icon(Icons.close_rounded),
               ),
         filled: true,
-        fillColor: colors.surfaceContainerHighest.withValues(alpha: .7),
+        fillColor: colors.surfaceContainerHighest.withValues(alpha: .42),
+        contentPadding: const EdgeInsets.symmetric(vertical: 13),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: .65)),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: colors.outlineVariant),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: colors.primary, width: 1.4),
         ),
       ),
@@ -221,92 +220,65 @@ class _NoticePageState extends ConsumerState<NoticePage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          hasSearch
-              ? '找到 $matchingCount 条相关通知'
-              : unreadCount == 0
-              ? '消息已全部查看'
-              : '有 $unreadCount 条消息未读',
-          style: Theme.of(context).textTheme.headlineSmall,
+        Text('校园通知', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '$totalCount',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                height: 1,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(
+                '条通知',
+                style: TextStyle(color: colors.onSurfaceVariant),
+              ),
+            ),
+            const Spacer(),
+            Text(
+              unreadCount == 0 ? '全部已读' : '$unreadCount 条未读',
+              style: TextStyle(
+                color: unreadCount == 0 ? colors.onSurfaceVariant : colors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
-        Text(
-          hasSearch
-              ? '支持标题、正文、发布人和时间的模糊搜索'
-              : totalCount == 0
-              ? '下拉刷新以同步校园通知'
-              : '最近共收到 $totalCount 条通知',
-          style: TextStyle(fontSize: 14, color: colors.onSurfaceVariant),
-        ),
+        if (hasSearch) ...[
+          const SizedBox(height: 6),
+          Text(
+            '当前匹配 $matchingCount 条',
+            style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildFilterControl() {
     final colors = Theme.of(context).colorScheme;
-    const labels = ['全部', '未读'];
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(12),
+    return SegmentedButton<int>(
+      segments: [
+        ButtonSegment(value: 0, label: Text('全部')),
+        ButtonSegment(value: 1, label: Text('未读')),
+      ],
+      selected: {_selectedFilter},
+      showSelectedIcon: false,
+      style: ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        side: WidgetStatePropertyAll(BorderSide(color: colors.outlineVariant)),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+        ),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final segmentWidth = (constraints.maxWidth - 6) / labels.length;
-          return Stack(
-            children: [
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeOutCubic,
-                left: _selectedFilter * segmentWidth,
-                top: 0,
-                width: segmentWidth,
-                height: 38,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainerLowest,
-                    borderRadius: BorderRadius.circular(9),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 5,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Row(
-                children: List.generate(labels.length, (index) {
-                  final selected = _selectedFilter == index;
-                  return Expanded(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(9),
-                      onTap: () => setState(() => _selectedFilter = index),
-                      child: Center(
-                        child: Text(
-                          labels[index],
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            color: selected
-                                ? colors.onSurface
-                                : colors.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ],
-          );
-        },
-      ),
+      onSelectionChanged: (selection) =>
+          setState(() => _selectedFilter = selection.first),
     );
   }
 
@@ -387,11 +359,7 @@ class _NoticePageState extends ConsumerState<NoticePage>
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 20),
         child: Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
+          child: CampusLoadingMark(size: 24),
         ),
       );
     }
@@ -428,52 +396,44 @@ class _NoticeItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final unread = !message.isRead || message.hasRedDot;
-    final accent = unread ? colors.primary : colors.outlineVariant;
     final sender = message.createrName.isEmpty ? '系统' : message.createrName;
 
     return Material(
-      color: unread
-          ? colors.surfaceContainerLowest
-          : colors.surfaceContainerHighest.withValues(alpha: 0.26),
-      borderRadius: BorderRadius.circular(12),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(15, 14, 14, 14),
+          constraints: const BoxConstraints(minHeight: 86),
+          padding: const EdgeInsets.symmetric(vertical: 13),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border(left: BorderSide(color: accent, width: 3)),
+            border: Border(bottom: BorderSide(color: colors.outlineVariant)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 34,
-                height: 34,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: unread
-                      ? colors.primaryContainer
-                      : colors.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Text(
-                  sender[0],
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: unread
-                        ? colors.onPrimaryContainer
-                        : colors.onSurfaceVariant,
-                  ),
+              SizedBox(
+                width: 18,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 7),
+                  child: unread
+                      ? Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: colors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        )
+                      : Icon(Icons.check, size: 14, color: colors.outline),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           child: Text(
@@ -481,58 +441,12 @@ class _NoticeItem extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 15,
                               height: 1.3,
                               fontWeight: unread
                                   ? FontWeight.w700
-                                  : FontWeight.w600,
-                              color: unread
-                                  ? colors.onSurface
-                                  : colors.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                        if (unread) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: colors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      message.content.replaceAll(RegExp(r'[\r\n]+'), ' '),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.4,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 11),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.account_circle_outlined,
-                          size: 15,
-                          color: colors.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(
-                            sender,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: colors.onSurfaceVariant,
+                                  : FontWeight.w500,
+                              color: colors.onSurface,
                             ),
                           ),
                         ),
@@ -546,8 +460,31 @@ class _NoticeItem extends StatelessWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 5),
+                    Text(
+                      message.content.replaceAll(RegExp(r'[\r\n]+'), ' '),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.35,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      sender,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: colors.primary),
+                    ),
                   ],
                 ),
+              ),
+              const SizedBox(width: 4),
+              Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Icon(Icons.chevron_right, size: 18, color: colors.outline),
               ),
             ],
           ),
@@ -563,7 +500,9 @@ class _NoticeItem extends StatelessWidget {
       final now = DateTime.now();
       final today =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-      return parts.first == today ? parts[1].substring(0, 5) : parts.first.substring(5);
+      return parts.first == today
+          ? parts[1].substring(0, 5)
+          : parts.first.substring(5);
     } catch (_) {
       return rawTime;
     }

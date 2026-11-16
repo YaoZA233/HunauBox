@@ -74,8 +74,22 @@ class AppConstants {
       'https://reserve.chaoxing.com/front/web/apps/reservepc/index?reserveId=14191&fidEnc=a915b52ee0aa18ad';
   static const String dormServiceUrl =
       'https://webvpn.hunau.edu.cn/http/77777776706e697374686562657374211a090679eb63a5f66ca21f55f190c1/content/menu/gygl/ssap/client/stu/wyDorm?*t_s*=1784472144908';
+
+  // 学生公寓（超星 OAuth 直连 gy.hunau.edu.cn，绕过 WebVPN/WebView，秒开）
+  static const String dormitoryOAuthUrl =
+      'https://auth.chaoxing.com/connect/oauth2/authorize?appid=38dd1e4799a442628765c36f825e9a31&redirect_uri=https%3A%2F%2Fgy.hunau.edu.cn%2Fapp%2Fcontent%2Fmain%2Fsitemap%3FappId%3D38dd1e4799a442628765c36f825e9a31%26appKey%3DYnh108tM4EO5412U%26uid%3D22073114%26fidEnc%3Da915b52ee0aa18ad%26mappId%3D7710759%26formid%3D&response_type=code&scope=snsapi_base&state=128516';
+  static const String dormitoryBaseUrl = 'https://gy.hunau.edu.cn';
+  static const String dormitoryBedUrl =
+      '$dormitoryBaseUrl/wap/menu/gygl/ssap/client/stu/wyDorm';
+  static const String dormitoryWelcomeUrl =
+      '$dormitoryBaseUrl/wap/main/welcome';
+  static const String dormitoryUA = campusCardUA;
   static const String schoolCalendarUrl =
       'https://www.hunau.edu.cn/yqlj/cyfw/202303/t20230308_128089.html';
+  static const String tuitionPaymentUrl =
+      'https://cwcx.hunau.edu.cn/SFPT_H5/?v=1794803240834#/query';
+  static const String physicalFitnessScoreUrl =
+      'http://ndtzcs.hunau.edu.cn/weixin/main.jsp';
   static const String bookRecommendationUrl =
       'http://office.chaoxing.com/apps/forms/web/apply.html?id=5260&formAppId=&enc=ff82ce28562d6256b80efd1fb5fd0078&fidEnc=a915b52ee0aa18ad&defaultUid=173679788&uuid=6b89acea8e7f4a9491960962416fe2e7&checkCode=10dac51ef1854e29bac29f1d833d0cd2';
 

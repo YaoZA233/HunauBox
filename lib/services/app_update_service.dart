@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -47,21 +48,38 @@ class AppRelease {
   final bool prerelease;
   final UpdateSource source;
 
-  /// 统一返回纯语义版本，例如从 `v1.0.6` 中解析出 `1.0.6`
+  bool get isStable =>
+      !prerelease &&
+      RegExp(
+        r'^v?\d+(?:\.\d+){0,2}(?:\+[0-9A-Za-z.-]+)?$',
+        caseSensitive: false,
+      ).hasMatch(tag.trim());
+
+  /// 提取版本号并保留预发布后缀，例如 `v1.0.8-beta`。
   String get version {
-    final match = RegExp(r'(\d+)(?:\.(\d+))?(?:\.(\d+))?').firstMatch(tag);
+    final match = RegExp(
+      r'(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?',
+    ).firstMatch(tag);
     if (match == null) return tag.trim();
-    return [
+    final base = [
       match.group(1),
       match.group(2) ?? '0',
       match.group(3) ?? '0',
     ].join('.');
+    return match.group(4) == null ? base : '$base-${match.group(4)}';
   }
 
   /// 优先选取正式版 APK 安装包
   AppReleaseAsset? get apk {
     final candidates = assets
-        .where((asset) => asset.name.toLowerCase().endsWith('.apk'))
+        .where(
+          (asset) =>
+              asset.name.toLowerCase().endsWith('.apk') &&
+              !RegExp(
+                r'(^|[._-])(debug|beta|alpha|rc)([._-]|$)',
+                caseSensitive: false,
+              ).hasMatch(asset.name),
+        )
         .toList();
     int rank(AppReleaseAsset asset) {
       final name = asset.name.toLowerCase();
@@ -115,7 +133,7 @@ class AppRelease {
         '${json['published_at'] ?? json['created_at'] ?? ''}',
       ),
       assets: assets,
-      prerelease: json['prerelease'] == true,
+      prerelease: json['prerelease'] == true || json['draft'] == true,
       source: source,
     );
   }
@@ -155,7 +173,7 @@ class AppUpdateService {
   static const giteeLatestReleaseUrl =
       'https://gitee.com/api/v5/repos/YaoZA233/HunauBox/releases/latest';
   static const giteeReleasesListUrl =
-      'https://gitee.com/api/v5/repos/YaoZA233/HunauBox/releases?page=1&per_page=1';
+      'https://gitee.com/api/v5/repos/YaoZA233/HunauBox/releases?page=1&per_page=100';
 
   // GitHub 相关常量
   static const githubRepositoryUrl = 'https://github.com/YaoZA233/HunauBox';
@@ -163,6 +181,9 @@ class AppUpdateService {
       'https://github.com/YaoZA233/HunauBox/releases';
   static const githubLatestReleaseUrl =
       'https://api.github.com/repos/YaoZA233/HunauBox/releases/latest';
+  static const githubReleasesListUrl =
+      'https://api.github.com/repos/YaoZA233/HunauBox/releases?per_page=100&page=1';
+  static const _downloadsChannel = MethodChannel('hunaubox/update_download');
 
   // 兼容旧引用的 repositoryUrl 与 latestReleaseUrl
   static const repositoryUrl = githubRepositoryUrl;
@@ -254,7 +275,9 @@ class AppUpdateService {
       if (data is String) data = jsonDecode(data);
 
       // 如果 latest 返回 404 或无数据，尝试拉取 releases 列表
-      if (data is! Map || '${data['tag_name'] ?? ''}'.trim().isEmpty) {
+      if (data is! Map ||
+          '${data['tag_name'] ?? ''}'.trim().isEmpty ||
+          !AppRelease.fromJson(data.cast<String, dynamic>()).isStable) {
         final listResponse = await _dio.get(
           giteeReleasesListUrl,
           options: Options(
@@ -270,15 +293,24 @@ class AppUpdateService {
         if (listData is! List) {
           throw const AppUpdateException('Gitee 返回的数据格式异常');
         }
-        if (listData.isNotEmpty && listData.first is Map) {
-          data = listData.first;
+        final candidates = listData
+            .whereType<Map>()
+            .map(
+              (item) => AppRelease.fromJson(
+                item.cast<String, dynamic>(),
+                source: UpdateSource.gitee,
+              ),
+            )
+            .where(
+              (release) => release.tag.trim().isNotEmpty && release.isStable,
+            )
+            .toList();
+        if (candidates.isNotEmpty) {
+          candidates.sort((a, b) => compareVersions(b.version, a.version));
+          return candidates.first;
         } else {
           throw const AppUpdateException('Gitee 暂未发布版本，可在设置中切换为 GitHub 源');
         }
-      }
-
-      if (data is! Map) {
-        throw const AppUpdateException('Gitee 返回的数据格式异常');
       }
 
       final release = AppRelease.fromJson(
@@ -320,6 +352,35 @@ class AppUpdateService {
       if (release.tag.isEmpty) {
         throw const AppUpdateException('没有在 GitHub 找到可用版本');
       }
+      if (!release.isStable) {
+        final list = await _dio.get(
+          githubReleasesListUrl,
+          options: Options(
+            headers: {
+              'Accept': 'application/vnd.github+json',
+              'User-Agent': 'HunauBox-App',
+            },
+          ),
+        );
+        dynamic data = list.data;
+        if (data is String) data = jsonDecode(data);
+        if (list.statusCode != 200 || data is! List) {
+          throw const AppUpdateException('GitHub 发布列表不可用');
+        }
+        final candidates = data
+            .whereType<Map>()
+            .map(
+              (item) => AppRelease.fromJson(
+                item.cast<String, dynamic>(),
+                source: UpdateSource.github,
+              ),
+            )
+            .where((item) => item.tag.trim().isNotEmpty && item.isStable)
+            .toList();
+        if (candidates.isEmpty) throw const AppUpdateException('GitHub 暂无正式版本');
+        candidates.sort((a, b) => compareVersions(b.version, a.version));
+        return candidates.first;
+      }
       return release;
     } on AppUpdateException {
       rethrow;
@@ -346,21 +407,42 @@ class AppUpdateService {
       );
       if (result != 0) return result;
     }
-    return 0;
+    String? prerelease(String value) => RegExp(
+      r'\d+(?:\.\d+)?(?:\.\d+)?-([0-9A-Za-z.-]+)',
+    ).firstMatch(value)?.group(1);
+    final first = prerelease(left), second = prerelease(right);
+    if (first == null || second == null) {
+      return first == second ? 0 : (first == null ? 1 : -1);
+    }
+    final aIds = first.split('.'), bIds = second.split('.');
+    for (var i = 0; i < aIds.length && i < bIds.length; i++) {
+      final aNum = int.tryParse(aIds[i]), bNum = int.tryParse(bIds[i]);
+      final result = aNum != null && bNum != null
+          ? aNum.compareTo(bNum)
+          : aNum != null
+          ? -1
+          : bNum != null
+          ? 1
+          : aIds[i].compareTo(bIds[i]);
+      if (result != 0) return result;
+    }
+    return aIds.length.compareTo(bIds.length);
   }
 
   Future<File> downloadApk(
     AppRelease release, {
     void Function(int received, int total)? onProgress,
   }) async {
+    if (!release.isStable) throw const AppUpdateException('自动更新仅支持正式版本');
     final asset = release.apk;
     if (asset == null) {
       throw AppUpdateException(
         '该版本尚未上传 APK 安装包，请前往 ${release.source.label} 发布页下载',
       );
     }
-    final directory =
-        await _publicDownloadsDirectory() ?? await _fallbackUpdateDirectory();
+    final publicDirectory = await _publicDownloadsDirectory();
+    final useMediaStore = Platform.isAndroid && publicDirectory == null;
+    final directory = publicDirectory ?? await _fallbackUpdateDirectory();
     final safeName = asset.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
     final file = File('${directory.path}/$safeName');
     try {
@@ -381,12 +463,23 @@ class AppUpdateService {
       if (!await file.exists() || await file.length() == 0) {
         throw const AppUpdateException('下载结果为空，请稍后重试');
       }
+      if (useMediaStore) {
+        final path = await _downloadsChannel.invokeMethod<String>('saveApk', {
+          'path': file.path,
+          'name': safeName,
+        });
+        if (path == null || path.isEmpty) {
+          throw const AppUpdateException('无法保存到 Download 目录');
+        }
+        await file.delete();
+        return File(path);
+      }
       return file;
     } catch (error) {
-      if (error is AppUpdateException) rethrow;
       try {
         if (await file.exists()) await file.delete();
       } catch (_) {}
+      if (error is AppUpdateException) rethrow;
       throw const AppUpdateException('安装包下载失败，请稍后重试');
     }
   }

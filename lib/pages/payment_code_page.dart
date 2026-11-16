@@ -185,6 +185,9 @@ class _PaymentCodePageState extends State<PaymentCodePage>
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final qrSize = (MediaQuery.sizeOf(context).width - 72)
+        .clamp(220.0, 300.0)
+        .toDouble();
     return Scaffold(
       appBar: AppBar(
         title: const Text('校园卡付款码'),
@@ -200,113 +203,147 @@ class _PaymentCodePageState extends State<PaymentCodePage>
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1677FF),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: [
-                    Row(
+              Row(
+                children: [
+                  Icon(Icons.credit_card_outlined, color: colors.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.credit_card, color: Colors.white),
-                        const SizedBox(width: 10),
-                        const Text(
-                          '湖南农业大学校园卡',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const Spacer(),
                         Text(
-                          '$_refreshCountdown 秒后刷新',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
+                          '湖南农业大学校园卡',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '付款码',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 22),
-                    Container(
-                      width: 220,
-                      height: 220,
-                      padding: const EdgeInsets.all(16),
-                      color: Colors.white,
-                      child: GestureDetector(
-                        onTap: _isLoading ? null : () => _loadPaymentCode(),
-                        child: Center(
-                          child: _isLoading && _qrBytes == null
-                              ? const CircularProgressIndicator(
-                                  color: Color(0xFF1677FF),
-                                )
-                              : _error != null && _qrBytes == null
-                              ? const Icon(
-                                  Icons.error_outline,
-                                  color: Colors.red,
-                                  size: 48,
-                                )
-                              : _qrBytes == null
-                              ? const SizedBox.shrink()
-                              : Image.memory(_qrBytes!, fit: BoxFit.contain),
-                        ),
+                  ),
+                  IconButton(
+                    tooltip: '刷新付款码',
+                    onPressed: _isLoading || _isRefreshing
+                        ? null
+                        : () => _loadPaymentCode(),
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+              Center(
+                child: Container(
+                  width: qrSize,
+                  height: qrSize,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: colors.outlineVariant),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      '请将二维码对准扫码设备',
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                  ],
+                    ],
+                  ),
+                  child: Center(
+                    child: _isLoading && _qrBytes == null
+                        ? CircularProgressIndicator(color: colors.primary)
+                        : _error != null && _qrBytes == null
+                        ? Icon(Icons.qr_code_2, color: colors.error, size: 54)
+                        : _qrBytes == null
+                        ? const SizedBox.shrink()
+                        : Image.memory(
+                            _qrBytes!,
+                            fit: BoxFit.contain,
+                            gaplessPlayback: true,
+                            semanticLabel: '校园卡动态付款二维码',
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                _error != null && _qrBytes == null
+                    ? _error!
+                    : '请将二维码对准扫码设备',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: _error != null && _qrBytes == null
+                      ? colors.error
+                      : colors.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _isRefreshing
+                    ? '正在更新付款码…'
+                    : '$_refreshCountdown 秒后自动更新',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: _refreshCountdown / 60,
+                  minHeight: 3,
+                  backgroundColor: colors.surfaceContainerHighest,
+                  semanticsLabel: '付款码刷新倒计时',
                 ),
               ),
               if (_error != null && _qrBytes == null) ...[
-                const SizedBox(height: 16),
-                Text(
-                  _error!,
-                  style: TextStyle(color: colors.error),
-                  textAlign: TextAlign.center,
-                ),
                 const SizedBox(height: 8),
-                TextButton.icon(
+                Center(
+                  child: TextButton.icon(
                   onPressed: () => _loadPaymentCode(),
                   icon: const Icon(Icons.refresh),
-                  label: const Text('重新获取'),
+                    label: const Text('重新获取'),
+                  ),
                 ),
               ],
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.surfaceContainerHighest.withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(8),
-                ),
+              const SizedBox(height: 28),
+              Divider(height: 1, color: colors.outlineVariant),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.account_balance_wallet_outlined,
-                      color: colors.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      '校园卡余额 ￥${_balanceText()}',
-                      style: TextStyle(
-                        color: colors.onSurface,
-                        fontWeight: FontWeight.w600,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '校园卡余额',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '¥ ${_balanceText()}',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ],
                       ),
                     ),
-                    const Spacer(),
-                    TextButton(
+                    OutlinedButton.icon(
                       onPressed: () {
                         Navigator.of(context)
                             .push(
@@ -316,28 +353,21 @@ class _PaymentCodePageState extends State<PaymentCodePage>
                             )
                             .then((_) => _loadPaymentCode());
                       },
-                      child: const Text('充值'),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('充值'),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-              Card(
-                margin: EdgeInsets.zero,
-                child: ListTile(
-                  leading: const Icon(Icons.receipt_long_outlined),
-                  title: const Text('校园卡账单'),
-                  subtitle: const Text('查看消费与充值记录'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const CampusCardBillPage(),
-                  )),
+              Divider(height: 1, color: colors.outlineVariant),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: const Text('校园卡账单'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const CampusCardBillPage()),
                 ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                '付款码有效期较短，付款前请确认页面已完成刷新。',
-                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
               ),
             ],
           ),

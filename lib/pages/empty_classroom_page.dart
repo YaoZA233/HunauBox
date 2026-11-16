@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/classroom_model.dart';
 import '../services/classroom_service.dart';
+import '../widgets/campus_loading_mark.dart';
 
 class EmptyClassroomPage extends StatefulWidget {
   const EmptyClassroomPage({super.key});
@@ -16,6 +17,7 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
   ClassroomInquiryOptions? _options;
   bool _loadingOptions = true;
   bool _searching = false;
+  bool _hasSearched = false;
   String? _errorMessage;
   List<ClassroomModel> _classrooms = [];
 
@@ -43,10 +45,16 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
       setState(() {
         _options = options;
         _loadingOptions = false;
-        _selectedBuilding = options.buildings.isNotEmpty ? options.buildings.first : null;
+        _selectedBuilding = options.buildings.isNotEmpty
+            ? options.buildings.first
+            : null;
         _selectedWeek = options.weeks.isNotEmpty ? options.weeks.first : null;
-        _selectedSection = options.sections.isNotEmpty ? options.sections.first : null;
-        _selectedDay = options.days.isNotEmpty ? options.days.first['value'] : null;
+        _selectedSection = options.sections.isNotEmpty
+            ? options.sections.first
+            : null;
+        _selectedDay = options.days.isNotEmpty
+            ? options.days.first['value']
+            : null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -58,7 +66,10 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
   }
 
   Future<void> _search() async {
-    if (_selectedBuilding == null || _selectedWeek == null || _selectedSection == null || _selectedDay == null) {
+    if (_selectedBuilding == null ||
+        _selectedWeek == null ||
+        _selectedSection == null ||
+        _selectedDay == null) {
       return;
     }
 
@@ -79,6 +90,7 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
       setState(() {
         _classrooms = results;
         _searching = false;
+        _hasSearched = true;
       });
     } catch (e) {
       if (!mounted) return;
@@ -89,13 +101,21 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
     }
   }
 
+  void _updateSelection(VoidCallback update) {
+    setState(() {
+      update();
+      _classrooms = [];
+      _hasSearched = false;
+      _errorMessage = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('空教室查询'),
-        centerTitle: true,
         actions: [
           IconButton(
             onPressed: _loadingOptions ? null : _loadOptions,
@@ -105,15 +125,15 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
         ],
       ),
       body: _loadingOptions
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CampusLoadingMark(size: 38))
           : RefreshIndicator(
               onRefresh: _loadOptions,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
                 children: [
                   _buildIntroCard(),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 18),
                   _buildSearchPanel(),
                   if (_errorMessage != null) ...[
                     const SizedBox(height: 16),
@@ -128,43 +148,20 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
   }
 
   Widget _buildIntroCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.tertiaryContainer.withOpacity(0.4),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.tertiaryContainer.withOpacity(0.6),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.meeting_room_rounded, color: Theme.of(context).colorScheme.tertiary),
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Icon(Icons.meeting_room_outlined, color: colors.primary, size: 22),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            '按教学时段查找可用教室',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '空教室查询',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '选择教学楼、周次、节次和星期后即可查询可用教室。',
-                  style: TextStyle(fontSize: 13, height: 1.4, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -174,15 +171,24 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
       return const SizedBox.shrink();
     }
 
+    final colors = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5)),
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text(
+            '查询条件',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
@@ -190,7 +196,10 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
                   label: '教学楼',
                   items: options.buildings,
                   value: _selectedBuilding,
-                  onChanged: (value) => setState(() => _selectedBuilding = value),
+                  onChanged: _searching
+                      ? null
+                      : (value) =>
+                            _updateSelection(() => _selectedBuilding = value),
                 ),
               ),
               const SizedBox(width: 12),
@@ -199,7 +208,10 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
                   label: '周次',
                   items: options.weeks,
                   value: _selectedWeek,
-                  onChanged: (value) => setState(() => _selectedWeek = value),
+                  onChanged: _searching
+                      ? null
+                      : (value) =>
+                            _updateSelection(() => _selectedWeek = value),
                 ),
               ),
             ],
@@ -212,46 +224,59 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
                   label: '节次',
                   items: options.sections,
                   value: _selectedSection,
-                  onChanged: (value) => setState(() => _selectedSection = value),
+                  onChanged: _searching
+                      ? null
+                      : (value) =>
+                            _updateSelection(() => _selectedSection = value),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildDropdownField(
                   label: '星期',
-                  items: options.days.map((e) => e['label'] ?? '').where((value) => value.isNotEmpty).toList(),
+                  items: options.days
+                      .map((e) => e['label'] ?? '')
+                      .where((value) => value.isNotEmpty)
+                      .toList(),
                   value: _selectedDay == null
                       ? null
                       : options.days.firstWhere(
                           (item) => item['value'] == _selectedDay,
                           orElse: () => options.days.first,
                         )['label'],
-                  onChanged: (label) {
-                    final matched = options.days.cast<Map<String, String>>().firstWhere(
-                          (item) => item['label'] == label,
-                          orElse: () => options.days.first,
-                        );
-                    setState(() => _selectedDay = matched['value']);
-                  },
+                  onChanged: _searching
+                      ? null
+                      : (label) {
+                          final matched = options.days
+                              .cast<Map<String, String>>()
+                              .firstWhere(
+                                (item) => item['label'] == label,
+                                orElse: () => options.days.first,
+                              );
+                          _updateSelection(
+                            () => _selectedDay = matched['value'],
+                          );
+                        },
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             height: 48,
             child: FilledButton.icon(
               onPressed: _searching ? null : _search,
               icon: _searching
-                  ? Container(
-                      width: 16,
-                      height: 16,
-                      margin: const EdgeInsets.only(right: 8),
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary),
-                    )
+                  ? const CampusLoadingMark(size: 20, color: Colors.white)
                   : const Icon(Icons.search_rounded, size: 20),
-              label: Text(_searching ? '查询中' : '查询', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              label: Text(
+                _searching ? '查询中' : '查询空教室',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ],
@@ -269,27 +294,46 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant)),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           value: value,
-          icon: Icon(Icons.expand_more_rounded, size: 20, color: theme.colorScheme.onSurfaceVariant),
+          icon: Icon(
+            Icons.expand_more_rounded,
+            size: 20,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
           decoration: InputDecoration(
             isDense: true,
             filled: true,
-            fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(
+              0.3,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(6),
               borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(6),
               borderSide: BorderSide.none,
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(
+                color: theme.colorScheme.primary,
+                width: 1.4,
+              ),
             ),
           ),
           dropdownColor: theme.colorScheme.surface,
@@ -297,7 +341,14 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
               .map(
                 (item) => DropdownMenuItem<String>(
                   value: item,
-                  child: Text(item, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    item,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               )
               .toList(),
@@ -308,17 +359,25 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
   }
 
   Widget _buildErrorBanner(String message) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.errorContainer.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Theme.of(context).colorScheme.error.withOpacity(0.2)),
+        color: colors.errorContainer.withValues(alpha: .45),
+        borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(
-        message,
-        style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 13),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, size: 18, color: colors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: colors.error, fontSize: 13),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -326,85 +385,102 @@ class _EmptyClassroomPageState extends State<EmptyClassroomPage> {
   Widget _buildResultSection() {
     if (_searching) {
       return const Padding(
-        padding: EdgeInsets.only(top: 48),
-        child: Center(child: CircularProgressIndicator()),
+        padding: EdgeInsets.symmetric(vertical: 36),
+        child: Center(child: CampusLoadingMark(size: 34)),
       );
     }
 
     if (_classrooms.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 56),
-        alignment: Alignment.center,
+      final colors = Theme.of(context).colorScheme;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 38),
         child: Column(
           children: [
-            Icon(Icons.hourglass_empty_rounded, size: 42, color: Theme.of(context).colorScheme.outline),
-            const SizedBox(height: 12),
-            Text(
-              '暂无查询结果',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 14),
+            Icon(
+              _hasSearched ? Icons.search_off : Icons.tune,
+              size: 30,
+              color: colors.outline,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
             Text(
-              '调整条件后再试一次',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7), fontSize: 12),
+              _hasSearched ? '这个时段没有空教室' : '选择条件后开始查询',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: colors.onSurfaceVariant,
+              ),
             ),
+            if (_hasSearched) ...[
+              const SizedBox(height: 5),
+              Text(
+                '试试更换教学楼或时段',
+                style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+              ),
+            ],
           ],
         ),
       );
     }
 
+    final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Text(
-            '查询结果（${_classrooms.length}）',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface),
+          padding: const EdgeInsets.only(bottom: 8, top: 2),
+          child: Row(
+            children: [
+              Text(
+                '可用教室',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const Spacer(),
+              Text(
+                '${_classrooms.length} 间',
+                style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+              ),
+            ],
           ),
         ),
-        ..._classrooms.map((room) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(Icons.meeting_room_rounded, color: Theme.of(context).colorScheme.primary),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        room.jsmc,
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '可容纳人数：${room.zws}',
-                        style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
+        for (var i = 0; i < _classrooms.length; i++) ...[
+          _ClassroomRow(room: _classrooms[i]),
+          if (i < _classrooms.length - 1)
+            Divider(height: 1, color: colors.outlineVariant),
+        ],
       ],
+    );
+  }
+}
+
+class _ClassroomRow extends StatelessWidget {
+  const _ClassroomRow({required this.room});
+
+  final ClassroomModel room;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        children: [
+          Icon(Icons.meeting_room_outlined, size: 20, color: colors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              room.jsmc,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${room.zws} 座',
+            style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+          ),
+        ],
+      ),
     );
   }
 }

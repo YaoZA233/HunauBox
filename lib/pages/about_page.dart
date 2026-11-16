@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/app_version.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -31,7 +32,7 @@ class _AboutPageState extends State<AboutPage> {
 
   late final _updateService = widget.updateService ?? AppUpdateService();
   late final _updateNotifier = widget.updateNotifier ?? AppUpdateNotifier();
-  String _currentVersion = '1.0.5';
+  String _currentVersion = fallbackAppVersion;
   UpdateSource _currentSource = UpdateSource.gitee;
   AppRelease? _release;
   bool _checking = false;
@@ -111,22 +112,29 @@ class _AboutPageState extends State<AboutPage> {
     });
     onChanged?.call();
     await _updateNotifier.requestPermission();
+    Future<void> notification = Future.value();
     try {
+      await _updateNotifier.showProgress(received: 0, total: 0);
       final file = await _updateService.downloadApk(
         release,
         onProgress: (received, total) {
-          _updateNotifier.showProgress(received: received, total: total);
+          notification = notification.then(
+            (_) =>
+                _updateNotifier.showProgress(received: received, total: total),
+          );
           if (mounted && total > 0) {
             setState(() => _progress = received / total);
             onChanged?.call();
           }
         },
       );
+      await notification;
       await _updateNotifier.showCompleted(file.uri.pathSegments.last);
       if (!mounted) return;
       setState(() => _downloadedPath = file.path);
-      final installResult = await (widget.openInstaller ??
-          _openInstaller)(file.path);
+      final installResult = await (widget.openInstaller ?? _openInstaller)(
+        file.path,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -138,6 +146,7 @@ class _AboutPageState extends State<AboutPage> {
         ),
       );
     } catch (e) {
+      await notification;
       await _updateNotifier.showFailed('$e');
       if (mounted) {
         ScaffoldMessenger.of(
@@ -327,175 +336,174 @@ class _AboutPageState extends State<AboutPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(title: const Text('关于应用')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 28, 20, 36),
-        children: [
-          Center(
-            child: Container(
-              width: 88,
-              height: 88,
-              decoration: BoxDecoration(
-                color: colors.primaryContainer,
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: colors.primary.withValues(alpha: 0.18),
-                    blurRadius: 22,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(22),
-                child: Image.asset(
-                  'assets/icon.png',
-                  width: 88,
-                  height: 88,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Center(
-            child: Text(
-              'HunauBox',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Center(
-            child: Text(
-              '湖南农业大学校园生活服务',
-              style: TextStyle(color: colors.onSurfaceVariant),
-            ),
-          ),
-          const SizedBox(height: 32),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: colors.surfaceContainerLowest,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colors.outlineVariant),
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
               children: [
-                Text(
-                  '让校园事务更简单',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: Image.asset(
+                      'assets/icon.png',
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      excludeFromSemantics: true,
+                    ),
+                  ),
                 ),
-                SizedBox(height: 10),
-                Text('聚合课表、成绩、校园服务和常用工具，让信息随手可得。'),
+                const SizedBox(height: 20),
+                Text(
+                  'HunauBox',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '湖南农业大学校园生活服务',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Text(
+                  '课表、成绩、学习通与校园服务，集中在一个地方。',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                _AboutSectionLabel('软件信息'),
+                const SizedBox(height: 4),
+                _AboutRow(label: '当前版本', detail: _currentVersion),
+                const Divider(height: 1),
+                _AboutRow(
+                  label: '检查软件更新',
+                  detail: _checking
+                      ? '正在检查…'
+                      : _release == null
+                      ? '更新源：${_currentSource.label}'
+                      : '发现新版本 ${_release!.version} · ${_currentSource.label}',
+                  onTap: _checking
+                      ? null
+                      : () => _checkForUpdate(silent: false),
+                  showProgress: _checking,
+                ),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _error!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.error,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 32),
+                _AboutSectionLabel('项目仓库'),
+                const SizedBox(height: 4),
+                _AboutRow(
+                  label: 'Gitee 仓库',
+                  detail: '国内访问推荐',
+                  external: true,
+                  onTap: () =>
+                      _openUrl(context, _giteeRepositoryUri, 'Gitee 仓库'),
+                ),
+                const Divider(height: 1),
+                _AboutRow(
+                  label: 'GitHub 仓库',
+                  detail: '查看源代码与版本发布',
+                  external: true,
+                  onTap: () =>
+                      _openUrl(context, _githubRepositoryUri, 'GitHub 仓库'),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          _AboutRow(
-            icon: Icons.info_outline_rounded,
-            label: '当前版本',
-            value: _currentVersion,
-          ),
-          const SizedBox(height: 10),
-          _AboutRow(
-            icon: Icons.system_update_rounded,
-            label: '检查软件更新',
-            value: _checking
-                ? '检查中…'
-                : _release == null
-                ? '点击检查 (${_currentSource.label}源)'
-                : '发现 ${_release!.version}',
-            onTap: () => _checkForUpdate(silent: false),
-          ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                _error!,
-                style: TextStyle(color: colors.error, fontSize: 12),
-              ),
-            ),
-          const SizedBox(height: 10),
-          _AboutRow(
-            icon: Icons.alt_route_rounded,
-            label: 'Gitee 仓库 (推荐)',
-            value: '查看 Gitee',
-            onTap: () => _openUrl(context, _giteeRepositoryUri, 'Gitee 仓库'),
-          ),
-          const SizedBox(height: 10),
-          _AboutRow(
-            icon: Icons.code_rounded,
-            label: 'GitHub 仓库',
-            value: '查看 GitHub',
-            onTap: () => _openUrl(context, _githubRepositoryUri, 'GitHub 仓库'),
-          ),
-          const SizedBox(height: 32),
-          Text(
-            'HunauBox',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
+class _AboutSectionLabel extends StatelessWidget {
+  const _AboutSectionLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+      color: Theme.of(context).colorScheme.primary,
+      fontWeight: FontWeight.w600,
+    ),
+  );
+}
+
 class _AboutRow extends StatelessWidget {
-  final IconData icon;
   final String label;
-  final String value;
+  final String detail;
   final VoidCallback? onTap;
+  final bool external;
+  final bool showProgress;
 
   const _AboutRow({
-    required this.icon,
     required this.label,
-    required this.value,
+    required this.detail,
     this.onTap,
+    this.external = false,
+    this.showProgress = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Material(
-      color: colors.surfaceContainerLowest,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-          decoration: BoxDecoration(
-            border: Border.all(color: colors.outlineVariant),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: colors.primary),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  label,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              Text(value, style: TextStyle(color: colors.onSurfaceVariant)),
-              if (onTap != null) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.open_in_new_rounded,
-                  size: 18,
-                  color: colors.onSurfaceVariant,
-                ),
-              ],
-            ],
-          ),
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      minVerticalPadding: 14,
+      title: Text(
+        label,
+        style: Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          detail,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
         ),
       ),
+      trailing: showProgress
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : onTap == null
+          ? null
+          : Icon(
+              external
+                  ? Icons.open_in_new_rounded
+                  : Icons.chevron_right_rounded,
+              size: 20,
+              color: colors.onSurfaceVariant,
+            ),
+      onTap: onTap,
     );
   }
 }

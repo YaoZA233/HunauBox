@@ -41,8 +41,63 @@ class ScorePage extends ConsumerWidget {
       body: Column(
         children: [
           _buildSemesterPicker(context, ref, state),
+          if (state.isLoading || state.errorMessage != null || state.cachedAt != null)
+            _buildDataStatus(context, state),
           const Divider(height: 1),
           Expanded(child: _buildScoreList(context, ref, state)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDataStatus(BuildContext context, ScoreState state) {
+    final colors = Theme.of(context).colorScheme;
+    final time = state.cachedAt?.toLocal();
+    final timeLabel = time == null
+        ? null
+        : '${time.month}/${time.day} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    final hasError = state.errorMessage != null;
+    final message = hasError
+        ? (state.scores.isEmpty
+              ? '成绩同步失败'
+              : '更新失败，显示上次保存的成绩${timeLabel == null ? '' : ' · $timeLabel'}')
+        : state.isLoading
+        ? (state.scores.isEmpty ? '正在同步成绩…' : '正在更新成绩，先显示已保存数据')
+        : timeLabel == null
+        ? null
+        : '最近更新 $timeLabel';
+    if (message == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+      child: Row(
+        children: [
+          if (state.isLoading && !hasError) ...[
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.primary,
+              ),
+            ),
+          ] else ...[
+            Icon(
+              hasError ? Icons.cloud_off_outlined : Icons.cloud_done_outlined,
+              size: 16,
+              color: hasError ? colors.error : colors.onSurfaceVariant,
+            ),
+          ],
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: hasError ? colors.error : colors.onSurfaceVariant,
+              ),
+            ),
+          ),
         ],
       ),
     );

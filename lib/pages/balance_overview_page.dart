@@ -11,6 +11,7 @@ import '../models/exam_schedule_model.dart';
 import '../providers/homework_provider.dart';
 import '../providers/notice_provider.dart';
 import '../providers/exam_provider.dart';
+import '../providers/chaoxing_course_provider.dart';
 import '../services/auth_guard.dart';
 import '../services/campus_card_bill_service.dart';
 import '../services/campus_card_service.dart';
@@ -23,10 +24,14 @@ import 'electricity_recharge_page.dart';
 import 'exam_page.dart';
 import 'homework_page.dart';
 import 'notice_page.dart';
+import 'chaoxing_courses_page.dart';
+import 'chaoxing_messages_page.dart';
 
 const _cardLabels = {
   'notice': '未读消息',
   'homework': '待完成作业',
+  'chaoxing_messages': '学习通消息',
+  'chaoxing_courses': '学习通课程',
   'upcoming_homework': '即将截止作业',
   'exam': '最近考试',
   'campus_card': '校园卡',
@@ -35,7 +40,14 @@ const _cardLabels = {
   'electricity_2': '宿舍电费2',
 };
 
-const _taskCardIds = {'notice', 'homework', 'upcoming_homework', 'exam'};
+const _taskCardIds = {
+  'notice',
+  'homework',
+  'upcoming_homework',
+  'exam',
+  'chaoxing_messages',
+  'chaoxing_courses',
+};
 const _slotKeySeparator = '·';
 
 /// 同一内容在布局中的唯一实例键：首次出现用卡片 id，重复出现追加序号。
@@ -158,6 +170,9 @@ class _BalanceOverviewPageState extends ConsumerState<BalanceOverviewPage>
   ExamScheduleModel? _nextExam;
   bool _examLoading = false;
   int _examRequestId = 0;
+  int? _chaoxingConversationCount;
+  int? _chaoxingCourseCount;
+  int _chaoxingSnapshotRequestId = 0;
 
   final _layoutStore = const OverviewCardLayoutStore();
   List<OverviewCardSlot> _layout = OverviewCardLayoutStore.defaultLayout;
@@ -196,7 +211,40 @@ class _BalanceOverviewPageState extends ConsumerState<BalanceOverviewPage>
       _loadElec(1),
       _loadRecentBill(),
       _loadExams(),
+      _loadChaoxingSnapshots(),
     ]);
+  }
+
+  Future<void> _loadChaoxingSnapshots() async {
+    final requestId = ++_chaoxingSnapshotRequestId;
+    final cache = ref.read(chaoxingCacheProvider);
+    final snapshots = await Future.wait([
+      cache.read('messages'),
+      cache.read('courses'),
+    ]);
+    if (!mounted || requestId != _chaoxingSnapshotRequestId) return;
+    final conversations = snapshots[0]?['conversations'];
+    final courses = snapshots[1]?['items'];
+    setState(() {
+      _chaoxingConversationCount = conversations is List
+          ? conversations.length
+          : null;
+      _chaoxingCourseCount = courses is List ? courses.length : null;
+    });
+  }
+
+  Future<void> _openChaoxing({required bool messages}) async {
+    final result = await AuthGuard.ensureLoggedIn(context);
+    if (!result.allowed || !mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => messages
+            ? const ChaoxingMessagesPage()
+            : const ChaoxingCoursesPage(),
+      ),
+    );
+    if (mounted) await _loadChaoxingSnapshots();
   }
 
   Future<void> _loadCardLayout() async {
@@ -491,6 +539,48 @@ class _BalanceOverviewPageState extends ConsumerState<BalanceOverviewPage>
         : _recentBill!.merchantName;
 
     final variants = <String, _OverviewCardVariants>{
+      for (final messages in [true, false])
+        messages
+            ? 'chaoxing_messages'
+            : 'chaoxing_courses': _OverviewCardVariants(
+          large: _BalanceItemCard(
+            icon: messages ? Icons.forum_outlined : Icons.school_outlined,
+            title: messages ? '学习通消息' : '学习通课程',
+            subtitle:
+                (messages
+                        ? _chaoxingConversationCount
+                        : _chaoxingCourseCount) ==
+                    null
+                ? '打开后同步'
+                : '上次同步的结果',
+            value:
+                (messages ? _chaoxingConversationCount : _chaoxingCourseCount)
+                    ?.toString(),
+            symbol: '',
+            unit: messages ? '个会话' : '门课程',
+            isLoading: false,
+            tagText: '查看',
+            onTap: () => _openChaoxing(messages: messages),
+          ),
+          small: _CompactCard(
+            icon: messages ? Icons.forum_outlined : Icons.school_outlined,
+            title: messages ? '学习通消息' : '学习通课程',
+            detail:
+                (messages ? _chaoxingConversationCount : _chaoxingCourseCount)
+                    ?.toString() ??
+                '未同步',
+            badgeLabel:
+                (messages
+                        ? _chaoxingConversationCount
+                        : _chaoxingCourseCount) ==
+                    null
+                ? '去同步'
+                : '上次同步',
+            badgeVariant: AppBadgeVariant.primary,
+            isLoading: false,
+            onTap: () => _openChaoxing(messages: messages),
+          ),
+        ),
       'notice': _OverviewCardVariants(
         large: _MetricCard(
           label: '未读消息',
@@ -975,13 +1065,7 @@ class _OverviewManageSheet extends StatefulWidget {
 
 class _OverviewManageSheetState extends State<_OverviewManageSheet>
     with SingleTickerProviderStateMixin {
-  late final _slots = <OverviewCardSlot>[
-    ...widget.layout,
-    // Older saved layouts may predate newer cards. Keep the sorting view
-    // complete so a newly available card can be positioned immediately.
-    for (final slot in OverviewCardLayoutStore.defaultLayout)
-      if (!widget.layout.any((item) => item.cardId == slot.cardId)) slot,
-  ];
+  late final _slots = <OverviewCardSlot>[...widget.layout];
   late TabController _tabController;
 
   @override
@@ -1025,7 +1109,6 @@ class _OverviewManageSheetState extends State<_OverviewManageSheet>
       if (newIndex > oldIndex) newIndex--;
       _slots.insert(newIndex, _slots.removeAt(oldIndex));
     });
-    widget.onSave(List.of(_slots));
   }
 
   @override
@@ -1398,7 +1481,7 @@ class _OverviewManageSheetState extends State<_OverviewManageSheet>
                           color: colors.error,
                         ),
                         onPressed: () => _remove(key),
-                        tooltip: '移除',
+                        tooltip: '移除$label',
                       ),
                     ],
                   ),
@@ -1418,7 +1501,10 @@ class _OverviewManageSheetState extends State<_OverviewManageSheet>
                     AppSpacing.md,
                   ),
                   child: FilledButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () {
+                      widget.onSave(List.of(_slots));
+                      Navigator.of(context).pop();
+                    },
                     child: const Text('保存'),
                   ),
                 )

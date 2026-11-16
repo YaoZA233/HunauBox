@@ -230,7 +230,7 @@ class _MotionSettingsPageState extends ConsumerState<MotionSettingsPage> {
                 subtitle: Text(
                   MediaQuery.disableAnimationsOf(context)
                       ? '系统已开启减少动态效果，当前自动使用简化动画'
-                      : '使用短淡入淡出，关闭透视、旋转、按压缩放和边缘回弹',
+                      : '使用短淡入淡出，关闭按压缩放和边缘回弹',
                 ),
                 value: settings.reduceMotion,
                 onChanged: (value) =>

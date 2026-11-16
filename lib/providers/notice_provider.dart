@@ -61,7 +61,7 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
     );
 
     try {
-      final result = await _service.fetchMessageList();
+      final result = await _service.fetchAllMessageList();
       state = state.copyWith(
         messages: result.messages,
         nextLastValue: result.nextLastValue,

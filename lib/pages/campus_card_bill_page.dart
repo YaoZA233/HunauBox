@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/campus_card_bill.dart';
 import '../services/campus_card_bill_service.dart';
+import '../widgets/campus_loading_mark.dart';
 
 class CampusCardBillPage extends StatefulWidget {
   const CampusCardBillPage({super.key, this.loadBills});
@@ -102,90 +103,38 @@ class _CampusCardBillPageState extends State<CampusCardBillPage> {
         onRefresh: _query,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
           children: [
-            Card(
-              margin: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      '查询条件',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _loading ? null : () => _pickDate(true),
-                          icon: const Icon(
-                            Icons.calendar_today_outlined,
-                            size: 18,
-                          ),
-                          label: Text(
-                            '开始 ${CampusCardBillQuery.formatDate(_begin)}',
-                          ),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: _loading ? null : () => _pickDate(false),
-                          icon: const Icon(Icons.event_outlined, size: 18),
-                          label: Text(
-                            '结束 ${CampusCardBillQuery.formatDate(_end)}',
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        for (final type in CampusCardTradeType.values)
-                          ChoiceChip(
-                            label: Text(type.label),
-                            selected: _type == type,
-                            onSelected: _loading
-                                ? null
-                                : (_) => _changeFilters(() => _type = type),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      '默认查询近 7 天，起止日期间隔最长 31 天。',
-                      style: TextStyle(color: colors.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: _loading ? null : _query,
-                      icon: const Icon(Icons.search_rounded),
-                      label: Text(_loading ? '正在查询…' : '查询账单'),
-                    ),
-                  ],
+            Text('校园卡交易', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 5),
+            Text(
+              '按日期和类型筛选账户流水',
+              style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
+            ),
+            const SizedBox(height: 20),
+            _buildFilters(colors),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Text(
+                  '交易记录',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
+                const Spacer(),
+                if (_queried && !_loading && _error == null)
+                  Text(
+                    '${_records.length} 笔',
+                    style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+                  ),
+              ],
             ),
-            const SizedBox(height: 24),
-            Text(
-              _queried && !_loading && _error == null
-                  ? '交易记录 · ${_records.length} 笔'
-                  : '交易记录',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '金额单位为元，按校园卡平台返回的金额与时间显示。',
-              style: TextStyle(color: colors.onSurfaceVariant),
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             if (_loading)
               const Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(child: CircularProgressIndicator()),
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Center(child: CampusLoadingMark(size: 36)),
               )
             else if (_error != null)
               _message(context, Icons.cloud_off_outlined, _error!, retry: true)
@@ -198,22 +147,87 @@ class _CampusCardBillPageState extends State<CampusCardBillPage> {
             else if (_records.isEmpty)
               _message(context, Icons.receipt_long_outlined, '所选日期和类型下暂无交易记录')
             else
-              Card(
-                margin: EdgeInsets.zero,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var i = 0; i < _records.length; i++) ...[
-                      _BillRow(record: _records[i], fallback: _type),
-                      if (i < _records.length - 1)
-                        const Divider(height: 1, indent: 16, endIndent: 16),
-                    ],
+              Column(
+                children: [
+                  for (var i = 0; i < _records.length; i++) ...[
+                    _BillRow(record: _records[i], fallback: _type),
+                    if (i < _records.length - 1)
+                      Divider(height: 1, color: colors.outlineVariant),
                   ],
                 ),
               ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildFilters(ColorScheme colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '查询范围',
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _DateSelector(
+                label: '开始日期',
+                date: _begin,
+                enabled: !_loading,
+                onTap: () => _pickDate(true),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _DateSelector(
+                label: '结束日期',
+                date: _end,
+                enabled: !_loading,
+                onTap: () => _pickDate(false),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 15),
+        Wrap(
+          spacing: 7,
+          runSpacing: 2,
+          children: [
+            for (final type in CampusCardTradeType.values)
+              ChoiceChip(
+                label: Text(type.label),
+                selected: _type == type,
+                visualDensity: VisualDensity.compact,
+                onSelected: _loading
+                    ? null
+                    : (_) => _changeFilters(() => _type = type),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '默认近 7 天 · 最长 31 天',
+                style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton.icon(
+              onPressed: _loading ? null : _query,
+              icon: const Icon(Icons.search_rounded, size: 18),
+              label: Text(_loading ? '查询中' : '查询账单'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -256,36 +270,102 @@ class _BillRow extends StatelessWidget {
         type?.label ??
         (fallback == CampusCardTradeType.all ? '交易' : fallback.label);
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            record.merchantName.trim().isEmpty ? '校园卡交易' : record.merchantName,
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(color: colors.onSurface),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 16,
-            runSpacing: 6,
-            alignment: WrapAlignment.spaceBetween,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '$label · ${record.time.isEmpty ? '时间未提供' : record.time}',
-                style: TextStyle(color: colors.onSurfaceVariant),
+              Expanded(
+                child: Text(
+                  record.merchantName.trim().isEmpty
+                      ? '校园卡交易'
+                      : record.merchantName,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
+              const SizedBox(width: 10),
               Text(
                 record.amount.isEmpty ? '金额未提供' : '¥ ${record.amount}',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: colors.onSurface,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 6),
+          Text(
+            '$label · ${record.time.isEmpty ? '时间未提供' : record.time}',
+            style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _DateSelector extends StatelessWidget {
+  const _DateSelector({
+    required this.label,
+    required this.date,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String label;
+  final DateTime date;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: colors.outlineVariant),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      CampusCardBillQuery.formatDate(date),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.calendar_month_outlined,
+                    size: 16,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

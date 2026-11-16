@@ -27,6 +27,7 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
 
   double? _selectedAmount;
   final List<double> _presetAmounts = [10, 30, 50, 100, 200, 500];
+  PaymentMethod _paymentMethod = PaymentMethod.wechat;
 
   @override
   void initState() {
@@ -134,11 +135,12 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final amount = int.tryParse(_amountController.text.trim());
+    final canRecharge = _info != null && amount != null && amount >= 1 && amount <= 1000;
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('校园卡充值'),
-        centerTitle: true,
         actions: [
           IconButton(
             tooltip: '刷新余额',
@@ -157,284 +159,279 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: _loadInfo,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('重试'),
-                  ),
-                ],
-              ),
-            )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.outlineVariant.withValues(alpha: 0.3),
+          ? _RechargeError(message: _error!, onRetry: _loadInfo)
+          : SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: colors.outlineVariant),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.credit_card_outlined, color: colors.primary),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _info?.name ?? '校园卡',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context).textTheme.titleSmall
+                                          ?.copyWith(fontWeight: FontWeight.w700),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '卡号 ${_info?.idserial ?? '---'}',
+                                      style: Theme.of(context).textTheme.bodySmall
+                                          ?.copyWith(color: colors.onSurfaceVariant),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (_isRefreshing)
+                                const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            '可用余额',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '¥ ${_info?.balance ?? '0.00'}',
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _refreshError ??
+                                (_updatedAt == null
+                                    ? '余额尚未更新'
+                                    : '更新于 ${_updatedAt!.month}/${_updatedAt!.day} ${_updatedAt!.hour.toString().padLeft(2, '0')}:${_updatedAt!.minute.toString().padLeft(2, '0')}'),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: _refreshError == null
+                                  ? colors.onSurfaceVariant
+                                  : colors.error,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 24),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _info?.name ?? '---',
-                                  style: TextStyle(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '卡号: ${_info?.idserial ?? '---'}',
-                                  style: TextStyle(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Icon(
-                              Icons.account_balance_wallet_rounded,
-                              color: Theme.of(context).colorScheme.primary,
-                              size: 36,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          '当前余额 (元)',
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                        Expanded(
+                          child: Text(
+                            '选择充值金额',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                         ),
-                        const SizedBox(height: 4),
                         Text(
-                          '¥${_info?.balance ?? '0.00'}',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          _isRefreshing
-                              ? '正在更新余额…'
-                              : _refreshError ??
-                                    (_updatedAt == null
-                                        ? '等待更新'
-                                        : '更新于 ${_updatedAt!.month}/${_updatedAt!.day} ${_updatedAt!.hour.toString().padLeft(2, '0')}:${_updatedAt!.minute.toString().padLeft(2, '0')}'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                          '1–1000 元',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 32),
-                  Text(
-                    '选择充值金额',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    const SizedBox(height: 12),
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                            childAspectRatio: 2.25,
+                          ),
+                      itemCount: _presetAmounts.length,
+                      itemBuilder: (context, index) {
+                        final value = _presetAmounts[index];
+                        final selected = _selectedAmount == value;
+                        return _AmountOption(
+                          amount: value,
+                          selected: selected,
+                          onTap: () => _handlePresetAmountSelect(value),
+                        );
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                          childAspectRatio: 2.2,
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _amountController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        labelText: '其他金额',
+                        prefixText: '¥ ',
+                        suffixText: '元',
+                        filled: true,
+                        fillColor: colors.surfaceContainerLow,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colors.outlineVariant),
                         ),
-                    itemCount: _presetAmounts.length,
-                    itemBuilder: (context, index) {
-                      final amount = _presetAmounts[index];
-                      final isSelected = _selectedAmount == amount;
-                      return InkWell(
-                        onTap: () => _handlePresetAmountSelect(amount),
-                        borderRadius: BorderRadius.circular(12),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? Theme.of(context).colorScheme.primaryContainer
-                                : Theme.of(context).colorScheme.surface,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.outlineVariant
-                                        .withValues(alpha: 0.5),
-                              width: isSelected ? 2 : 1,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '${amount.toStringAsFixed(0)}元',
-                            style: TextStyle(
-                              color: isSelected
-                                  ? Theme.of(
-                                      context,
-                                    ).colorScheme.onPrimaryContainer
-                                  : Theme.of(context).colorScheme.onSurface,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                              fontSize: 16,
-                            ),
-                          ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colors.outlineVariant),
                         ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  TextField(
-                    controller: _amountController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      labelText: '其他金额',
-                      prefixText: '¥ ',
-                      filled: true,
-                      fillColor: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest
-                          .withValues(alpha: 0.3),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Theme.of(context).colorScheme.primary,
-                          width: 2,
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colors.primary, width: 1.5),
                         ),
                       ),
+                      onChanged: (_) => setState(() => _selectedAmount = null),
                     ),
-                    onChanged: (_) {
-                      if (_selectedAmount != null) {
-                        setState(() => _selectedAmount = null);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 32),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 54,
-                          child: FilledButton.icon(
-                            onPressed: () =>
-                                _handleRecharge(PaymentMethod.wechat),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF07C160),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            icon: SvgPicture.string(
-                              kWechatSvg,
-                              width: 21,
-                              height: 21,
-                              colorFilter: const ColorFilter.mode(
-                                Colors.white,
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                            label: const Text(
-                              '微信支付',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                    const SizedBox(height: 24),
+                    Text(
+                      '支付方式',
+                      style: Theme.of(context).textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        ChoiceChip(
+                          avatar: SvgPicture.string(kWechatSvg, width: 18, height: 18),
+                          label: const Text('微信支付'),
+                          selected: _paymentMethod == PaymentMethod.wechat,
+                          onSelected: (_) => setState(
+                            () => _paymentMethod = PaymentMethod.wechat,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: SizedBox(
-                          height: 54,
-                          child: FilledButton.icon(
-                            onPressed: () =>
-                                _handleRecharge(PaymentMethod.alipay),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF1677FF),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            icon: SvgPicture.string(
-                              kAlipaySvg,
-                              width: 21,
-                              height: 21,
-                              colorFilter: const ColorFilter.mode(
-                                Colors.white,
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                            label: const Text(
-                              '支付宝支付',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                        ChoiceChip(
+                          avatar: SvgPicture.string(kAlipaySvg, width: 18, height: 18),
+                          label: const Text('支付宝'),
+                          selected: _paymentMethod == PaymentMethod.alipay,
+                          onSelected: (_) => setState(
+                            () => _paymentMethod = PaymentMethod.alipay,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
+      bottomNavigationBar: _info == null || _error != null
+          ? null
+          : SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  border: Border(top: BorderSide(color: colors.outlineVariant)),
+                ),
+                child: SizedBox(
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: canRecharge
+                        ? () => _handleRecharge(_paymentMethod)
+                        : null,
+                    child: Text(
+                      canRecharge ? '确认充值  ¥${amount.toString()}' : '选择充值金额',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+class _AmountOption extends StatelessWidget {
+  const _AmountOption({
+    required this.amount,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final double amount;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: selected ? colors.primaryContainer : colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: selected ? colors.primary : colors.outlineVariant,
+          width: selected ? 1.5 : 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Center(
+          child: Text(
+            '¥ ${amount.toStringAsFixed(0)}',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: selected ? colors.onPrimaryContainer : colors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RechargeError extends StatelessWidget {
+  const _RechargeError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.credit_card_off_outlined, size: 36, color: colors.error),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('重试'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -1,0 +1,243 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../models/motion_settings.dart';
+import '../widgets/app_motion.dart';
+import 'background_provider.dart';
+import 'font_provider.dart';
+import 'theme_provider.dart';
+
+/// Builds the base theme (colors + component themes) without motion.
+///
+/// This is deliberately separated from motion so that changing animation
+/// preferences never re-runs the expensive [ColorScheme.fromSeed] pipeline.
+/// The result is cached by [baseAppThemeProvider]; motion is layered on top
+/// with a cheap [applyMotionToTheme].
+ThemeData buildBaseAppTheme({
+  required Color themeColor,
+  required AppBackgroundSettings background,
+  required Brightness brightness,
+  String? fontFamily,
+}) {
+  final isDark = brightness == Brightness.dark;
+  final hasBg = background.hasImage;
+  final generatedScheme = ColorScheme.fromSeed(
+    seedColor: themeColor,
+    brightness: brightness,
+    dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
+  );
+  // ChillEast's light theme is intentionally white-first: one clear
+  // campus green accent, Google-style neutral text, and quiet borders.
+  // Keep the generated tonal roles so custom accent colors still work,
+  // while pinning the neutral surfaces to that same visual language.
+  final scheme = generatedScheme.copyWith(
+    primary: themeColor,
+    onPrimary: isDark ? Colors.black : Colors.white,
+    surface: isDark ? const Color(0xFF121212) : Colors.white,
+    surfaceContainerLowest: isDark
+        ? (hasBg
+              ? const Color(0xFF121212).withValues(alpha: 0.72)
+              : const Color(0xFF121212))
+        : (hasBg ? Colors.white.withValues(alpha: 0.78) : Colors.white),
+    surfaceContainerLow: isDark
+        ? (hasBg
+              ? const Color(0xFF181818).withValues(alpha: 0.74)
+              : const Color(0xFF181818))
+        : (hasBg ? Colors.white.withValues(alpha: 0.80) : Colors.white),
+    surfaceContainer: isDark
+        ? (hasBg
+              ? const Color(0xFF1E1E1E).withValues(alpha: 0.76)
+              : const Color(0xFF1E1E1E))
+        : (hasBg ? Colors.white.withValues(alpha: 0.82) : Colors.white),
+    surfaceContainerHigh: isDark
+        ? (hasBg
+              ? const Color(0xFF242424).withValues(alpha: 0.78)
+              : const Color(0xFF242424))
+        : const Color(0xFFF8F9FA),
+    surfaceContainerHighest: isDark
+        ? (hasBg
+              ? const Color(0xFF2B2B2B).withValues(alpha: 0.80)
+              : const Color(0xFF2B2B2B))
+        : const Color(0xFFF1F3F4),
+    onSurface: isDark ? Colors.white : const Color(0xFF202124),
+    onSurfaceVariant: isDark
+        ? const Color(0xFFBDC1C6)
+        : const Color(0xFF5F6368),
+    outline: isDark
+        ? (hasBg
+              ? const Color(0xFFFFFFFF).withValues(alpha: 0.16)
+              : const Color(0xFF5F6368))
+        : const Color(0xFFDADCE0),
+    outlineVariant: isDark
+        ? (hasBg
+              ? const Color(0xFFFFFFFF).withValues(alpha: 0.12)
+              : const Color(0xFF3C4043))
+        : (hasBg
+              ? const Color(0xFF000000).withValues(alpha: 0.08)
+              : const Color(0xFFE8EAED)),
+  );
+  final surface = isDark ? const Color(0xFF121212) : Colors.white;
+  final card = isDark
+      ? (hasBg
+            ? const Color(0xFF1E1E1E).withValues(alpha: 0.74)
+            : const Color(0xFF1E1E1E))
+      : (hasBg ? Colors.white.withValues(alpha: 0.80) : Colors.white);
+  final outline = isDark
+      ? (hasBg
+            ? const Color(0xFFFFFFFF).withValues(alpha: 0.14)
+            : const Color(0xFF3C4043))
+      : const Color(0xFFDADCE0);
+  final textTheme = ThemeData(brightness: brightness).textTheme.apply(
+    bodyColor: scheme.onSurface,
+    displayColor: scheme.onSurface,
+    fontFamily: fontFamily ?? 'sans-serif',
+  );
+
+  return ThemeData(
+    useMaterial3: true,
+    fontFamily: fontFamily,
+    brightness: brightness,
+    primaryColor: themeColor,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: background.hasImage ? Colors.transparent : surface,
+    textTheme: textTheme.copyWith(
+      headlineSmall: textTheme.headlineSmall?.copyWith(
+        fontWeight: FontWeight.w700,
+        height: 1.16,
+      ),
+      titleLarge: textTheme.titleLarge?.copyWith(
+        fontWeight: FontWeight.w700,
+        height: 1.2,
+      ),
+      titleMedium: textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+        height: 1.25,
+      ),
+      bodyMedium: textTheme.bodyMedium?.copyWith(height: 1.45),
+      bodySmall: textTheme.bodySmall?.copyWith(height: 1.38),
+    ),
+    appBarTheme: AppBarTheme(
+      backgroundColor: surface.withValues(
+        alpha: background.hasImage ? 0.82 : 0.94,
+      ),
+      foregroundColor: scheme.onSurface,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: false,
+      surfaceTintColor: Colors.transparent,
+      titleTextStyle: textTheme.titleLarge?.copyWith(
+        color: scheme.onSurface,
+        fontSize: 20,
+      ),
+    ),
+    cardTheme: CardThemeData(
+      color: card,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: outline),
+      ),
+      margin: EdgeInsets.zero,
+    ),
+    dividerTheme: DividerThemeData(color: outline, thickness: 0.8),
+    listTileTheme: ListTileThemeData(
+      iconColor: scheme.onSurfaceVariant,
+      textColor: scheme.onSurface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: isDark
+          ? (hasBg
+                ? const Color(0xFF2B2B2B).withValues(alpha: 0.72)
+                : const Color(0xFF2B2B2B))
+          : (hasBg
+                ? const Color(0xFFF1F3F4).withValues(alpha: 0.82)
+                : const Color(0xFFF1F3F4)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: outline),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: outline),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: scheme.primary, width: 1.5),
+      ),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size(0, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ).copyWith(foregroundBuilder: AppPressScale.buttonBuilder),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: ButtonStyle(
+        foregroundBuilder: AppPressScale.buttonBuilder,
+        minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
+      ),
+    ),
+    textButtonTheme: const TextButtonThemeData(
+      style: ButtonStyle(foregroundBuilder: AppPressScale.buttonBuilder),
+    ),
+    iconButtonTheme: const IconButtonThemeData(
+      style: ButtonStyle(foregroundBuilder: AppPressScale.buttonBuilder),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ).copyWith(foregroundBuilder: AppPressScale.buttonBuilder),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: isDark
+          ? const Color(0xFF2B2B2B)
+          : const Color(0xFF202124),
+      contentTextStyle: TextStyle(
+        color: isDark ? scheme.onSurface : Colors.white,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+  );
+}
+
+/// Cached base theme per brightness. Only recomputed when the theme color or
+/// background actually changes — never on motion preference changes.
+final baseAppThemeProvider = Provider.family<ThemeData, Brightness>((
+  ref,
+  brightness,
+) {
+  final themeColor = ref.watch(themeColorProvider);
+  final background = ref.watch(appBackgroundProvider);
+  final fontFamily = ref.watch(appFontProvider.select((font) => font.family));
+  return buildBaseAppTheme(
+    themeColor: themeColor,
+    background: background,
+    brightness: brightness,
+    fontFamily: fontFamily,
+  );
+});
+
+/// Layers motion onto a cached base theme with a cheap copyWith. The motion
+/// extension must stay in the root ThemeData: routes read transitionDuration
+/// from the pageTransitionsTheme and update their controller on theme change.
+ThemeData applyMotionToTheme(ThemeData base, MotionSettings motion) {
+  return base.copyWith(
+    extensions: [motion],
+    pageTransitionsTheme: PageTransitionsTheme(
+      builders: {
+        for (final platform in TargetPlatform.values)
+          platform: AppPageTransitionsBuilder(motion),
+      },
+    ),
+  );
+}

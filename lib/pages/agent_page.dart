@@ -27,6 +27,9 @@ import 'timetable_page.dart';
 import 'sunshine_page.dart';
 import 'leave_page.dart';
 import 'repair_page.dart';
+import 'chaoxing_courses_page.dart';
+import 'chaoxing_messages_page.dart';
+import 'exam_page.dart';
 
 class AgentPage extends ConsumerStatefulWidget {
   const AgentPage({super.key, this.service, this.tools});
@@ -191,6 +194,9 @@ class _AgentPageState extends ConsumerState<AgentPage> {
       'sunshine' => const SunshinePage(),
       'leave' => const LeavePage(),
       'repair' => const RepairPage(),
+      'chaoxing_courses' => const ChaoxingCoursesPage(),
+      'chaoxing_messages' => const ChaoxingMessagesPage(),
+      'exam' => const ExamPage(),
       _ => throw const AgentException('不支持的校园页面'),
     };
     await Navigator.push(
@@ -568,6 +574,8 @@ class _AgentPageState extends ConsumerState<AgentPage> {
         '把下周一的高等数学调到下周三第3-4节',
         '这周五的英语课停课一次',
         '列出还没完成的作业',
+        '我的学习通有哪些课程还没完成？',
+        '学习通课程群最近有什么消息？',
         '查询宿舍电费余额',
         '有哪些待填写的学工问卷？',
       ])
@@ -584,7 +592,7 @@ class _AgentPageState extends ConsumerState<AgentPage> {
         ),
       const SizedBox(height: 16),
       Text(
-        '对话自动保存在本机，可从右上角历史记录继续聊天。仅把回答所需的对话与校园数据发送到你配置的模型服务。',
+        '对话自动保存在本机，可从右上角历史记录继续聊天。回答所需的课程、消息等校园数据会发送到你配置的模型服务。',
         style: Theme.of(context).textTheme.bodySmall,
       ),
     ],

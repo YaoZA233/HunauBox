@@ -5,6 +5,13 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import android.content.Intent
 import android.provider.Settings
+import android.provider.MediaStore
+import android.content.ContentValues
+import android.os.Build
+import android.os.Environment
+import android.os.Handler
+import android.os.Looper
+import java.io.File
 
 class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
@@ -17,6 +24,43 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         pendingOpen = intent?.action == "course.live.OPEN"
         pendingEnhancedOpen = intent?.action == "course.live.enhanced.OPEN"
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hunaubox/update_download").setMethodCallHandler { call, result ->
+            if (call.method != "saveApk") {
+                result.notImplemented()
+            } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                result.error("DOWNLOADS", "无法写入 Download 目录，请检查存储权限", null)
+            } else {
+                val path = call.argument<String>("path")
+                val name = call.argument<String>("name")
+                Thread {
+                    var uri: android.net.Uri? = null
+                    try {
+                        require(!path.isNullOrBlank() && !name.isNullOrBlank())
+                        val values = ContentValues().apply {
+                            put(MediaStore.Downloads.DISPLAY_NAME, name)
+                            put(MediaStore.Downloads.MIME_TYPE, "application/vnd.android.package-archive")
+                            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                            put(MediaStore.Downloads.IS_PENDING, 1)
+                        }
+                        val createdUri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                            ?: throw IllegalStateException("无法创建下载文件")
+                        uri = createdUri
+                        contentResolver.openOutputStream(createdUri, "w")?.use { output ->
+                            File(path).inputStream().use { input -> input.copyTo(output) }
+                        } ?: throw IllegalStateException("无法写入下载文件")
+                        val savedPath = contentResolver.query(createdUri, arrayOf(MediaStore.Downloads.DATA), null, null, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) cursor.getString(0) else null
+                        } ?: throw IllegalStateException("无法获取下载文件路径")
+                        contentResolver.update(createdUri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
+                        Handler(Looper.getMainLooper()).post { result.success(savedPath) }
+                    } catch (error: Exception) {
+                        uri?.let { contentResolver.delete(it, null, null) }
+                        Handler(Looper.getMainLooper()).post { result.error("DOWNLOADS", "无法保存到 Download 目录", null) }
+                    }
+                }.start()
+            }
+        }
 
         // Original channel
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hunaubox/live_course").apply {

@@ -6,6 +6,9 @@ import '../models/score_model.dart';
 import '../models/timetable_adjustment.dart';
 import '../models/agent_models.dart';
 import '../providers/homework_provider.dart';
+import '../providers/chaoxing_course_provider.dart';
+import '../models/chaoxing_course.dart';
+import 'chaoxing_messages_service.dart';
 import '../utils/date_calculator.dart';
 import '../utils/week_parser.dart';
 import 'agent_tool_registry.dart';
@@ -36,6 +39,9 @@ const agentServiceLabels = <String, String>{
   'sunshine': '阳光服务',
   'leave': '请假申请',
   'repair': '报修平台',
+  'chaoxing_courses': '学习通课程',
+  'chaoxing_messages': '学习通消息',
+  'exam': '考试安排',
 };
 
 String agentClassroomSectionCode(int section) {
@@ -124,6 +130,254 @@ AgentToolRegistry buildCampusAgentTools(
     );
   }
 
+  const pagination = {
+    'offset': {'type': 'integer', 'minimum': 0, 'maximum': 5000},
+    'limit': {'type': 'integer', 'minimum': 1, 'maximum': 20},
+  };
+  String clip(String value, int max) =>
+      value.length <= max ? value : '${value.substring(0, max)}…';
+  Future<Map<String, dynamic>> messageCache(AgentToolContext ctx) async {
+    final snapshot = await ref.read(chaoxingCacheProvider).read('messages');
+    ctx.checkActive();
+    if (snapshot == null) {
+      throw const AgentException('暂无学习通消息缓存，请先打开学习通消息页面同步');
+    }
+    return snapshot;
+  }
+
+  List<ChaoxingConversation> conversations(Map<String, dynamic> snapshot) {
+    final raw = snapshot['conversations'];
+    if (raw is! List) throw const AgentException('消息缓存不可读，请在消息页面重新同步');
+    final result = ChaoxingMessagesService.parseConversations(raw);
+    if (result.length != raw.length) {
+      throw const AgentException('消息缓存不可读，请在消息页面重新同步');
+    }
+    return result;
+  }
+
+  add(
+    'query_chaoxing_courses',
+    '查询学习通课程',
+    '查询学习通课程缓存，支持关键词、分类和进度筛选。仅当用户明确要求刷新课程时设置 forceRefresh。',
+    (a, ctx) async {
+      final cache = ref.read(chaoxingCacheProvider);
+      Map<String, dynamic>? snapshot;
+      if (a['forceRefresh'] == true) {
+        final owner = await cache.account();
+        ctx.checkActive();
+        if (owner == null || owner.isEmpty) {
+          throw const AgentException('无法确认当前账号，请重新登录');
+        }
+        final fetched = await ref.read(chaoxingCourseFetcherProvider)();
+        ctx.checkActive();
+        if (owner != await cache.account()) {
+          throw const AgentException('账号已切换，请重新查询');
+        }
+        ctx.checkActive();
+        final previous = await cache.read('courses');
+        ctx.checkActive();
+        if (owner != await cache.account()) {
+          throw const AgentException('账号已切换，请重新查询');
+        }
+        ctx.checkActive();
+        try {
+          validateCourseRefresh(previous, fetched);
+        } catch (_) {
+          throw const AgentException('本次未获取到课程，已保留上次的结果，请稍后重试或打开学习通确认');
+        }
+        snapshot = {
+          'items': fetched.map((c) => c.toJson()).toList(),
+          'updatedAt': DateTime.now().toIso8601String(),
+          'verifiedEmpty': fetched.isEmpty,
+        };
+        await cache.write(owner, 'courses', snapshot);
+        ctx.checkActive();
+        ref.invalidate(chaoxingCoursesProvider);
+      } else {
+        snapshot = await cache.read('courses');
+        ctx.checkActive();
+      }
+      if (snapshot == null) {
+        throw const AgentException('暂无学习通课程缓存，请先打开学习通课程页面同步，或明确要求刷新课程');
+      }
+      final raw = snapshot['items'];
+      if (raw is! List) throw const AgentException('课程缓存不可读，请在课程页面重新同步');
+      if (raw.isEmpty && snapshot['verifiedEmpty'] != true) {
+        throw const AgentException('课程缓存未确认，请先打开课程页面同步或明确要求刷新');
+      }
+      late List<ChaoxingCourse> courses;
+      try {
+        courses = raw
+            .map(
+              (v) =>
+                  ChaoxingCourse.fromJson(Map<String, dynamic>.from(v as Map)),
+            )
+            .toList();
+      } catch (_) {
+        throw const AgentException('课程缓存不可读，请在课程页面重新同步');
+      }
+      final keyword = (a['keyword'] as String? ?? '').trim().toLowerCase();
+      final folder = (a['folder'] as String? ?? '').trim().toLowerCase();
+      final progress = a['progress'] as String? ?? 'all';
+      final filtered = courses.where((c) {
+        final p = c.progress;
+        return ('${c.name} ${c.teacher} ${c.school}'.toLowerCase().contains(
+              keyword,
+            )) &&
+            c.folder.toLowerCase().contains(folder) &&
+            (progress == 'all' ||
+                (progress == 'unknown' && p == null) ||
+                (progress == 'completed' && p != null && p >= 1) ||
+                (progress == 'incomplete' && p != null && p < 1));
+      }).toList();
+      final offset = a['offset'] as int? ?? 0;
+      final limit = a['limit'] as int? ?? 10;
+      return {
+        'source': a['forceRefresh'] == true ? '刚刚同步' : '本地缓存',
+        'updatedAt': snapshot['updatedAt'] ?? '未知',
+        'totalCount': filtered.length,
+        'offset': offset,
+        'hasMore': offset + limit < filtered.length,
+        'courses': filtered
+            .skip(offset)
+            .take(limit)
+            .map(
+              (c) => {
+                'name': clip(c.name, 300),
+                'teacher': clip(c.teacher, 200),
+                'school': clip(c.school, 200),
+                'folder': clip(c.folder, 200),
+                'schedule': clip(c.schedule, 300),
+                'finishedJobs': c.finishedJobs,
+                'totalJobs': c.totalJobs,
+                'progressPercent': c.progress == null
+                    ? null
+                    : (c.progress! * 100).round(),
+              },
+            )
+            .toList(),
+      };
+    },
+    properties: {
+      'keyword': str,
+      'folder': str,
+      'progress': {
+        'type': 'string',
+        'enum': ['all', 'incomplete', 'completed', 'unknown'],
+      },
+      ...pagination,
+      'forceRefresh': boolean,
+    },
+  );
+
+  add(
+    'query_chaoxing_conversations',
+    '查询学习通会话',
+    '只读学习通消息页面已同步的会话缓存，支持按名称或摘要搜索，不会刷新或标记已读。',
+    (a, ctx) async {
+      final snapshot = await messageCache(ctx);
+      final keyword = (a['keyword'] as String? ?? '').trim().toLowerCase();
+      final filtered = conversations(snapshot)
+          .where(
+            (c) => '${c.name} ${c.preview}'.toLowerCase().contains(keyword),
+          )
+          .toList();
+      final details = snapshot['details'];
+      final offset = a['offset'] as int? ?? 0;
+      final limit = a['limit'] as int? ?? 10;
+      return {
+        'source': '本地缓存',
+        'updatedAt': snapshot['updatedAt'] ?? '未知',
+        'coverage': '仅包含 App 上次同步的会话，可能不完整，不提供未读状态。',
+        'totalCount': filtered.length,
+        'offset': offset,
+        'hasMore': offset + limit < filtered.length,
+        'conversations': filtered
+            .skip(offset)
+            .take(limit)
+            .map(
+              (c) => {
+                'name': clip(c.name, 300),
+                'preview': clip(c.preview, 300),
+                'time': clip(c.time, 100),
+                'detailCached':
+                    details is Map && details['${c.index}:${c.name}'] is List,
+              },
+            )
+            .toList(),
+      };
+    },
+    properties: {'keyword': str, ...pagination},
+  );
+
+  add(
+    'query_chaoxing_messages',
+    '查询学习通聊天内容',
+    '只查询用户之前在消息页面打开过并缓存的会话内容；不会刷新、标记已读或发送消息。',
+    (a, ctx) async {
+      final name = (a['conversation'] as String).trim().toLowerCase();
+      if (name.isEmpty) throw const AgentException('请提供会话名称');
+      final snapshot = await messageCache(ctx);
+      final all = conversations(snapshot);
+      var matches = all
+          .where((c) => c.name.trim().toLowerCase() == name)
+          .toList();
+      if (matches.isEmpty) {
+        matches = all
+            .where((c) => c.name.toLowerCase().contains(name))
+            .toList();
+      }
+      if (matches.isEmpty) {
+        throw const AgentException('缓存中未找到该会话，请到学习通消息页面同步后重试');
+      }
+      if (matches.length != 1) {
+        throw const AgentException('匹配到多个会话，请提供更准确的名称或在消息页面查看');
+      }
+      final conversation = matches.single;
+      final details = snapshot['details'];
+      final raw = details is Map
+          ? details['${conversation.index}:${conversation.name}']
+          : null;
+      if (raw is! List) {
+        throw const AgentException('该会话尚未缓存聊天内容，请先在学习通消息页面打开该会话，或查询会话摘要');
+      }
+      final parsed = ChaoxingMessagesService.parseMessages(raw);
+      if (parsed.length != raw.length) {
+        throw const AgentException('聊天缓存不可读，请在消息页面重新打开该会话');
+      }
+      final keyword = (a['keyword'] as String? ?? '').trim().toLowerCase();
+      final filtered = parsed
+          .where((m) => '${m.sender} ${m.text}'.toLowerCase().contains(keyword))
+          .toList();
+      final offset = a['offset'] as int? ?? 0;
+      final limit = a['limit'] as int? ?? 10;
+      return {
+        'conversation': clip(conversation.name, 300),
+        'source': '本地缓存',
+        'conversationListSyncedAt': snapshot['updatedAt'] ?? '未知',
+        'coverage': '仅包含曾在 App 中打开时缓存的聊天内容，可能不完整；详情缓存时间未知。',
+        'totalCount': filtered.length,
+        'offset': offset,
+        'hasMore': offset + limit < filtered.length,
+        'messages': filtered
+            .skip(offset)
+            .take(limit)
+            .map(
+              (m) => {
+                'sender': clip(m.sender, 200),
+                'text': clip(m.text, 600),
+                'textTruncated': m.text.length > 600,
+                'time': clip(m.time, 100),
+                'mine': m.mine,
+              },
+            )
+            .toList(),
+      };
+    },
+    required: ['conversation'],
+    properties: {'conversation': str, 'keyword': str, ...pagination},
+  );
+
   add(
     'query_timetable',
     '查询课表',
@@ -153,15 +407,31 @@ AgentToolRegistry buildCampusAgentTools(
           : a['week'] as int?;
       final effective = <CourseModel>[...filtered];
       if (requestedWeek != null) {
-        for (final adjustment in adjustments.where((item) => !item.cancelled && item.targetWeek == requestedWeek)) {
-          final original = courses.where((course) => course.id == adjustment.courseId).firstOrNull;
+        for (final adjustment in adjustments.where(
+          (item) => !item.cancelled && item.targetWeek == requestedWeek,
+        )) {
+          final original = courses
+              .where((course) => course.id == adjustment.courseId)
+              .firstOrNull;
           if (original == null) continue;
           if (adjustment.sourceWeek == requestedWeek) {
             effective.removeWhere((course) => course.id == original.id);
           }
-          effective.add(original.copyWith(dayOfWeek: adjustment.targetDay, startPeriod: adjustment.targetStartPeriod, endPeriod: adjustment.targetEndPeriod, periods: '${adjustment.targetStartPeriod}-${adjustment.targetEndPeriod}'));
+          effective.add(
+            original.copyWith(
+              dayOfWeek: adjustment.targetDay,
+              startPeriod: adjustment.targetStartPeriod,
+              endPeriod: adjustment.targetEndPeriod,
+              periods:
+                  '${adjustment.targetStartPeriod}-${adjustment.targetEndPeriod}',
+            ),
+          );
         }
-        effective.sort((a, b) => a.dayOfWeek != b.dayOfWeek ? a.dayOfWeek.compareTo(b.dayOfWeek) : a.startPeriod.compareTo(b.startPeriod));
+        effective.sort(
+          (a, b) => a.dayOfWeek != b.dayOfWeek
+              ? a.dayOfWeek.compareTo(b.dayOfWeek)
+              : a.startPeriod.compareTo(b.startPeriod),
+        );
       }
       return {
         'totalCount': filtered.length,
@@ -173,7 +443,9 @@ AgentToolRegistry buildCampusAgentTools(
                 DateTime.tryParse(meta!['firstWeekMonday'].toString())!,
               ),
         'adjustments': adjustments
-            .where((item) => filtered.any((course) => course.id == item.courseId))
+            .where(
+              (item) => filtered.any((course) => course.id == item.courseId),
+            )
             .map((item) => item.toJson())
             .toList(),
         'courses': filtered.take(100).map((c) => c.toJson()).toList(),
@@ -260,25 +532,28 @@ AgentToolRegistry buildCampusAgentTools(
       final courses = await TimetableStorage().readCourseList();
       final byId = {for (final course in courses) course.id: course};
       final keyword = (a['courseName'] as String? ?? '').trim().toLowerCase();
-      final result = items.where((item) {
-        final course = byId[item.courseId];
-        return keyword.isEmpty ||
-            (course != null && course.name.toLowerCase().contains(keyword));
-      }).map((item) {
-        final course = byId[item.courseId];
-        return {
-          'courseId': item.courseId,
-          'courseName': course?.name ?? item.courseId,
-          'sourceWeek': item.sourceWeek,
-          'sourceDay': item.sourceDay,
-          'targetWeek': item.targetWeek,
-          'targetDay': item.targetDay,
-          'targetStartPeriod': item.targetStartPeriod,
-          'targetEndPeriod': item.targetEndPeriod,
-          'cancelled': item.cancelled,
-          'note': item.note,
-        };
-      }).toList();
+      final result = items
+          .where((item) {
+            final course = byId[item.courseId];
+            return keyword.isEmpty ||
+                (course != null && course.name.toLowerCase().contains(keyword));
+          })
+          .map((item) {
+            final course = byId[item.courseId];
+            return {
+              'courseId': item.courseId,
+              'courseName': course?.name ?? item.courseId,
+              'sourceWeek': item.sourceWeek,
+              'sourceDay': item.sourceDay,
+              'targetWeek': item.targetWeek,
+              'targetDay': item.targetDay,
+              'targetStartPeriod': item.targetStartPeriod,
+              'targetEndPeriod': item.targetEndPeriod,
+              'cancelled': item.cancelled,
+              'note': item.note,
+            };
+          })
+          .toList();
       return {'totalCount': result.length, 'adjustments': result};
     },
     properties: {'courseName': str},
@@ -299,43 +574,95 @@ AgentToolRegistry buildCampusAgentTools(
       final cancelled = a['cancelled'] == true;
       if (courseName.isEmpty) throw const AgentException('课程名称不能为空');
       if (targetEnd < targetStart) throw const AgentException('结束节次不能早于开始节次');
-      if (sourceWeek < 1 || targetWeek < 1 || sourceDay == null || sourceDay < 1 || sourceDay > 7 || targetDay < 1 || targetDay > 7 || targetStart < 1 || targetEnd > 12) {
+      if (sourceWeek < 1 ||
+          targetWeek < 1 ||
+          sourceDay == null ||
+          sourceDay < 1 ||
+          sourceDay > 7 ||
+          targetDay < 1 ||
+          targetDay > 7 ||
+          targetStart < 1 ||
+          targetEnd > 12) {
         throw const AgentException('周次、星期或节次超出有效范围');
       }
       final storage = TimetableStorage();
       final courses = await storage.readCourseList();
       final candidates = courses.where((course) {
-        final sameName = course.name.toLowerCase().contains(courseName.toLowerCase());
+        final sameName = course.name.toLowerCase().contains(
+          courseName.toLowerCase(),
+        );
         final inWeek = WeekParser.parseWeeks(course.weeks).contains(sourceWeek);
         return sameName && inWeek && course.dayOfWeek == sourceDay;
       }).toList();
-      if (candidates.isEmpty) throw const AgentException('没有找到符合课程名、源周次和星期的课程，请先查询课表确认参数');
+      if (candidates.isEmpty)
+        throw const AgentException('没有找到符合课程名、源周次和星期的课程，请先查询课表确认参数');
       if (candidates.length > 1) {
-        throw AgentException('匹配到多门课程：${candidates.take(5).map((e) => '${e.name}（周${e.dayOfWeek}第${e.periods}节）').join('、')}，请补充更完整的课程名称');
+        throw AgentException(
+          '匹配到多门课程：${candidates.take(5).map((e) => '${e.name}（周${e.dayOfWeek}第${e.periods}节）').join('、')}，请补充更完整的课程名称',
+        );
       }
       final course = candidates.single;
       final existing = await storage.readAdjustments();
-      final conflicts = courses.where((other) {
-        if (other.id == course.id) return false;
-        if (!WeekParser.parseWeeks(other.weeks).contains(targetWeek)) return false;
-        return other.dayOfWeek == targetDay && other.startPeriod <= targetEnd && other.endPeriod >= targetStart;
-      }).map((e) => e.name).toSet().toList();
+      final conflicts = courses
+          .where((other) {
+            if (other.id == course.id) return false;
+            if (!WeekParser.parseWeeks(other.weeks).contains(targetWeek))
+              return false;
+            return other.dayOfWeek == targetDay &&
+                other.startPeriod <= targetEnd &&
+                other.endPeriod >= targetStart;
+          })
+          .map((e) => e.name)
+          .toSet()
+          .toList();
       final note = (a['note'] as String? ?? '').trim();
       final detail = StringBuffer()
         ..writeln('课程：${course.name}')
         ..writeln('原安排：第$sourceWeek周 星期$sourceDay 第${course.periods}节')
-        ..writeln(cancelled ? '调整：本次停课' : '新安排：第$targetWeek周 星期$targetDay 第$targetStart-$targetEnd节')
+        ..writeln(
+          cancelled
+              ? '调整：本次停课'
+              : '新安排：第$targetWeek周 星期$targetDay 第$targetStart-$targetEnd节',
+        )
         ..writeln(note.isEmpty ? '备注：无' : '备注：$note');
-      if (conflicts.isNotEmpty) detail.writeln('提示：目标时段已有课程「${conflicts.join('、')}」，请确认是否继续。');
-      if (!await ctx.askConfirmation('确认 AI 调课', detail.toString())) return {'cancelled': true, 'message': '用户取消，未修改课表'};
+      if (conflicts.isNotEmpty)
+        detail.writeln('提示：目标时段已有课程「${conflicts.join('、')}」，请确认是否继续。');
+      if (!await ctx.askConfirmation('确认 AI 调课', detail.toString()))
+        return {'cancelled': true, 'message': '用户取消，未修改课表'};
       ctx.checkActive();
       final adjustment = TimetableAdjustment(
-        id: '${course.id}_$sourceWeek', courseId: course.id, sourceWeek: sourceWeek, sourceDay: course.dayOfWeek,
-        targetWeek: targetWeek, targetDay: targetDay, targetStartPeriod: targetStart, targetEndPeriod: targetEnd, cancelled: cancelled, note: note,
+        id: '${course.id}_$sourceWeek',
+        courseId: course.id,
+        sourceWeek: sourceWeek,
+        sourceDay: course.dayOfWeek,
+        targetWeek: targetWeek,
+        targetDay: targetDay,
+        targetStartPeriod: targetStart,
+        targetEndPeriod: targetEnd,
+        cancelled: cancelled,
+        note: note,
       );
-      final replaced = existing.where((item) => !(item.courseId == course.id && item.sourceWeek == sourceWeek)).toList()..add(adjustment);
+      final replaced =
+          existing
+              .where(
+                (item) =>
+                    !(item.courseId == course.id &&
+                        item.sourceWeek == sourceWeek),
+              )
+              .toList()
+            ..add(adjustment);
       await storage.saveAdjustments(replaced);
-      return {'success': true, 'courseName': course.name, 'cancelled': cancelled, 'sourceWeek': sourceWeek, 'targetWeek': targetWeek, 'targetDay': targetDay, 'targetStartPeriod': targetStart, 'targetEndPeriod': targetEnd, 'conflicts': conflicts};
+      return {
+        'success': true,
+        'courseName': course.name,
+        'cancelled': cancelled,
+        'sourceWeek': sourceWeek,
+        'targetWeek': targetWeek,
+        'targetDay': targetDay,
+        'targetStartPeriod': targetStart,
+        'targetEndPeriod': targetEnd,
+        'conflicts': conflicts,
+      };
     },
     properties: {
       'courseName': str,
@@ -348,7 +675,15 @@ AgentToolRegistry buildCampusAgentTools(
       'cancelled': boolean,
       'note': str,
     },
-    required: ['courseName', 'sourceWeek', 'sourceDay', 'targetWeek', 'targetDay', 'targetStartPeriod', 'targetEndPeriod'],
+    required: [
+      'courseName',
+      'sourceWeek',
+      'sourceDay',
+      'targetWeek',
+      'targetDay',
+      'targetStartPeriod',
+      'targetEndPeriod',
+    ],
   );
 
   add(
@@ -361,15 +696,38 @@ AgentToolRegistry buildCampusAgentTools(
       final day = a['sourceDay'] as int;
       final storage = TimetableStorage();
       final courses = await storage.readCourseList();
-      final matches = courses.where((course) => course.name.toLowerCase().contains(name) && WeekParser.parseWeeks(course.weeks).contains(week) && course.dayOfWeek == day).toList();
-      if (matches.length != 1) throw const AgentException('没有唯一匹配到需要恢复的课程，请先查询课表并补充课程名称、周次和星期');
+      final matches = courses
+          .where(
+            (course) =>
+                course.name.toLowerCase().contains(name) &&
+                WeekParser.parseWeeks(course.weeks).contains(week) &&
+                course.dayOfWeek == day,
+          )
+          .toList();
+      if (matches.length != 1)
+        throw const AgentException('没有唯一匹配到需要恢复的课程，请先查询课表并补充课程名称、周次和星期');
       final course = matches.single;
       final existing = await storage.readAdjustments();
-      final found = existing.where((item) => item.courseId == course.id && item.sourceWeek == week).toList();
+      final found = existing
+          .where(
+            (item) => item.courseId == course.id && item.sourceWeek == week,
+          )
+          .toList();
       if (found.isEmpty) return {'message': '该课程没有保存的临时调课，无需恢复'};
-      if (!await ctx.askConfirmation('恢复原课表', '将删除「${course.name}」第$week周星期$day的临时安排，恢复原始课表。')) return {'cancelled': true};
+      if (!await ctx.askConfirmation(
+        '恢复原课表',
+        '将删除「${course.name}」第$week周星期$day的临时安排，恢复原始课表。',
+      ))
+        return {'cancelled': true};
       ctx.checkActive();
-      await storage.saveAdjustments(existing.where((item) => !(item.courseId == course.id && item.sourceWeek == week)).toList());
+      await storage.saveAdjustments(
+        existing
+            .where(
+              (item) =>
+                  !(item.courseId == course.id && item.sourceWeek == week),
+            )
+            .toList(),
+      );
       return {'success': true, 'courseName': course.name, 'sourceWeek': week};
     },
     properties: {
@@ -636,34 +994,95 @@ AgentToolRegistry buildCampusAgentTools(
     (a, ctx) async {
       final items = await SunshineService().fetchLetters();
       final keyword = (a['keyword'] as String? ?? '').trim().toLowerCase();
-      final filtered = items.where((item) => keyword.isEmpty || '${item.title} ${item.department} ${item.type}'.toLowerCase().contains(keyword));
-      return {'totalCount': filtered.length, 'tickets': filtered.take(50).map((item) => {'id': item.id, 'title': item.title, 'department': item.department, 'type': item.type, 'date': item.date, 'status': item.statusLabel}).toList()};
+      final filtered = items.where(
+        (item) =>
+            keyword.isEmpty ||
+            '${item.title} ${item.department} ${item.type}'
+                .toLowerCase()
+                .contains(keyword),
+      );
+      return {
+        'totalCount': filtered.length,
+        'tickets': filtered
+            .take(50)
+            .map(
+              (item) => {
+                'id': item.id,
+                'title': item.title,
+                'department': item.department,
+                'type': item.type,
+                'date': item.date,
+                'status': item.statusLabel,
+              },
+            )
+            .toList(),
+      };
     },
     properties: {'keyword': str},
   );
 
-  add(
-    'query_leave',
-    '查询请假申请',
-    '查询请假申请记录和审核状态，只读，不提交或撤销。',
-    (a, ctx) async {
-      final items = await LeaveService().fetchList();
-      final keyword = (a['keyword'] as String? ?? '').trim().toLowerCase();
-      final filtered = items.where((item) => keyword.isEmpty || '${item.typeName} ${item.reason} ${item.startTime} ${item.endTime}'.toLowerCase().contains(keyword));
-      return {'totalCount': filtered.length, 'leaves': filtered.take(50).map((item) => {'id': item.id, 'type': item.typeName, 'startTime': item.startTime, 'endTime': item.endTime, 'duration': item.durationLabel, 'reason': item.reason, 'status': item.statusLabel}).toList()};
-    },
-    properties: {'keyword': str},
-  );
+  add('query_leave', '查询请假申请', '查询请假申请记录和审核状态，只读，不提交或撤销。', (a, ctx) async {
+    final items = await LeaveService().fetchList();
+    final keyword = (a['keyword'] as String? ?? '').trim().toLowerCase();
+    final filtered = items.where(
+      (item) =>
+          keyword.isEmpty ||
+          '${item.typeName} ${item.reason} ${item.startTime} ${item.endTime}'
+              .toLowerCase()
+              .contains(keyword),
+    );
+    return {
+      'totalCount': filtered.length,
+      'leaves': filtered
+          .take(50)
+          .map(
+            (item) => {
+              'id': item.id,
+              'type': item.typeName,
+              'startTime': item.startTime,
+              'endTime': item.endTime,
+              'duration': item.durationLabel,
+              'reason': item.reason,
+              'status': item.statusLabel,
+            },
+          )
+          .toList(),
+    };
+  }, properties: {'keyword': str});
 
   add(
     'query_repairs',
     '查询报修工单',
     '查询报修平台工单，只读，不创建或取消工单。',
     (a, ctx) async {
-      final orders = await RepairService().fetchOrders(ongoing: a['ongoing'] != false);
+      final orders = await RepairService().fetchOrders(
+        ongoing: a['ongoing'] != false,
+      );
       final keyword = (a['keyword'] as String? ?? '').trim().toLowerCase();
-      final filtered = orders.where((item) => keyword.isEmpty || '${item.title} ${item.description} ${item.catalog} ${item.status}'.toLowerCase().contains(keyword));
-      return {'totalCount': filtered.length, 'orders': filtered.take(50).map((item) => {'id': item.id, 'code': item.code, 'title': item.title, 'catalog': item.catalog, 'status': item.status, 'description': item.description, 'department': item.department}).toList()};
+      final filtered = orders.where(
+        (item) =>
+            keyword.isEmpty ||
+            '${item.title} ${item.description} ${item.catalog} ${item.status}'
+                .toLowerCase()
+                .contains(keyword),
+      );
+      return {
+        'totalCount': filtered.length,
+        'orders': filtered
+            .take(50)
+            .map(
+              (item) => {
+                'id': item.id,
+                'code': item.code,
+                'title': item.title,
+                'catalog': item.catalog,
+                'status': item.status,
+                'description': item.description,
+                'department': item.department,
+              },
+            )
+            .toList(),
+      };
     },
     properties: {'ongoing': boolean, 'keyword': str},
   );

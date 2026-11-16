@@ -10,6 +10,8 @@ import '../services/finance_cache_store.dart';
 import '../widgets/campus_card_payment_sheet.dart';
 import '../widgets/payment_result_sheet.dart';
 
+enum _ElectricityPaymentMethod { campusCard, wechat, alipay }
+
 class ElectricityRechargePage extends StatefulWidget {
   const ElectricityRechargePage({super.key, this.roomSlot = 0, this.service})
     : assert(roomSlot >= 0 && roomSlot <= 1);
@@ -49,6 +51,8 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
   double? _selectedAmount;
   final List<double> _presetAmounts = [10, 20, 50, 100];
   bool _isPaying = false;
+  _ElectricityPaymentMethod _paymentMethod =
+      _ElectricityPaymentMethod.campusCard;
 
   ElectricityService get _service =>
       widget.service ?? ElectricityService.instance;
@@ -454,9 +458,26 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
   }
 
   Widget _buildPage(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final amount = int.tryParse(_amountController.text.trim());
+    final canRecharge = _selectedRoom != null &&
+        amount != null &&
+        amount >= 1 &&
+        amount <= 1000 &&
+        !_isPaying;
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(title: const Text('电费充值'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('电费充值'),
+        actions: [
+          IconButton(
+            tooltip: '刷新电费余额',
+            onPressed: _isBalanceLoading || _selectedRoom == null
+                ? null
+                : _loadBalance,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -479,348 +500,299 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                 ],
               ),
             )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.secondaryContainer.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.outlineVariant.withValues(alpha: 0.3),
+          : SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 15),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceContainerLow,
+                        border: Border.all(color: colors.outlineVariant),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.bolt_rounded,
-                              size: 20,
-                              color: Theme.of(context).colorScheme.secondary,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '当前充值房间',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Theme.of(context).colorScheme.secondary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _selectedRoom != null
-                              ? '${_selectedArea?.name} - ${_selectedBuilding?.name} - ${_selectedRoom?.name}'
-                              : '尚未选择房间',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.account_balance_wallet_outlined,
-                              size: 18,
-                              color: Theme.of(context).colorScheme.secondary,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '当前电费余额',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Theme.of(context).colorScheme.secondary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const Spacer(),
-                            IconButton(
-                              tooltip: '刷新余额',
-                              visualDensity: VisualDensity.compact,
-                              onPressed: _isBalanceLoading
-                                  ? null
-                                  : _loadBalance,
-                              icon: const Icon(Icons.refresh_rounded, size: 19),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          _isBalanceLoading && _balance == null
-                              ? '查询中...'
-                              : _balance == null
-                              ? '暂时无法获取'
-                              : '${_balance!.balance} 元',
-                          style: TextStyle(
-                            fontSize: 24,
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          _isBalanceLoading
-                              ? '正在更新余额…'
-                              : _balanceError ??
-                                    (_balanceUpdatedAt == null
-                                        ? '等待更新'
-                                        : '更新于 ${_balanceUpdatedAt!.month}/${_balanceUpdatedAt!.day} ${_balanceUpdatedAt!.hour.toString().padLeft(2, '0')}:${_balanceUpdatedAt!.minute.toString().padLeft(2, '0')}'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  if (!_editingRoom)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () => _initData(editRoom: true),
-                        icon: const Icon(Icons.edit_location_alt_outlined),
-                        label: const Text('更换房间'),
-                      ),
-                    ),
-                  if (_editingRoom) ...[
-                    _buildRoomSelectionBox(
-                      '校区',
-                      _areas.map((e) => e.name).toList(),
-                      _selectedArea?.name,
-                      (val) {
-                        final area = _areas.firstWhere((e) => e.name == val);
-                        setState(() => _selectedArea = area);
-                        _loadBuildings(area.name);
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _buildRoomSelectionBox(
-                      '楼栋',
-                      _buildings.map((e) => e.name).toList(),
-                      _selectedBuilding?.name,
-                      (val) {
-                        final building = _buildings.firstWhere(
-                          (e) => e.name == val,
-                        );
-                        setState(() => _selectedBuilding = building);
-                        _loadRooms(_selectedArea!.name, building.name);
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _buildRoomSelectionBox(
-                      '房间',
-                      _rooms.map((e) => e.name).toList(),
-                      _selectedRoom?.name,
-                      (val) async {
-                        final room = _rooms.firstWhere((e) => e.name == val);
-                        setState(() {
-                          _selectedRoom = room;
-                          _balance = null;
-                        });
-                        await _saveCurrentSelection();
-                        await _loadBalance();
-                      },
-                    ),
-                    const SizedBox(height: 32),
-                  ],
-                  Text(
-                    '选择充值金额',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                          childAspectRatio: 2.8,
-                        ),
-                    itemCount: _presetAmounts.length,
-                    itemBuilder: (context, index) {
-                      final amount = _presetAmounts[index];
-                      final isSelected = _selectedAmount == amount;
-                      return InkWell(
-                        onTap: () => _handlePresetAmountSelect(amount),
-                        borderRadius: BorderRadius.circular(12),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? Theme.of(context).colorScheme.primaryContainer
-                                : Theme.of(context).colorScheme.surface,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.outlineVariant
-                                        .withValues(alpha: 0.5),
-                              width: isSelected ? 2 : 1,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '${amount.toStringAsFixed(0)}元',
-                            style: TextStyle(
-                              color: isSelected
-                                  ? Theme.of(
-                                      context,
-                                    ).colorScheme.onPrimaryContainer
-                                  : Theme.of(context).colorScheme.onSurface,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  TextField(
-                    controller: _amountController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      labelText: '其他金额',
-                      prefixText: '¥ ',
-                      filled: true,
-                      fillColor: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest
-                          .withValues(alpha: 0.3),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Theme.of(context).colorScheme.primary,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                    onChanged: (value) => setState(
-                      () => _selectedAmount = double.tryParse(value),
-                    ),
-                  ),
-                  const SizedBox(height: 48),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        height: 52,
-                        child: FilledButton.icon(
-                          onPressed: _isPaying ? null : _handleRecharge,
-                          icon: _isPaying
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.credit_card_rounded, size: 20),
-                          label: const Text(
-                            '校园卡支付',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: SizedBox(
-                              height: 52,
-                              child: FilledButton.icon(
-                                onPressed: _isPaying
-                                    ? null
-                                    : () => _handleThirdPartyRecharge(
-                                        PaymentMethod.wechat,
-                                      ),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFF07C160),
-                                ),
-                                icon: SvgPicture.string(
-                                  kWechatSvg,
-                                  width: 20,
-                                  height: 20,
-                                  colorFilter: const ColorFilter.mode(
-                                    Colors.white,
-                                    BlendMode.srcIn,
-                                  ),
-                                ),
-                                label: const Text(
-                                  '微信支付',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
+                          Row(
+                            children: [
+                              Icon(Icons.bolt_rounded, color: colors.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '当前用电房间',
+                                  style: Theme.of(context).textTheme.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
                                 ),
                               ),
+                              if (!_editingRoom)
+                                TextButton.icon(
+                                  onPressed: () => _initData(editRoom: true),
+                                  icon: const Icon(Icons.edit_outlined, size: 17),
+                                  label: const Text('更换房间'),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _selectedRoom == null
+                                ? '尚未选择房间'
+                                : '${_selectedArea?.name} · ${_selectedBuilding?.name} · ${_selectedRoom?.name}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: colors.onSurfaceVariant,
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: SizedBox(
-                              height: 52,
-                              child: FilledButton.icon(
-                                onPressed: _isPaying
-                                    ? null
-                                    : () => _handleThirdPartyRecharge(
-                                        PaymentMethod.alipay,
-                                      ),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFF1677FF),
-                                ),
-                                icon: SvgPicture.string(
-                                  kAlipaySvg,
-                                  width: 20,
-                                  height: 20,
-                                  colorFilter: const ColorFilter.mode(
-                                    Colors.white,
-                                    BlendMode.srcIn,
-                                  ),
-                                ),
-                                label: const Text(
-                                  '支付宝支付',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
+                          const SizedBox(height: 16),
+                          Divider(height: 1, color: colors.outlineVariant),
+                          const SizedBox(height: 12),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '电费余额',
+                                      style: Theme.of(context).textTheme.bodySmall
+                                          ?.copyWith(color: colors.onSurfaceVariant),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _balance == null
+                                          ? (_isBalanceLoading ? '查询中' : '--')
+                                          : '${_balance!.balance} 元',
+                                      style: Theme.of(context).textTheme.headlineSmall
+                                          ?.copyWith(fontWeight: FontWeight.w700),
+                                    ),
+                                  ],
                                 ),
                               ),
+                              if (_isBalanceLoading)
+                                const Padding(
+                                  padding: EdgeInsets.only(bottom: 6),
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _balanceError ??
+                                (_balanceUpdatedAt == null
+                                    ? '余额尚未更新'
+                                    : '更新于 ${_balanceUpdatedAt!.month}/${_balanceUpdatedAt!.day} ${_balanceUpdatedAt!.hour.toString().padLeft(2, '0')}:${_balanceUpdatedAt!.minute.toString().padLeft(2, '0')}'),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: _balanceError == null
+                                  ? colors.onSurfaceVariant
+                                  : colors.error,
                             ),
                           ),
                         ],
                       ),
+                    ),
+                    if (_editingRoom) ...[
+                      const SizedBox(height: 16),
+                      _buildRoomSelectionBox(
+                        '校区',
+                        _areas.map((e) => e.name).toList(),
+                        _selectedArea?.name,
+                        (val) {
+                          final area = _areas.firstWhere((e) => e.name == val);
+                          setState(() => _selectedArea = area);
+                          _loadBuildings(area.name);
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildRoomSelectionBox(
+                        '楼栋',
+                        _buildings.map((e) => e.name).toList(),
+                        _selectedBuilding?.name,
+                        (val) {
+                          final building = _buildings.firstWhere(
+                            (e) => e.name == val,
+                          );
+                          setState(() => _selectedBuilding = building);
+                          _loadRooms(_selectedArea!.name, building.name);
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildRoomSelectionBox(
+                        '房间',
+                        _rooms.map((e) => e.name).toList(),
+                        _selectedRoom?.name,
+                        (val) async {
+                          final room = _rooms.firstWhere((e) => e.name == val);
+                          setState(() {
+                            _selectedRoom = room;
+                            _balance = null;
+                          });
+                          await _saveCurrentSelection();
+                          await _loadBalance();
+                        },
+                      ),
                     ],
+                    const SizedBox(height: 24),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '充值金额',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        Text(
+                          '1–1000 元',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                            childAspectRatio: 2.8,
+                          ),
+                      itemCount: _presetAmounts.length,
+                      itemBuilder: (context, index) => _ElectricityAmountOption(
+                        amount: _presetAmounts[index],
+                        selected: _selectedAmount == _presetAmounts[index],
+                        onTap: () =>
+                            _handlePresetAmountSelect(_presetAmounts[index]),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _amountController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        labelText: '其他金额',
+                        prefixText: '¥ ',
+                        suffixText: '元',
+                        filled: true,
+                        fillColor: colors.surfaceContainerLow,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colors.outlineVariant),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colors.outlineVariant),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colors.primary, width: 1.5),
+                        ),
+                      ),
+                      onChanged: (value) => setState(
+                        () => _selectedAmount = double.tryParse(value),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      '支付方式',
+                      style: Theme.of(context).textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        ChoiceChip(
+                          avatar: const Icon(Icons.credit_card_outlined, size: 18),
+                          label: const Text('校园卡'),
+                          selected: _paymentMethod ==
+                              _ElectricityPaymentMethod.campusCard,
+                          onSelected: (_) => setState(() => _paymentMethod =
+                              _ElectricityPaymentMethod.campusCard),
+                        ),
+                        ChoiceChip(
+                          avatar: SvgPicture.string(kWechatSvg, width: 18, height: 18),
+                          label: const Text('微信支付'),
+                          selected: _paymentMethod ==
+                              _ElectricityPaymentMethod.wechat,
+                          onSelected: (_) => setState(() => _paymentMethod =
+                              _ElectricityPaymentMethod.wechat),
+                        ),
+                        ChoiceChip(
+                          avatar: SvgPicture.string(kAlipaySvg, width: 18, height: 18),
+                          label: const Text('支付宝'),
+                          selected: _paymentMethod ==
+                              _ElectricityPaymentMethod.alipay,
+                          onSelected: (_) => setState(() => _paymentMethod =
+                              _ElectricityPaymentMethod.alipay),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+      bottomNavigationBar: _isLoading || _error != null
+          ? null
+          : SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  border: Border(top: BorderSide(color: colors.outlineVariant)),
+                ),
+                child: SizedBox(
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: canRecharge
+                        ? () {
+                            switch (_paymentMethod) {
+                              case _ElectricityPaymentMethod.campusCard:
+                                _handleRecharge();
+                                break;
+                              case _ElectricityPaymentMethod.wechat:
+                                _handleThirdPartyRecharge(PaymentMethod.wechat);
+                                break;
+                              case _ElectricityPaymentMethod.alipay:
+                                _handleThirdPartyRecharge(PaymentMethod.alipay);
+                                break;
+                            }
+                          }
+                        : null,
+                    child: _isPaying
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            canRecharge
+                                ? '确认充值  ¥${amount.toString()}'
+                                : '选择充值金额',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
                   ),
-                  const SizedBox(height: 32),
-                ],
+                ),
               ),
             ),
     );
@@ -838,48 +810,68 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
       decoration: InputDecoration(
         labelText: label,
         filled: true,
-        fillColor: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
+        fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(
             color: Theme.of(context).colorScheme.primary,
-            width: 2,
+            width: 1.5,
           ),
         ),
       ),
       items: items
-          .map(
-            (e) => DropdownMenuItem(
-              value: e,
-              child: Text(
-                e,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          )
+          .map((item) => DropdownMenuItem(value: item, child: Text(item)))
           .toList(),
       onChanged: onChanged,
-      icon: Icon(
-        Icons.expand_more_rounded,
-        size: 24,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
+  }
+
+}
+
+class _ElectricityAmountOption extends StatelessWidget {
+  const _ElectricityAmountOption({
+    required this.amount,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final double amount;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: selected ? colors.primaryContainer : colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: selected ? colors.primary : colors.outlineVariant,
+          width: selected ? 1.5 : 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Center(
+          child: Text(
+            '¥ ${amount.toStringAsFixed(0)}',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: selected ? colors.onPrimaryContainer : colors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
       ),
     );
   }

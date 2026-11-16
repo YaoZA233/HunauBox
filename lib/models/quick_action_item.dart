@@ -15,6 +15,16 @@ class QuickActionItem {
 class QuickActionCatalog {
   static const items = <QuickActionItem>[
     QuickActionItem(
+      id: 'chaoxing_messages',
+      label: '学习通消息',
+      icon: Icons.forum_outlined,
+    ),
+    QuickActionItem(
+      id: 'chaoxing_courses',
+      label: '学习通课程',
+      icon: Icons.school_outlined,
+    ),
+    QuickActionItem(
       id: 'campus_card_bill',
       label: '校园卡账单',
       icon: Icons.receipt_long_outlined,
@@ -33,6 +43,11 @@ class QuickActionCatalog {
       id: 'ele_recharge',
       label: '电费充值',
       icon: Icons.bolt_outlined,
+    ),
+    QuickActionItem(
+      id: 'tuition_payment',
+      label: '学费缴费',
+      icon: Icons.account_balance_wallet_outlined,
     ),
     QuickActionItem(
       id: 'campus_card',
@@ -70,15 +85,16 @@ class QuickActionCatalog {
       icon: Icons.workspace_premium_outlined,
     ),
     QuickActionItem(
+      id: 'physical_fitness_score',
+      label: '体测成绩',
+      icon: Icons.directions_run_outlined,
+    ),
+    QuickActionItem(
       id: 'timetable',
       label: '课程表',
       icon: Icons.auto_stories_outlined,
     ),
-    QuickActionItem(
-      id: 'exam',
-      label: '考试安排',
-      icon: Icons.event_note_outlined,
-    ),
+    QuickActionItem(id: 'exam', label: '考试安排', icon: Icons.event_note_outlined),
     QuickActionItem(
       id: 'repair',
       label: '报修平台',

@@ -69,6 +69,7 @@ class AppUpdateNotifier {
             ongoing: true,
             autoCancel: false,
             showWhen: false,
+            showProgress: true,
             progress: total > 0 ? received : 0,
             maxProgress: total > 0 ? total : 0,
             indeterminate: total <= 0,

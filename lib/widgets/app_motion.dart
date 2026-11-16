@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../models/motion_settings.dart';
@@ -23,55 +21,25 @@ class AppMotionSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final delta = offset.clamp(-1.0, 1.0);
     final distance = delta.abs();
-    if (style == AppTransition.none) return child;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final perspective = .65 / math.max(width, 1);
-        final matrix = Matrix4.identity();
-        var opacity = 1.0;
-        var alignment = Alignment.center;
-        switch (style) {
-          case AppTransition.slide:
-            if (translate) matrix.translateByDouble(delta * width, 0, 0, 1);
-          case AppTransition.fade:
-            opacity = 1 - distance;
-          case AppTransition.perspective:
-            matrix.setEntry(3, 2, perspective);
-            if (translate) matrix.translateByDouble(delta * width, 0, 0, 1);
-            matrix.rotateY(-delta * math.pi / 10);
-            matrix.scaleByDouble(1 - .06 * distance, 1 - .06 * distance, 1, 1);
-            opacity = 1 - .25 * distance;
-          case AppTransition.stack:
-            if (translate) {
-              matrix.translateByDouble(
-                delta * width * (delta < 0 ? .18 : 1),
-                0,
-                0,
-                1,
-              );
-            }
-            final scale = 1 - (delta < 0 ? .08 : .02) * distance;
-            matrix.scaleByDouble(scale, scale, 1, 1);
-            opacity = 1 - (delta < 0 ? .25 : 0) * distance;
-          case AppTransition.cube:
-            alignment = delta < 0
-                ? Alignment.centerRight
-                : Alignment.centerLeft;
-            matrix.setEntry(3, 2, perspective);
-            if (translate) matrix.translateByDouble(delta * width, 0, 0, 1);
-            matrix.rotateY(delta * math.pi / 2);
-            opacity = distance >= .9999 ? 0 : 1;
-          case AppTransition.none:
-            break;
-        }
-        return Transform(
-          transform: matrix,
-          alignment: alignment,
-          child: Opacity(opacity: opacity.clamp(0, 1), child: child),
-        );
-      },
-    );
+    switch (style) {
+      case AppTransition.none:
+        return child;
+      case AppTransition.slide:
+        return translate
+            ? FractionalTranslation(translation: Offset(delta, 0), child: child)
+            : child;
+      case AppTransition.fade:
+        return Opacity(opacity: 1 - distance, child: child);
+      case AppTransition.stack:
+        final scale = 1 - (delta < 0 ? .08 : .02) * distance;
+        final scaled = Transform.scale(scale: scale, child: child);
+        return translate
+            ? FractionalTranslation(
+                translation: Offset(delta * (delta < 0 ? .18 : 1), 0),
+                child: scaled,
+              )
+            : scaled;
+    }
   }
 }
 
@@ -181,6 +149,9 @@ class AppMotionPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = MotionSettings.of(context);
     final style = settings.effectiveTransition(context);
+    if (style == AppTransition.slide || style == AppTransition.none) {
+      return child;
+    }
     return AnimatedBuilder(
       animation: controller,
       child: RepaintBoundary(child: child),

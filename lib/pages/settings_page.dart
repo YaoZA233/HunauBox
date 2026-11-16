@@ -15,11 +15,13 @@ import '../services/quick_action_store.dart';
 import '../providers/theme_provider.dart';
 import '../utils/notification_debug_helper.dart';
 import '../widgets/agent_settings_section.dart';
+import '../widgets/font_settings_section.dart';
 import '../providers/motion_provider.dart';
 import 'motion_settings_page.dart';
 import '../providers/weather_provider.dart';
 import 'weather_settings_page.dart';
 import 'capsule_notifications_settings_page.dart';
+import 'onboarding_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -151,6 +153,18 @@ class _SettingsPageState extends State<SettingsPage> {
             builder: (context, selectedIds, _) {
               final selected = selectedIds.toSet();
               final children = [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.tour_outlined),
+                  title: const Text('使用引导'),
+                  subtitle: const Text('重新了解应用的主要功能'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const OnboardingPage(),
+                    ),
+                  ),
+                ),
                 const AgentSettingsSection(),
                 Consumer(
                   builder: (context, ref, _) {
@@ -288,6 +302,8 @@ class _SettingsPageState extends State<SettingsPage> {
                             );
                           }).toList(),
                         ),
+                        const SizedBox(height: 24),
+                        const FontSettingsSection(),
                         const SizedBox(height: 24),
                         const Text('自定义背景', style: TextStyle(fontSize: 16)),
                         const SizedBox(height: 12),
