@@ -14,6 +14,7 @@ import '../services/agent_settings_store.dart';
 import '../services/agent_tool_registry.dart';
 import '../services/campus_agent_tools.dart';
 import '../widgets/agent_history_sheet.dart';
+import '../widgets/campus_loading_mark.dart';
 import '../widgets/agent_message_bubble.dart';
 import 'agent_settings_page.dart';
 import 'campus_card_recharge_page.dart';
@@ -433,7 +434,7 @@ class _AgentPageState extends ConsumerState<AgentPage> {
                 ),
               Expanded(
                 child: !store.loaded || !chats.loaded
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: CampusLoadingMark(size: 36))
                     : !config.enabled || !config.isConfigured
                     ? _buildSetup(store)
                     : _messages.isEmpty
@@ -454,7 +455,7 @@ class _AgentPageState extends ConsumerState<AgentPage> {
                       const SizedBox(
                         width: 14,
                         height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CampusLoadingMark(size: 16),
                       ),
                       const SizedBox(width: 10),
                       Expanded(child: Text(_activity ?? '正在思考')),

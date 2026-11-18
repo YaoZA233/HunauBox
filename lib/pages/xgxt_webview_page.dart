@@ -7,6 +7,8 @@ import '../models/app_constants.dart';
 import '../services/xgxt_login_service.dart';
 import '../services/app_cookie_manager.dart';
 import '../widgets/login_bottom_sheet.dart';
+import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 
 class XgxtWebViewPage extends StatefulWidget {
   const XgxtWebViewPage({super.key, this.loginService});
@@ -160,7 +162,7 @@ class _XgxtWebViewPageState extends State<XgxtWebViewPage> {
       body: _isPreparing
           ? Stack(
               children: [
-                const Center(child: CircularProgressIndicator()),
+                const Center(child: CampusLoadingMark(size: 36)),
                 Positioned(
                   top: MediaQuery.of(context).padding.top + 8,
                   right: 16,
@@ -188,10 +190,10 @@ class _XgxtWebViewPageState extends State<XgxtWebViewPage> {
                       color: accent,
                     ),
                     if (_progress < 1)
-                      LinearProgressIndicator(
+                      CampusProgressBar(
                         value: _progress,
                         backgroundColor: Colors.grey[200],
-                        valueColor: AlwaysStoppedAnimation<Color>(accent),
+                        color: accent,
                       ),
                     Expanded(
                       child: InAppWebView(

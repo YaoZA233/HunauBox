@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 
 import '../models/app_constants.dart';
 import '../utils/location_helper.dart';
@@ -104,16 +106,16 @@ class _BusTrackingPageState extends State<BusTrackingPage> {
                       top: 0,
                       left: 0,
                       right: 0,
-                      child: LinearProgressIndicator(
+                      child: CampusProgressBar(
                         value: _progress > 0 ? _progress : null,
                         backgroundColor: Colors.transparent,
-                        valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
+                        color: Theme.of(context).primaryColor,
                       ),
                     ),
                   if (_isLoading)
                     Container(
                       color: Colors.white,
-                      child: const Center(child: CircularProgressIndicator()),
+                      child: const Center(child: CampusLoadingMark(size: 36)),
                     ),
                   Positioned(
                     top: 8,

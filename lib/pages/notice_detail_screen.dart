@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/notice_provider.dart';
 import '../services/notice_service.dart';
 import '../services/app_logger.dart';
+import '../widgets/campus_loading_mark.dart';
 
 class NoticeDetailScreen extends ConsumerStatefulWidget {
   final String noticeId;
@@ -41,8 +42,8 @@ class _NoticeDetailScreenState extends ConsumerState<NoticeDetailScreen> {
           _isLoading = false;
         });
 
-        _noticeService.setNoticeRead(widget.noticeId);
-        ref.read(noticeProvider.notifier).markAsRead(widget.noticeId);
+        await ref.read(noticeProvider.notifier).markAsRead(widget.noticeId);
+        await _noticeService.setNoticeRead(widget.noticeId);
       }
     } catch (e) {
       if (mounted) {
@@ -65,7 +66,7 @@ class _NoticeDetailScreenState extends ConsumerState<NoticeDetailScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CampusLoadingMark(size: 36));
     }
 
     if (_errorMessage != null) {

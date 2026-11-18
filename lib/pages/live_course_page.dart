@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/course_notification_service.dart';
 import '../services/course_notification_settings_store.dart';
 import '../services/live_course_service.dart';
+import '../widgets/campus_progress_bar.dart';
 
 class LiveCoursePage extends StatefulWidget {
   const LiveCoursePage({super.key});
@@ -169,7 +170,7 @@ class _LiveCoursePageState extends State<LiveCoursePage>
                   ),
                   if (!_upcoming) ...[
                     const SizedBox(height: 20),
-                    const LinearProgressIndicator(
+                    const CampusProgressBar(
                       value: .28,
                       minHeight: 3,
                       borderRadius: BorderRadius.all(Radius.circular(2)),

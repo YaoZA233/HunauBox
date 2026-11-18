@@ -9,6 +9,7 @@ import '../services/electricity_service.dart';
 import '../services/finance_cache_store.dart';
 import '../widgets/campus_card_payment_sheet.dart';
 import '../widgets/payment_result_sheet.dart';
+import '../widgets/campus_loading_mark.dart';
 
 enum _ElectricityPaymentMethod { campusCard, wechat, alipay }
 
@@ -479,7 +480,7 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CampusLoadingMark(size: 36))
           : _error != null
           ? Center(
               child: Column(
@@ -580,7 +581,7 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                                   child: SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CampusLoadingMark(size: 16),
                                   ),
                                 ),
                             ],
@@ -780,10 +781,7 @@ class _ElectricityRechargePageState extends State<ElectricityRechargePage> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
+                            child: CampusLoadingMark(size: 16, color: Colors.white),
                           )
                         : Text(
                             canRecharge

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/repair_models.dart';
 import '../services/repair_service.dart';
+import '../widgets/campus_loading_mark.dart';
 import 'repair_form_page.dart';
 export 'repair_form_page.dart';
 
@@ -44,7 +45,7 @@ class _RepairPageState extends State<RepairPage> {
         future: future,
         builder: (context, s) {
           if (s.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CampusLoadingMark(size: 36));
           }
           if (s.hasError) {
             return Center(
@@ -234,7 +235,7 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
         future: _future,
         builder: (context, s) {
           if (s.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CampusLoadingMark(size: 36));
           }
           if (s.hasError) {
             return Center(

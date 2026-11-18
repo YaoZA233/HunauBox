@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../models/questionnaire_models.dart';
 import '../services/questionnaire_service.dart';
 import '../widgets/questionnaire_widgets.dart';
+import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 
 class QuestionnaireDetailPage extends StatefulWidget {
   const QuestionnaireDetailPage({
@@ -243,7 +245,7 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
           ),
         ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: CampusLoadingMark(size: 36))
             : _error != null
             ? Center(
                 child: SingleChildScrollView(
@@ -348,9 +350,7 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                                child: CampusLoadingMark(size: 16),
                               )
                             : Icon(
                                 _readOnly || _requiresStatusCheck
@@ -421,7 +421,7 @@ class _QuestionnaireDetailPageState extends State<QuestionnaireDetailPage> {
           ),
         ],
         const SizedBox(height: 24),
-        LinearProgressIndicator(
+        CampusProgressBar(
           value: total == 0 ? 0 : _answeredCount / total,
           minHeight: 2,
           backgroundColor: colors.outlineVariant.withValues(alpha: 0.5),

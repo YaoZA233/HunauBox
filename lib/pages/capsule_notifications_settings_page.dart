@@ -4,6 +4,7 @@ import '../services/unified_capsule_service.dart';
 import '../services/course_notification_service.dart';
 import '../services/course_notification_settings_store.dart';
 import '../services/enhanced_live_course_service.dart';
+import '../widgets/campus_loading_mark.dart';
 
 /// 胶囊通知设置页面
 ///
@@ -284,7 +285,7 @@ class _CapsuleNotificationsSettingsPageState
     if (_loading) {
       return Scaffold(
         appBar: AppBar(title: const Text('通知与课程实况')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(child: CampusLoadingMark(size: 36)),
       );
     }
 
@@ -437,7 +438,7 @@ class _CapsuleNotificationsSettingsPageState
   }
 
   Widget _buildLoadingState(ThemeData theme, ColorScheme colors) {
-    return const Center(child: CircularProgressIndicator());
+    return const Center(child: CampusLoadingMark(size: 36));
   }
 
   Widget _buildHeroSection(ThemeData theme, ColorScheme colors) {

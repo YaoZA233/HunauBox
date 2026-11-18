@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/agent_models.dart';
 import '../services/agent_settings_store.dart';
+import '../widgets/campus_loading_mark.dart';
 
 class AgentSettingsPage extends ConsumerStatefulWidget {
   const AgentSettingsPage({super.key});
@@ -82,7 +83,7 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Agent 配置')),
       body: !_ready
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CampusLoadingMark(size: 36))
           : Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 640),
@@ -187,9 +188,7 @@ class _AgentSettingsPageState extends ConsumerState<AgentSettingsPage> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                                child: CampusLoadingMark(size: 16),
                               )
                             : const Icon(Icons.check_rounded),
                         label: Text(store.saving ? '正在保存' : '保存配置'),

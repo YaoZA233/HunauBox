@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/app_constants.dart';
 import '../models/exam_schedule_model.dart';
 import '../providers/exam_provider.dart';
+import '../widgets/campus_loading_mark.dart';
 import 'webview_detail_page.dart';
 
 class ExamPage extends ConsumerStatefulWidget {
@@ -66,7 +67,7 @@ class _ExamPageState extends ConsumerState<ExamPage> {
           await ref.read(examProvider.notifier).refresh();
         },
         child: (examsAsync.isLoading && !examsAsync.hasValue)
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: CampusLoadingMark(size: 36))
             : ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(

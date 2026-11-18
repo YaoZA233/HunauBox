@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/leave_models.dart';
 import '../services/leave_service.dart';
+import '../widgets/campus_loading_mark.dart';
 import 'leave_apply_page.dart';
 export 'leave_apply_page.dart';
 
@@ -50,7 +51,7 @@ class _LeavePageState extends State<LeavePage> {
         future: future,
         builder: (context, s) {
           if (s.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CampusLoadingMark(size: 36));
           }
           if (s.hasError) return Center(child: Text('加载失败：${s.error}'));
           final list = s.data ?? <LeaveRecord>[];
@@ -206,7 +207,7 @@ class _LeaveDetailPageState extends State<LeaveDetailPage> {
         future: _future,
         builder: (context, s) {
           if (s.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CampusLoadingMark(size: 36));
           }
           if (s.hasError) {
             return Center(

@@ -5,6 +5,8 @@ import '../models/chaoxing_course.dart';
 import '../providers/chaoxing_course_provider.dart';
 import '../services/app_cookie_manager.dart';
 import '../services/chaoxing_course_service.dart';
+import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 import 'webview_detail_page.dart';
 
 class ChaoxingCoursesPage extends ConsumerStatefulWidget {
@@ -113,7 +115,7 @@ class _ChaoxingCoursesPageState extends ConsumerState<ChaoxingCoursesPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      CircularProgressIndicator(),
+                      CampusLoadingMark(size: 36),
                       SizedBox(height: 16),
                       Text('正在同步学习通课程…'),
                     ],
@@ -139,7 +141,7 @@ class _ChaoxingCoursesPageState extends ConsumerState<ChaoxingCoursesPage> {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 20),
-                        if (_refreshing) const CircularProgressIndicator(),
+                        if (_refreshing) const CampusLoadingMark(size: 24),
                         FilledButton(
                           onPressed: _refreshing ? null : _refresh,
                           child: const Text('重新同步'),
@@ -200,7 +202,7 @@ class _ChaoxingCoursesPageState extends ConsumerState<ChaoxingCoursesPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (_refreshing) ...[
-                    const LinearProgressIndicator(minHeight: 2),
+                    const CampusProgressBar(value: null, minHeight: 2),
                     const SizedBox(height: 12),
                   ],
                   if (_refreshError != null)
@@ -424,7 +426,7 @@ class _CourseRow extends StatelessWidget {
                       const SizedBox(height: 5),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(2),
-                        child: LinearProgressIndicator(
+                        child: CampusProgressBar(
                           value: progress,
                           minHeight: 4,
                           semanticsLabel: '任务点完成进度',
@@ -517,7 +519,7 @@ class _CourseProgressSummary extends StatelessWidget {
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
+            child: CampusProgressBar(
               value: progress,
               minHeight: 4,
               backgroundColor: colors.surface.withValues(alpha: 0.7),

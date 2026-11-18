@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../models/score_model.dart';
 import '../services/score_service.dart';
+import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 
 class ScoreAnalysisPage extends StatefulWidget {
   const ScoreAnalysisPage({super.key, this.loadScores});
@@ -53,7 +55,7 @@ class _ScoreAnalysisPageState extends State<ScoreAnalysisPage> {
       future: _analysisFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: CampusLoadingMark(size: 36));
         }
         if (snapshot.hasError ||
             snapshot.data == null ||
@@ -302,10 +304,9 @@ class _DistributionRow extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        LinearProgressIndicator(
+        CampusProgressBar(
           value: item.ratio,
           minHeight: 8,
-          borderRadius: BorderRadius.circular(4),
           color: colors.primary,
           backgroundColor: colors.surfaceContainerHighest,
           semanticsLabel: '$label，${item.count} 门',
@@ -357,12 +358,11 @@ class _SemesterCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          LinearProgressIndicator(
+          CampusProgressBar(
             value: (stat.average / 100).clamp(0.0, 1.0),
             minHeight: 6,
             color: theme.colorScheme.primary,
             backgroundColor: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(3),
           ),
           const SizedBox(height: 10),
           Text(

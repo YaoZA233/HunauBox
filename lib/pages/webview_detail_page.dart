@@ -7,6 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_cookie_manager.dart';
 import '../services/webvpn_auth_service.dart';
+import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 
 class WebViewDetailPage extends StatefulWidget {
   final String title;
@@ -263,7 +265,7 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                   future: _cookieReady,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState != ConnectionState.done) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const Center(child: CampusLoadingMark(size: 36));
                     }
 
                     return InAppWebView(
@@ -519,7 +521,7 @@ class _WebViewDetailPageState extends State<WebViewDetailPage> {
                   },
                 ),
                 if (_progress < 1)
-                  LinearProgressIndicator(
+                  CampusProgressBar(
                     value: _progress,
                     backgroundColor: Colors.grey[200],
                   ),

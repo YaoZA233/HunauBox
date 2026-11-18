@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/sso_auth_exception.dart';
 import 'app_ui_kit.dart';
+import 'campus_loading_mark.dart';
 
 class LoginBottomSheet extends StatefulWidget {
   const LoginBottomSheet({super.key});
@@ -210,10 +211,7 @@ class _LoginBottomSheetState extends State<LoginBottomSheet>
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
+                          child: CampusLoadingMark(size: 16, color: Colors.white),
                         )
                       : const Text(
                           "登 录",

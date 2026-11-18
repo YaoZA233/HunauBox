@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import '../services/app_logger.dart';
 import '../services/campus_card_service.dart';
 import '../widgets/payment_result_sheet.dart';
+import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 import 'campus_card_recharge_page.dart';
 import 'campus_card_bill_page.dart';
 
@@ -261,7 +263,7 @@ class _PaymentCodePageState extends State<PaymentCodePage>
                   ),
                   child: Center(
                     child: _isLoading && _qrBytes == null
-                        ? CircularProgressIndicator(color: colors.primary)
+                        ? CampusLoadingMark(size: 32, color: colors.primary)
                         : _error != null && _qrBytes == null
                         ? Icon(Icons.qr_code_2, color: colors.error, size: 54)
                         : _qrBytes == null
@@ -301,7 +303,7 @@ class _PaymentCodePageState extends State<PaymentCodePage>
               const SizedBox(height: 12),
               ClipRRect(
                 borderRadius: BorderRadius.circular(2),
-                child: LinearProgressIndicator(
+                child: CampusProgressBar(
                   value: _refreshCountdown / 60,
                   minHeight: 3,
                   backgroundColor: colors.surfaceContainerHighest,

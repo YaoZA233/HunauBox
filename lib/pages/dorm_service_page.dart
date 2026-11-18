@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/app_constants.dart';
 import '../services/dorm_service.dart';
+import '../widgets/campus_loading_mark.dart';
 import 'webview_detail_page.dart';
 
 class DormServicePage extends StatefulWidget {
@@ -67,7 +68,7 @@ class _DormServicePageState extends State<DormServicePage> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CampusLoadingMark(size: 36));
           }
 
           if (snapshot.hasError || !snapshot.hasData) {

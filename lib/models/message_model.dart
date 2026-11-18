@@ -10,7 +10,7 @@ class MessageModel {
   final int countAll;
   final int countRead;
   final String uuid;
-  
+
   const MessageModel({
     required this.idCode,
     required this.title,
@@ -23,7 +23,20 @@ class MessageModel {
     required this.countRead,
     this.uuid = '',
   });
-  
+
+  MessageModel copyWith({bool? isRead, bool? hasRedDot}) => MessageModel(
+    idCode: idCode,
+    title: title,
+    content: content,
+    createrName: createrName,
+    sendTime: sendTime,
+    isRead: isRead ?? this.isRead,
+    hasRedDot: hasRedDot ?? this.hasRedDot,
+    countAll: countAll,
+    countRead: countRead,
+    uuid: uuid,
+  );
+
   factory MessageModel.fromJson(Map<String, dynamic> json) {
     return MessageModel(
       idCode: json['idCode'] as String? ?? '',
@@ -37,18 +50,19 @@ class MessageModel {
       countRead: json['countRead'] as int? ?? 0,
     );
   }
-  
+
   factory MessageModel.fromChaoxingJson(Map<String, dynamic> json) {
     final insertTime = json['insertTime'] as int? ?? 0;
-    final dateTime = insertTime > 0 
+    final dateTime = insertTime > 0
         ? DateTime.fromMillisecondsSinceEpoch(insertTime)
         : DateTime.now();
-    final sendTimeStr = '${dateTime.year}-${_twoDigits(dateTime.month)}-${_twoDigits(dateTime.day)} ${_twoDigits(dateTime.hour)}:${_twoDigits(dateTime.minute)}';
-    
+    final sendTimeStr =
+        '${dateTime.year}-${_twoDigits(dateTime.month)}-${_twoDigits(dateTime.day)} ${_twoDigits(dateTime.hour)}:${_twoDigits(dateTime.minute)}';
+
     final isReadValue = json['isread'] as int? ?? 0;
     final countAll = _parseInt(json['count_all']);
     final countRead = _parseInt(json['count_read']);
-    
+
     return MessageModel(
       idCode: json['idCode'] as String? ?? '',
       title: _extractTitle(json),
@@ -62,7 +76,7 @@ class MessageModel {
       uuid: json['uuid'] as String? ?? '',
     );
   }
-  
+
   static String _extractTitle(Map<String, dynamic> json) {
     final attachment = json['attachment'] as String?;
     if (attachment != null && attachment.isNotEmpty) {
@@ -74,28 +88,30 @@ class MessageModel {
         }
       } catch (e) {}
     }
-    
+
     final content = json['content'] as String? ?? '';
     if (content.isNotEmpty) {
       final lines = content.split('\r\n');
       if (lines.isNotEmpty && lines[0].isNotEmpty) {
         final firstLine = lines[0];
-        return firstLine.length > 50 ? '${firstLine.substring(0, 50)}...' : firstLine;
+        return firstLine.length > 50
+            ? '${firstLine.substring(0, 50)}...'
+            : firstLine;
       }
     }
-    
+
     return '无标题';
   }
-  
+
   static int _parseInt(dynamic value) {
     if (value == null) return 0;
     if (value is int) return value;
     if (value is String) return int.tryParse(value) ?? 0;
     return 0;
   }
-  
+
   static String _twoDigits(int n) => n.toString().padLeft(2, '0');
-  
+
   Map<String, dynamic> toJson() => {
     'idCode': idCode,
     'title': title,

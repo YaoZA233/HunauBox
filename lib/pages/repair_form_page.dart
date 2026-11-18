@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/repair_models.dart';
 import '../services/repair_service.dart';
 import '../models/leave_application.dart';
+import '../widgets/campus_loading_mark.dart';
 
 class RepairFormPage extends StatefulWidget {
   final RepairService service;
@@ -322,7 +323,7 @@ class _RepairFormPageState extends State<RepairFormPage> {
           suffixIcon: _activeField == field.name
               ? const Padding(
                   padding: EdgeInsets.all(12),
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CampusLoadingMark(size: 16),
                 )
               : field.isChoice
               ? const Icon(Icons.expand_more)
@@ -349,7 +350,7 @@ class _RepairFormPageState extends State<RepairFormPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(widget.catalog.title)),
     body: _loading
-        ? const Center(child: CircularProgressIndicator())
+        ? const Center(child: CampusLoadingMark(size: 36))
         : _error != null
         ? Center(
             child: Padding(
@@ -383,7 +384,7 @@ class _RepairFormPageState extends State<RepairFormPage> {
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CampusLoadingMark(size: 16),
                           )
                         : const Icon(Icons.send_outlined),
                     label: Text(_busy ? '正在提交…' : '提交报修'),

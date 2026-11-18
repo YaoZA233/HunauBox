@@ -18,6 +18,7 @@ import '../services/campus_card_service.dart';
 import '../services/electricity_service.dart';
 import '../services/overview_card_layout_store.dart';
 import '../widgets/app_ui_kit.dart';
+import '../widgets/campus_loading_mark.dart';
 import 'campus_card_bill_page.dart';
 import 'campus_card_recharge_page.dart';
 import 'electricity_recharge_page.dart';
@@ -834,10 +835,7 @@ class _BalanceOverviewPageState extends ConsumerState<BalanceOverviewPage>
                         ? SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: colors.primary,
-                            ),
+                            child: CampusLoadingMark(size: 16, color: colors.primary),
                           )
                         : Icon(
                             Icons.refresh_rounded,
@@ -1566,7 +1564,7 @@ class _MetricCard extends StatelessWidget {
                 child: SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CampusLoadingMark(size: 16),
                 ),
               ),
             )
@@ -1669,7 +1667,7 @@ class _CompactCard extends StatelessWidget {
                           const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CampusLoadingMark(size: 16),
                           )
                         else
                           Text(
@@ -1946,7 +1944,7 @@ class _BalanceItemCard extends StatelessWidget {
                 child: SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CampusLoadingMark(size: 18),
                 ),
               ),
             )

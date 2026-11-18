@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../models/questionnaire_models.dart';
 import '../services/questionnaire_service.dart';
+import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 import '../widgets/login_bottom_sheet.dart';
 import '../widgets/questionnaire_widgets.dart';
 import 'questionnaire_detail_page.dart';
@@ -124,14 +126,14 @@ class _QuestionnaireListPageState extends State<QuestionnaireListPage> {
         ],
       ),
       body: _loading && _items.isEmpty
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CampusLoadingMark(size: 36))
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
                 children: [
-                  if (_loading) const LinearProgressIndicator(),
+                  if (_loading) const CampusProgressBar(value: null),
                   Text(
                     '我的问卷',
                     style: TextStyle(

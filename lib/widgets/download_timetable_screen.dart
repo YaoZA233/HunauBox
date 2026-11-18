@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/course_model.dart';
 import '../services/timetable_service.dart';
+import 'campus_progress_bar.dart';
 
 class TimetableImportResult {
   const TimetableImportResult({
@@ -101,7 +102,7 @@ class _DownloadTimetableScreenState extends State<DownloadTimetableScreen> {
                   ),
                   const SizedBox(height: 28),
                   if (_isLoading) ...[
-                    const LinearProgressIndicator(),
+                    const CampusProgressBar(value: null),
                     const SizedBox(height: 12),
                     Text(
                       _status,

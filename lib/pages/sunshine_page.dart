@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/sunshine_models.dart';
 import '../services/sunshine_service.dart';
+import '../widgets/campus_loading_mark.dart';
 
 class SunshinePage extends StatefulWidget {
   final SunshineService? service;
@@ -67,7 +68,7 @@ class _SunshinePageState extends State<SunshinePage> {
         future: future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CampusLoadingMark(size: 36));
           }
           if (snapshot.hasError) {
             return _SunshineLoadError(
@@ -236,7 +237,7 @@ class SunshineDetailPage extends StatelessWidget {
         if (!s.hasData) {
           return s.hasError
               ? const Center(child: Text('详情加载失败'))
-              : const Center(child: CircularProgressIndicator());
+              : const Center(child: CampusLoadingMark(size: 36));
         }
         final d = s.data!;
         final c = Theme.of(context).colorScheme;
@@ -337,7 +338,7 @@ class _SunshineFormPageState extends State<SunshineFormPage> {
       return Scaffold(
         appBar: AppBar(title: const Text('提交诉求')),
         body: loadError == null
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: CampusLoadingMark(size: 36))
             : _SunshineLoadError(error: loadError!, onRetry: _load),
       );
     }
@@ -388,7 +389,7 @@ class _SunshineFormPageState extends State<SunshineFormPage> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CampusLoadingMark(size: 16),
                   )
                 : const Icon(Icons.send_rounded),
             label: Text(busy ? '正在提交…' : '确认提交'),

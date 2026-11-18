@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/score_model.dart';
 import '../providers/score_provider.dart';
+import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 import 'score_analysis_page.dart';
 
 class ScorePage extends ConsumerWidget {
@@ -75,10 +77,7 @@ class ScorePage extends ConsumerWidget {
             SizedBox(
               width: 14,
               height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colors.primary,
-              ),
+              child: CampusLoadingMark(size: 14, color: colors.primary),
             ),
           ] else ...[
             Icon(
@@ -127,7 +126,7 @@ class ScorePage extends ConsumerWidget {
             const SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: CampusLoadingMark(size: 16),
             )
           else
             Expanded(
@@ -168,7 +167,7 @@ class ScorePage extends ConsumerWidget {
     ScoreState state,
   ) {
     if (state.isLoading && state.scores.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CampusLoadingMark(size: 36));
     }
 
     if (state.errorMessage != null && state.scores.isEmpty) {
@@ -216,7 +215,7 @@ class ScorePage extends ConsumerWidget {
             top: 0,
             left: 0,
             right: 0,
-            child: LinearProgressIndicator(minHeight: 2),
+            child: CampusProgressBar(value: null, minHeight: 2),
           ),
       ],
     );

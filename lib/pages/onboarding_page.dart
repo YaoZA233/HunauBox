@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/onboarding_store.dart';
+import '../widgets/campus_loading_mark.dart';
 
 /// Keeps the home page unmounted until the first-run choice has been made.
 class OnboardingGate extends StatefulWidget {
@@ -64,7 +65,7 @@ class _OnboardingGateState extends State<OnboardingGate> {
 
   @override
   Widget build(BuildContext context) => switch (_complete) {
-    null => const Scaffold(body: Center(child: CircularProgressIndicator())),
+    null => const Scaffold(body: Center(child: CampusLoadingMark(size: 36))),
     false => OnboardingPage(firstRun: true, onFinish: _finish),
     true => widget.child,
   };

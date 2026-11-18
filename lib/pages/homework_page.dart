@@ -6,6 +6,7 @@ import '../models/homework_model.dart';
 import '../providers/homework_provider.dart';
 import '../services/app_cookie_manager.dart';
 import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 import 'webview_detail_page.dart';
 
 class HomeworkPage extends ConsumerStatefulWidget {
@@ -157,7 +158,6 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
     final colors = Theme.of(context).colorScheme;
     final activeTotal = pendingCount + completedCount;
     final completion = activeTotal == 0 ? 0.0 : completedCount / activeTotal;
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -194,16 +194,11 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
             Expanded(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(3),
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: completion),
-                  duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 850),
-                  curve: Curves.easeInOutCubic,
-                  builder: (context, value, _) => LinearProgressIndicator(
-                    value: value,
-                    minHeight: 5,
-                    backgroundColor: colors.surfaceContainerHighest,
-                    color: colors.primary,
-                  ),
+                child: CampusProgressBar(
+                  value: completion,
+                  minHeight: 5,
+                  backgroundColor: colors.surfaceContainerHighest,
+                  color: colors.primary,
                 ),
               ),
             ),

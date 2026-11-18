@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 
 import '../models/app_constants.dart';
 import '../services/campus_card_service.dart';
@@ -47,10 +49,10 @@ class _CampusCardWebViewPageState extends State<CampusCardWebViewPage> {
                 color: accent,
               ),
               if (_progress < 1)
-                LinearProgressIndicator(
+                CampusProgressBar(
                   value: _progress,
                   backgroundColor: Colors.grey[200],
-                  valueColor: AlwaysStoppedAnimation<Color>(accent),
+                  color: accent,
                 ),
               Expanded(
                 child: FutureBuilder<String>(
@@ -67,7 +69,7 @@ class _CampusCardWebViewPageState extends State<CampusCardWebViewPage> {
                       );
                     }
                     if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const Center(child: CampusLoadingMark(size: 36));
                     }
                     return InAppWebView(
                       initialUrlRequest: URLRequest(

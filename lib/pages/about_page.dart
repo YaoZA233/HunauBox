@@ -7,6 +7,7 @@ import '../services/app_update_notifier.dart';
 import '../services/app_update_service.dart';
 import '../widgets/app_markdown.dart';
 import '../widgets/app_ui_kit.dart';
+import '../widgets/campus_loading_mark.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({
@@ -492,7 +493,7 @@ class _AboutRow extends StatelessWidget {
           ? const SizedBox(
               width: 20,
               height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: CampusLoadingMark(size: 18),
             )
           : onTap == null
           ? null

@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../services/app_logger.dart';
 import '../services/campus_card_service.dart';
 import '../widgets/campus_card_payment_sheet.dart';
+import '../widgets/campus_loading_mark.dart';
 import 'campus_card_bill_page.dart';
 
 class CampusCardRechargePage extends StatefulWidget {
@@ -157,7 +158,7 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CampusLoadingMark(size: 36))
           : _error != null
           ? _RechargeError(message: _error!, onRetry: _loadInfo)
           : SafeArea(
@@ -206,7 +207,7 @@ class _CampusCardRechargePageState extends State<CampusCardRechargePage> {
                                 const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CampusLoadingMark(size: 16),
                                 ),
                             ],
                           ),

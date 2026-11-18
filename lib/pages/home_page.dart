@@ -23,6 +23,8 @@ import '../widgets/login_bottom_sheet.dart';
 import '../widgets/app_motion.dart';
 import '../widgets/app_ui_kit.dart';
 import '../widgets/weather_widgets.dart';
+import '../widgets/campus_progress_bar.dart';
+import '../widgets/campus_loading_mark.dart';
 import 'function_page.dart';
 import 'empty_classroom_page.dart';
 import 'score_page.dart';
@@ -523,10 +525,7 @@ class _HomePageState extends ConsumerState<HomePage>
             ),
             if (_isLoading)
               Positioned.fill(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: colors.primary,
-                ),
+                child: Center(child: CampusLoadingMark(size: 20, color: colors.primary)),
               ),
             if (_showLoginSuccessBadge)
               Positioned(
@@ -650,7 +649,7 @@ class _HomePageState extends ConsumerState<HomePage>
                       const SizedBox(height: 6),
                       ClipRRect(
                         borderRadius: AppRadius.roundedSm,
-                        child: LinearProgressIndicator(
+                        child: CampusProgressBar(
                           minHeight: 5,
                           value: hasSemester ? progress : 0,
                           backgroundColor: colors.surfaceContainerHighest,
@@ -817,10 +816,10 @@ class _HomePageState extends ConsumerState<HomePage>
                     SizedBox(
                       width: 48,
                       height: 48,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Theme.of(context).colorScheme.primary,
+                      child: Center(
+                        child: CampusLoadingMark(
+                          size: 24,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ),
@@ -1096,11 +1095,11 @@ class _HomePageState extends ConsumerState<HomePage>
                       const SizedBox(height: 9),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(2),
-                        child: LinearProgressIndicator(
+                        child: CampusProgressBar(
                           minHeight: 5,
                           value: hasSemester ? progress : 0,
                           backgroundColor: colors.surfaceContainerHighest,
-                          valueColor: AlwaysStoppedAnimation(colors.secondary),
+                          color: colors.secondary,
                         ),
                       ),
                       const SizedBox(height: 7),

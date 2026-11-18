@@ -9,6 +9,7 @@ import '../models/weather.dart';
 import '../providers/weather_provider.dart';
 import '../services/weather_service.dart';
 import '../widgets/weather_widgets.dart';
+import '../widgets/campus_progress_bar.dart';
 
 class WeatherSettingsPage extends ConsumerWidget {
   const WeatherSettingsPage({super.key});
@@ -113,7 +114,7 @@ class WeatherSettingsPage extends ConsumerWidget {
                   WeatherSummary(state: state),
                   if (state.loading) ...[
                     const SizedBox(height: 12),
-                    const LinearProgressIndicator(),
+                    const CampusProgressBar(value: null),
                   ],
                   if (state.failure != null) ...[
                     const SizedBox(height: 12),
@@ -376,7 +377,7 @@ class _WeatherCityPickerState extends State<WeatherCityPicker> {
           ),
         ),
         const SizedBox(height: 8),
-        if (_loading) const LinearProgressIndicator(),
+        if (_loading) const CampusProgressBar(value: null),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),

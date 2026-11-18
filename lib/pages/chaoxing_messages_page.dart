@@ -5,6 +5,8 @@ import '../services/chaoxing_course_service.dart';
 import '../services/chaoxing_messages_service.dart';
 import '../services/chaoxing_cache_store.dart';
 import 'webview_detail_page.dart';
+import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 
 class ChaoxingMessagesPage extends StatefulWidget {
   const ChaoxingMessagesPage({super.key, this.createService, this.cache});
@@ -276,7 +278,7 @@ class _ChaoxingMessagesPageState extends State<ChaoxingMessagesPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(),
+                    CampusLoadingMark(size: 36),
                     SizedBox(height: 16),
                     Text('正在同步学习通消息…'),
                   ],
@@ -300,7 +302,7 @@ class _ChaoxingMessagesPageState extends State<ChaoxingMessagesPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (_loading) ...[
-                              const LinearProgressIndicator(minHeight: 2),
+                              const CampusProgressBar(value: null, minHeight: 2),
                               const SizedBox(height: 12),
                             ],
                             if (_refreshError != null)
@@ -574,7 +576,7 @@ class _ConversationPageState extends State<_ConversationPage> {
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done &&
                 _last == null) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(child: CampusLoadingMark(size: 32));
             }
             if (snapshot.hasError && _last == null) {
               return _MessageRecovery(

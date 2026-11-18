@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../widgets/campus_loading_mark.dart';
+import '../widgets/campus_progress_bar.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/leave_application.dart';
 import '../models/leave_models.dart';
@@ -281,7 +283,7 @@ class _LeaveApplyPageState extends State<LeaveApplyPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('申请请假')),
     body: _loading
-        ? const Center(child: CircularProgressIndicator())
+        ? const Center(child: CampusLoadingMark(size: 36))
         : _loadError != null
         ? Center(
             child: Padding(
@@ -340,7 +342,7 @@ class _LeaveApplyPageState extends State<LeaveApplyPage> {
                         validator: (v) => (v ?? '').isEmpty ? '请选择时间' : null,
                       ),
                     ),
-                  if (_calculating) const LinearProgressIndicator(),
+                  if (_calculating) const CampusProgressBar(value: null),
                   if (_duration != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
@@ -473,7 +475,7 @@ class _LeaveApplyPageState extends State<LeaveApplyPage> {
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CampusLoadingMark(size: 16),
                           )
                         : const Icon(Icons.check),
                     label: Text(_busy ? '正在提交…' : '提交申请'),

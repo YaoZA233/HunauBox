@@ -1,5 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:crypto/crypto.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/message_model.dart';
+import '../services/chaoxing_cache_store.dart';
 import '../services/notice_service.dart';
 import '../services/app_logger.dart';
 import '../services/course_notification_service.dart';
@@ -44,6 +49,9 @@ class NoticeState {
 class NoticeNotifier extends StateNotifier<NoticeState> {
   final NoticeService _service = NoticeService();
   final _logger = AppLogger.instance;
+  final _cache = ChaoxingCacheStore();
+  Set<String> _readOverrides = {};
+  String? _readOwner;
 
   NoticeNotifier() : super(NoticeState()) {
     // 可以在初始化时自动拉取
@@ -61,21 +69,33 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
     );
 
     try {
+      final owner = await _cache.account();
+      final prefs = await SharedPreferences.getInstance();
+      if (owner != null && owner.isNotEmpty) {
+        final key =
+            'notice_read_overrides_v1:${sha256.convert(utf8.encode(owner))}';
+        if (_readOwner != owner) {
+          _readOwner = owner;
+          _readOverrides = prefs.getStringList(key)?.toSet() ?? {};
+        }
+      } else {
+        _readOwner = null;
+        _readOverrides = {};
+      }
       final result = await _service.fetchAllMessageList();
+      final messages = result.messages.map(_applyReadOverride).toList();
       state = state.copyWith(
-        messages: result.messages,
+        messages: messages,
         nextLastValue: result.nextLastValue,
         hasMore: result.hasMore,
         isLoading: false,
       );
-      await CourseNotificationService.instance.notifyNewMessages(
-        result.messages,
-      );
+      await CourseNotificationService.instance.notifyNewMessages(messages);
       final capsule = UnifiedCapsuleService.instance;
       final enabled = await capsule.loadEnabledTypes();
       await capsule.patch(
         enabledTypes: enabled,
-        messages: result.messages
+        messages: messages
             .map(
               (m) => MessageData(
                 id: m.uuid.isNotEmpty ? m.uuid : m.idCode,
@@ -107,7 +127,10 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
         lastValue: state.nextLastValue,
       );
       state = state.copyWith(
-        messages: [...state.messages, ...result.messages],
+        messages: [
+          ...state.messages,
+          ...result.messages.map(_applyReadOverride),
+        ],
         nextLastValue: result.nextLastValue,
         hasMore: result.hasMore,
         isLoadingMore: false,
@@ -119,26 +142,47 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
     }
   }
 
-  void markAsRead(String idCode) {
+  Future<void> markAsRead(String idCode) async {
+    final matched = state.messages.where(
+      (m) => m.idCode == idCode || m.uuid == idCode,
+    );
+    final ids =
+        matched
+            .expand((m) => [m.idCode, m.uuid])
+            .where((id) => id.isNotEmpty)
+            .toSet()
+          ..add(idCode);
+    _readOverrides.addAll(ids);
     state = state.copyWith(
       messages: state.messages.map((m) {
         if (m.idCode == idCode || m.uuid == idCode) {
-          return MessageModel(
-            idCode: m.idCode,
-            title: m.title,
-            content: m.content,
-            createrName: m.createrName,
-            sendTime: m.sendTime,
-            isRead: true,
-            hasRedDot: false,
-            countAll: m.countAll,
-            countRead: m.countRead,
-            uuid: m.uuid,
-          );
+          return m.copyWith(isRead: true, hasRedDot: false);
         }
         return m;
       }).toList(),
     );
+    await _persistReadOverrides();
+  }
+
+  MessageModel _applyReadOverride(MessageModel message) {
+    if (_readOverrides.contains(message.idCode) ||
+        _readOverrides.contains(message.uuid)) {
+      return message.copyWith(isRead: true, hasRedDot: false);
+    }
+    return message;
+  }
+
+  Future<void> _persistReadOverrides() async {
+    final owner = _readOwner ?? await _cache.account();
+    if (owner == null || owner.isEmpty || owner != await _cache.account()) {
+      return;
+    }
+    final key =
+        'notice_read_overrides_v1:${sha256.convert(utf8.encode(owner))}';
+    final prefs = await SharedPreferences.getInstance();
+    if (owner == await _cache.account()) {
+      await prefs.setStringList(key, _readOverrides.toList());
+    }
   }
 
   void clear() {
