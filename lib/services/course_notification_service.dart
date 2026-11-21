@@ -25,6 +25,8 @@ class CourseNotificationService with WidgetsBindingObserver {
   static const _homeworkNotificationStartId = 1001;
   static const _seenMessagesKey = 'notification_seen_message_ids';
   static const _seenHomeworkKey = 'notification_seen_homework_ids';
+  static const _shownMessagesKey = 'notification_shown_message_ids';
+  static const _shownHomeworkKey = 'notification_shown_homework_ids';
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
   final Map<int, Timer> _foregroundTimers = <int, Timer>{};
@@ -409,6 +411,7 @@ class CourseNotificationService with WidgetsBindingObserver {
         bodyFor: (i) => messages[i].title,
         preference: (s) => s.messageEnabled,
         seenKey: _seenMessagesKey,
+        shownKey: _shownMessagesKey,
         channelId: _messageChannelId,
         channelName: '消息通知',
       );
@@ -425,6 +428,7 @@ class CourseNotificationService with WidgetsBindingObserver {
         },
         preference: (s) => s.homeworkEnabled,
         seenKey: _seenHomeworkKey,
+        shownKey: _shownHomeworkKey,
         channelId: _homeworkChannelId,
         channelName: '作业通知',
       );
@@ -435,6 +439,7 @@ class CourseNotificationService with WidgetsBindingObserver {
     required String Function(int) bodyFor,
     required bool Function(CourseNotificationSettings) preference,
     required String seenKey,
+    required String shownKey,
     required String channelId,
     required String channelName,
   }) async {
@@ -453,14 +458,14 @@ class CourseNotificationService with WidgetsBindingObserver {
       if (ids[i].isNotEmpty && !previous.contains(ids[i])) indexes.add(i);
     }
     final seen = <String>{...previous, ...clean}.toList();
-    if (seen.length > 500) seen.removeRange(0, seen.length - 500);
     await prefs.setStringList(seenKey, seen);
     if (!preference(store.settings.value)) return;
     for (final (position, index) in indexes.take(3).indexed) {
+      final id = (DateTime.now().millisecondsSinceEpoch + position).remainder(
+        1 << 31,
+      );
       await _notifications.show(
-        id: (DateTime.now().millisecondsSinceEpoch + position).remainder(
-          1 << 31,
-        ),
+        id: id,
         title: titleFor(index),
         body: bodyFor(index),
         notificationDetails: NotificationDetails(
@@ -478,7 +483,27 @@ class CourseNotificationService with WidgetsBindingObserver {
           ),
         ),
       );
+      final shown = prefs.getStringList(shownKey) ?? const <String>[];
+      final updated = <String>{...shown, '$id'}.toList();
+      await prefs.setStringList(shownKey, updated);
     }
+  }
+
+  Future<void> cancelNewMessageNotifications() =>
+      _cancelTrackedNotifications(_shownMessagesKey);
+
+  Future<void> cancelNewHomeworkNotifications() =>
+      _cancelTrackedNotifications(_shownHomeworkKey);
+
+  Future<void> _cancelTrackedNotifications(String key) async {
+    await initialize();
+    final prefs = await SharedPreferences.getInstance();
+    final ids = prefs.getStringList(key) ?? const <String>[];
+    for (final value in ids) {
+      final id = int.tryParse(value);
+      if (id != null) await _notifications.cancel(id: id);
+    }
+    await prefs.remove(key);
   }
 
   String _messageId(MessageModel message) => message.uuid.isNotEmpty

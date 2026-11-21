@@ -11,6 +11,7 @@ import '../providers/background_provider.dart';
 import '../services/app_update_service.dart';
 import '../services/course_notification_service.dart';
 import '../services/course_notification_settings_store.dart';
+import '../services/unified_capsule_service.dart';
 import '../services/quick_action_store.dart';
 import '../providers/theme_provider.dart';
 import '../utils/notification_debug_helper.dart';
@@ -504,6 +505,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             await _courseNotificationStore.save(
                               settings.copyWith(messageEnabled: enabled),
                             );
+                            await UnifiedCapsuleService.instance.syncLocal();
                           },
                         ),
                         SwitchListTile(
@@ -521,6 +523,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             await _courseNotificationStore.save(
                               settings.copyWith(homeworkEnabled: enabled),
                             );
+                            await UnifiedCapsuleService.instance.syncLocal();
                           },
                         ),
                         SwitchListTile(
@@ -546,6 +549,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             );
                             await CourseNotificationService.instance
                                 .rescheduleIfEnabled();
+                            await UnifiedCapsuleService.instance.syncLocal();
                           },
                         ),
                         if (settings.homeworkDeadlineEnabled)

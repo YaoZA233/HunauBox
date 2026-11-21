@@ -96,7 +96,7 @@ class WeatherSettingsPage extends ConsumerWidget {
           IconButton(
             tooltip: '刷新天气',
             onPressed: settings.enabled && !state.loading
-                ? () => controller.refresh()
+                ? () => controller.refresh(requestPermission: true)
                 : null,
             icon: const Icon(Icons.refresh_rounded),
           ),

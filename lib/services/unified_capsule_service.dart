@@ -6,6 +6,7 @@ import 'course_schedule_service.dart';
 import 'timetable_storage.dart';
 import 'homework_storage.dart';
 import '../models/homework_model.dart';
+import 'course_notification_settings_store.dart';
 
 /// 统一胶囊通知服务
 ///
@@ -48,9 +49,10 @@ class UnifiedCapsuleService {
     List<ActivityData>? activities,
   }) async {
     if (!supported) return;
+    final effectiveTypes = await _effectiveEnabledTypes(enabledTypes);
 
     await channel.invokeMethod<void>('configure', {
-      'enabledTypes': enabledTypes.toList(),
+      'enabledTypes': effectiveTypes.toList(),
       'courses': courses?.map((e) => e.toMap()).toList() ?? [],
       'homework': homework?.map((e) => e.toMap()).toList() ?? [],
       'messages': messages?.map((e) => e.toMap()).toList() ?? [],
@@ -75,16 +77,24 @@ class UnifiedCapsuleService {
   }) async {
     if (!supported) return;
     final data = <String, dynamic>{};
-    if (enabledTypes != null) data['enabledTypes'] = enabledTypes.toList();
-    if (courses != null)
+    if (enabledTypes != null) {
+      data['enabledTypes'] = (await _effectiveEnabledTypes(
+        enabledTypes,
+      )).toList();
+    }
+    if (courses != null) {
       data['courses'] = courses.map((e) => e.toMap()).toList();
-    if (homework != null)
+    }
+    if (homework != null) {
       data['homework'] = homework.map((e) => e.toMap()).toList();
-    if (messages != null)
+    }
+    if (messages != null) {
       data['messages'] = messages.map((e) => e.toMap()).toList();
+    }
     if (exams != null) data['exams'] = exams.map((e) => e.toMap()).toList();
-    if (activities != null)
+    if (activities != null) {
       data['activities'] = activities.map((e) => e.toMap()).toList();
+    }
     await channel.invokeMethod<void>('patch', data);
   }
 
@@ -155,7 +165,31 @@ class UnifiedCapsuleService {
   Future<Set<String>> loadEnabledTypes() async {
     final prefs = await SharedPreferences.getInstance();
     final list = prefs.getStringList('capsule_enabled_types');
-    return list?.toSet() ?? {typesCourse, typesHomework};
+    final configured = list?.toSet() ?? {typesCourse, typesHomework};
+    final effective = await _effectiveEnabledTypes(configured);
+    if (!setEquals(configured, effective)) {
+      await prefs.setStringList('capsule_enabled_types', effective.toList());
+    }
+    return effective;
+  }
+
+  Future<Set<String>> _effectiveEnabledTypes(Set<String> configured) async {
+    final store = CourseNotificationSettingsStore.instance;
+    await store.load();
+    return resolveEffectiveEnabledTypes(configured, store.settings.value);
+  }
+
+  @visibleForTesting
+  static Set<String> resolveEffectiveEnabledTypes(
+    Set<String> configured,
+    CourseNotificationSettings settings,
+  ) {
+    final types = Set<String>.from(configured);
+    if (settings.messageEnabled) types.remove(typesMessage);
+    if (settings.homeworkEnabled || settings.homeworkDeadlineEnabled) {
+      types.remove(typesHomework);
+    }
+    return types;
   }
 
   /// 获取类型显示名称

@@ -13,46 +13,174 @@ class ScorePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(scoreProvider);
-
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('成绩查询'),
-        centerTitle: false,
-        elevation: 0,
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ScoreAnalysisPage()),
-              );
-            },
-            icon: const Icon(Icons.insights_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ScoreAnalysisPage()),
+            ),
+            icon: const Icon(Icons.insights_outlined),
             tooltip: '成绩分析',
           ),
           IconButton(
-            onPressed: () =>
-                ref.read(scoreProvider.notifier).fetchInitialData(),
-            icon: const Icon(Icons.refresh),
-            tooltip: '重新加载',
+            onPressed: state.isLoading
+                ? null
+                : () => ref.read(scoreProvider.notifier).fetchInitialData(),
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: '刷新成绩',
           ),
         ],
       ),
       body: Column(
         children: [
-          _buildSemesterPicker(context, ref, state),
-          if (state.isLoading || state.errorMessage != null || state.cachedAt != null)
-            _buildDataStatus(context, state),
+          _SemesterBar(
+            state: state,
+            onChanged: (semester) =>
+                ref.read(scoreProvider.notifier).changeSemester(semester),
+          ),
+          if (state.scores.isNotEmpty) _Overview(scores: state.scores),
+          if (state.isLoading ||
+              state.errorMessage != null ||
+              state.cachedAt != null)
+            _DataStatus(state: state),
           const Divider(height: 1),
-          Expanded(child: _buildScoreList(context, ref, state)),
+          Expanded(
+            child: _ScoreList(
+              state: state,
+              onRetry: () =>
+                  ref.read(scoreProvider.notifier).fetchInitialData(),
+            ),
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildDataStatus(BuildContext context, ScoreState state) {
+class _SemesterBar extends StatelessWidget {
+  const _SemesterBar({required this.state, required this.onChanged});
+  final ScoreState state;
+  final ValueChanged<SemesterModel> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (state.semesters.isEmpty && !state.isLoading) {
+      return const SizedBox.shrink();
+    }
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 16, 4),
+      child: Row(
+        children: [
+          Text('学期', style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(width: 18),
+          if (state.isLoading && state.semesters.isEmpty)
+            const CampusLoadingMark(size: 16)
+          else
+            Expanded(
+              child: DropdownButton<SemesterModel>(
+                value: state.selectedSemester,
+                isExpanded: true,
+                underline: const SizedBox.shrink(),
+                icon: Icon(
+                  Icons.expand_more_rounded,
+                  color: colors.onSurfaceVariant,
+                ),
+                items: state.semesters
+                    .map(
+                      (semester) => DropdownMenuItem(
+                        value: semester,
+                        child: Text(
+                          semester.name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: state.isLoading
+                    ? null
+                    : (value) {
+                        if (value != null) onChanged(value);
+                      },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Overview extends StatelessWidget {
+  const _Overview({required this.scores});
+  final List<ScoreModel> scores;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final numeric = scores
+        .map((item) => double.tryParse(item.score))
+        .whereType<double>()
+        .toList();
+    final average = numeric.isEmpty
+        ? null
+        : numeric.reduce((a, b) => a + b) / numeric.length;
+    final credits = scores
+        .map((item) => double.tryParse(item.credit ?? ''))
+        .whereType<double>()
+        .fold<double>(0, (sum, value) => sum + value);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 5, 20, 9),
+      child: Row(
+        children: [
+          _Metric(value: '${scores.length}', label: '课程'),
+          const SizedBox(width: 30),
+          _Metric(
+            value: average == null ? '—' : average.toStringAsFixed(1),
+            label: '平均分',
+          ),
+          const SizedBox(width: 30),
+          _Metric(value: credits.toStringAsFixed(1), label: '学分'),
+          const Spacer(),
+          Icon(Icons.auto_graph_rounded, color: colors.primary, size: 20),
+        ],
+      ),
+    );
+  }
+}
+
+class _Metric extends StatelessWidget {
+  const _Metric({required this.value, required this.label});
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        value,
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    ],
+  );
+}
+
+class _DataStatus extends StatelessWidget {
+  const _DataStatus({required this.state});
+  final ScoreState state;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final time = state.cachedAt?.toLocal();
     final timeLabel = time == null
@@ -60,37 +188,30 @@ class ScorePage extends ConsumerWidget {
         : '${time.month}/${time.day} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
     final hasError = state.errorMessage != null;
     final message = hasError
-        ? (state.scores.isEmpty
-              ? '成绩同步失败'
-              : '更新失败，显示上次保存的成绩${timeLabel == null ? '' : ' · $timeLabel'}')
+        ? (state.scores.isEmpty ? '成绩同步失败' : '更新失败，继续显示已保存成绩')
         : state.isLoading
-        ? (state.scores.isEmpty ? '正在同步成绩…' : '正在更新成绩，先显示已保存数据')
+        ? (state.scores.isEmpty ? '正在同步成绩…' : '正在更新成绩')
         : timeLabel == null
         ? null
         : '最近更新 $timeLabel';
     if (message == null) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 7),
       child: Row(
         children: [
-          if (state.isLoading && !hasError) ...[
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CampusLoadingMark(size: 14, color: colors.primary),
-            ),
-          ] else ...[
+          if (state.isLoading && !hasError)
+            CampusLoadingMark(size: 14, color: colors.primary)
+          else
             Icon(
               hasError ? Icons.cloud_off_outlined : Icons.cloud_done_outlined,
               size: 16,
               color: hasError ? colors.error : colors.onSurfaceVariant,
             ),
-          ],
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: hasError ? colors.error : colors.onSurfaceVariant,
@@ -101,114 +222,58 @@ class ScorePage extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _buildSemesterPicker(
-    BuildContext context,
-    WidgetRef ref,
-    ScoreState state,
-  ) {
-    if (state.semesters.isEmpty && !state.isLoading) {
-      return const SizedBox.shrink();
-    }
+class _ScoreList extends StatelessWidget {
+  const _ScoreList({required this.state, required this.onRetry});
+  final ScoreState state;
+  final VoidCallback onRetry;
 
-    return Container(
-      width: double.infinity,
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          const Text(
-            '当前学期',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(width: 12),
-          if (state.isLoading && state.semesters.isEmpty)
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CampusLoadingMark(size: 16),
-            )
-          else
-            Expanded(
-              child: DropdownButton<SemesterModel>(
-                value: state.selectedSemester,
-                isExpanded: true,
-                underline: const SizedBox.shrink(),
-                items: state.semesters
-                    .map(
-                      (semester) => DropdownMenuItem<SemesterModel>(
-                        value: semester,
-                        child: Text(
-                          semester.name,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    ref.read(scoreProvider.notifier).changeSemester(value);
-                  }
-                },
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScoreList(
-    BuildContext context,
-    WidgetRef ref,
-    ScoreState state,
-  ) {
+  @override
+  Widget build(BuildContext context) {
     if (state.isLoading && state.scores.isEmpty) {
       return const Center(child: CampusLoadingMark(size: 36));
     }
-
     if (state.errorMessage != null && state.scores.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.grey[400]),
-            const SizedBox(height: 12),
-            Text(
-              state.errorMessage!,
-              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-              textAlign: TextAlign.center,
+            Icon(
+              Icons.cloud_off_outlined,
+              size: 40,
+              color: Theme.of(context).colorScheme.error,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Text(state.errorMessage!, textAlign: TextAlign.center),
+            const SizedBox(height: 14),
             FilledButton.tonalIcon(
-              onPressed: () =>
-                  ref.read(scoreProvider.notifier).fetchInitialData(),
-              icon: const Icon(Icons.refresh),
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
               label: const Text('重试'),
             ),
           ],
         ),
       );
     }
-
     if (state.scores.isEmpty) {
       return Center(
-        child: Text('本学期暂无成绩数据', style: TextStyle(color: Colors.grey[500])),
+        child: Text(
+          '本学期暂无成绩数据',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
       );
     }
-
     return Stack(
       children: [
         ListView.separated(
+          padding: const EdgeInsets.only(top: 2, bottom: 20),
           itemCount: state.scores.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final score = state.scores[index];
-            return _buildScoreItem(score);
-          },
+          separatorBuilder: (_, _) =>
+              const Divider(height: 1, indent: 20, endIndent: 20),
+          itemBuilder: (_, index) => _ScoreRow(score: state.scores[index]),
         ),
         if (state.isLoading)
           const Positioned(
@@ -220,57 +285,69 @@ class ScorePage extends ConsumerWidget {
       ],
     );
   }
+}
 
-  Widget _buildScoreItem(ScoreModel score) {
-    final isExcellent = _isExcellent(score.score);
-    final isFailed = _isFailed(score.score);
+class _ScoreRow extends StatelessWidget {
+  const _ScoreRow({required this.score});
+  final ScoreModel score;
 
-    Color scoreColor = const Color(0xFF0F8B57);
-    if (isFailed) {
-      scoreColor = Colors.red[700]!;
-    } else if (isExcellent) {
-      scoreColor = Colors.orange[700]!;
-    }
-
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      leading: CircleAvatar(
-        backgroundColor: scoreColor.withOpacity(0.12),
-        foregroundColor: scoreColor,
-        child: Icon(
-          isFailed ? Icons.warning_amber_rounded : Icons.menu_book_rounded,
-        ),
-      ),
-      title: Text(
-        score.courseName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-      ),
-      subtitle: Text(
-        '学分 ${score.credit ?? 'N/A'}  ·  ${score.examType ?? '正常考试'}',
-        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-      ),
-      trailing: Text(
-        score.score,
-        style: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w800,
-          color: scoreColor,
-        ),
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final value = double.tryParse(score.score);
+    final failed = value != null ? value < 60 : score.score == '不及格';
+    final excellent = value != null ? value >= 90 : score.score == '优秀';
+    final scoreColor = failed
+        ? colors.error
+        : excellent
+        ? colors.tertiary
+        : colors.onSurface;
+    final details = <String>[
+      if (score.credit?.isNotEmpty == true) '${score.credit} 学分',
+      if (score.examType?.isNotEmpty == true) score.examType!,
+      if (score.dailyScore?.isNotEmpty == true) '平时 ${score.dailyScore}',
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  score.courseName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                if (details.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    details.join('  ·  '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Text(
+            score.score,
+            textAlign: TextAlign.end,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: scoreColor,
+            ),
+          ),
+        ],
       ),
     );
-  }
-
-  bool _isExcellent(String score) {
-    final val = double.tryParse(score);
-    if (val != null) return val >= 90;
-    return score == '优秀';
-  }
-
-  bool _isFailed(String score) {
-    final val = double.tryParse(score);
-    if (val != null) return val < 60;
-    return score == '不及格';
   }
 }

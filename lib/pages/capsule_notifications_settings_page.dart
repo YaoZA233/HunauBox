@@ -132,6 +132,26 @@ class _CapsuleNotificationsSettingsPageState
         newTypes.add(type);
         // 首次启用时请求权限
         await _requestPermission();
+        final store = CourseNotificationSettingsStore.instance;
+        await store.load();
+        final current = store.settings.value;
+        if (type == UnifiedCapsuleService.typesMessage &&
+            current.messageEnabled) {
+          await store.save(current.copyWith(messageEnabled: false));
+          await CourseNotificationService.instance
+              .cancelNewMessageNotifications();
+        } else if (type == UnifiedCapsuleService.typesHomework &&
+            (current.homeworkEnabled || current.homeworkDeadlineEnabled)) {
+          await store.save(
+            current.copyWith(
+              homeworkEnabled: false,
+              homeworkDeadlineEnabled: false,
+            ),
+          );
+          await CourseNotificationService.instance.rescheduleIfEnabled();
+          await CourseNotificationService.instance
+              .cancelNewHomeworkNotifications();
+        }
       }
 
       await _service.saveEnabledTypes(newTypes);
@@ -353,9 +373,9 @@ class _CapsuleNotificationsSettingsPageState
       case UnifiedCapsuleService.typesCourse:
         return '上课前和上课中显示课程、教室与倒计时';
       case UnifiedCapsuleService.typesHomework:
-        return '显示待完成作业和截止时间';
+        return '显示待完成作业和截止时间；启用后会关闭同类系统作业提醒';
       case UnifiedCapsuleService.typesMessage:
-        return '显示新的校园通知';
+        return '显示新的校园通知；启用后会关闭同类系统消息提醒';
       case UnifiedCapsuleService.typesExam:
         return '显示近期考试时间与地点';
       case UnifiedCapsuleService.typesActivity:

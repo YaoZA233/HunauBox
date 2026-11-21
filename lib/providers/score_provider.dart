@@ -50,8 +50,9 @@ class ScoreState {
 }
 
 class ScoreNotifier extends StateNotifier<ScoreState> {
-  ScoreNotifier() : super(ScoreState.initial()) {
-    fetchInitialData();
+  ScoreNotifier({ScoreState? initialState, bool fetchOnCreate = true})
+    : super(initialState ?? ScoreState.initial()) {
+    if (fetchOnCreate) fetchInitialData();
   }
 
   final _service = ScoreService.instance;

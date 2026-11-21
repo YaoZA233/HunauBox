@@ -39,6 +39,8 @@ import 'xgxt_webview_page.dart';
 import 'vpn_converter_page.dart';
 import 'network_speed_test_page.dart';
 import 'webview_detail_page.dart';
+import 'physical_fitness_page.dart';
+import 'tuition_payment_page.dart';
 import 'bus_tracking_page.dart';
 import 'dorm_service_page.dart';
 import 'questionnaire_list_page.dart';
@@ -525,7 +527,9 @@ class _HomePageState extends ConsumerState<HomePage>
             ),
             if (_isLoading)
               Positioned.fill(
-                child: Center(child: CampusLoadingMark(size: 20, color: colors.primary)),
+                child: Center(
+                  child: CampusLoadingMark(size: 20, color: colors.primary),
+                ),
               ),
             if (_showLoginSuccessBadge)
               Positioned(
@@ -1432,28 +1436,16 @@ class _HomePageState extends ConsumerState<HomePage>
     }
 
     if (id == 'tuition_payment') {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const WebViewDetailPage(
-            title: '学费与学杂费缴费',
-            url: AppConstants.tuitionPaymentUrl,
-            showWebBack: true,
-          ),
-        ),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const TuitionPaymentPage()));
       return;
     }
 
     if (id == 'physical_fitness_score') {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const WebViewDetailPage(
-            title: '体测成绩',
-            url: AppConstants.physicalFitnessScoreUrl,
-            showWebBack: true,
-          ),
-        ),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const PhysicalFitnessPage()));
       return;
     }
 

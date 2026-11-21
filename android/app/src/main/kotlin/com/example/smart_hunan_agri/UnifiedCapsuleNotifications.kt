@@ -59,7 +59,7 @@ object UnifiedCapsuleNotifications {
 
     // Action常量
     private const val ACTION_REFRESH = "unified.capsule.REFRESH"
-    private const val ACTION_DISMISS = "unified.capsule.DISMISS"
+    const val ACTION_DISMISS = "unified.capsule.DISMISS"
 
     // 配色方案
     private object Colors {
@@ -214,26 +214,36 @@ object UnifiedCapsuleNotifications {
         // 处理各类型通知
         if (enabledTypes.contains(NotificationType.COURSE)) {
             handleCourseNotifications(context, now)
+        } else {
+            manager(context).cancel(ID_COURSE_START)
         }
 
         if (enabledTypes.contains(NotificationType.HOMEWORK)) {
             handleHomeworkNotifications(context, now)
+        } else {
+            cancelRange(context, ID_HOMEWORK_START, 3)
         }
 
         if (enabledTypes.contains(NotificationType.MESSAGE)) {
             handleMessageNotifications(context, now)
+        } else {
+            cancelRange(context, ID_MESSAGE_START, 3)
         }
 
         if (enabledTypes.contains(NotificationType.EXAM)) {
             handleExamNotifications(context, now)
+        } else {
+            cancelRange(context, ID_EXAM_START, 2)
         }
 
         if (enabledTypes.contains(NotificationType.ACTIVITY)) {
             handleActivityNotifications(context, now)
+        } else {
+            cancelRange(context, ID_ACTIVITY_START, 2)
         }
 
         // 设置下次刷新
-        scheduleNextRefresh(context)
+        scheduleNextRefresh(context, enabledTypes, now)
     }
 
     private fun createChannels(context: Context) {
@@ -365,9 +375,15 @@ object UnifiedCapsuleNotifications {
 
     private fun handleHomeworkNotifications(context: Context, now: Long) {
         val homeworkList = decodeList(prefs(context).getString("homework", null))
+        pruneDismissed(
+            context,
+            NotificationType.HOMEWORK,
+            homeworkList.filter { it.optLong("deadline", 0) > now }.map { itemId(it) }.toSet(),
+        )
+        val dismissed = dismissedIds(context, NotificationType.HOMEWORK)
         val urgent = homeworkList.filter { hw ->
             val deadline = hw.getLong("deadline")
-            deadline > now && deadline - now < 48 * 3600_000 // 48小时内截止
+            deadline > now && deadline - now < 48 * 3600_000 && itemId(hw) !in dismissed
         }.sortedBy { it.getLong("deadline") }
 
         urgent.take(3).forEachIndexed { index, hw ->
@@ -414,7 +430,8 @@ object UnifiedCapsuleNotifications {
             .setContentText("⏰ ${urgencyText}截止")
             .setSubText("📅 $deadlineStr")
             .setColor(color)
-            .setOngoing(true)
+            .setDeleteIntent(dismissIntent(context, NotificationType.HOMEWORK, itemId(homework), notificationId))
+            .setOngoing(false)
             .setTimeoutAfter((deadline - now).coerceAtLeast(1))
             .setLargeIcon(createIconWithText(context, "✍️", color))
 
@@ -443,9 +460,10 @@ object UnifiedCapsuleNotifications {
 
     private fun handleMessageNotifications(context: Context, now: Long) {
         val messages = decodeList(prefs(context).getString("messages", null))
-        val unread = messages.filter { msg ->
-            !msg.optBoolean("read", false)
-        }.take(3)
+        val unreadMessages = messages.filter { msg -> !msg.optBoolean("read", false) }
+        pruneDismissed(context, NotificationType.MESSAGE, unreadMessages.map { itemId(it) }.toSet())
+        val dismissed = dismissedIds(context, NotificationType.MESSAGE)
+        val unread = unreadMessages.filter { msg -> itemId(msg) !in dismissed }.take(3)
 
         unread.forEachIndexed { index, msg ->
             publishMessageNotification(context, msg, now, ID_MESSAGE_START + index)
@@ -488,7 +506,8 @@ object UnifiedCapsuleNotifications {
             .setContentText("👤 $sender")
             .setSubText("🕐 $timeStr")
             .setColor(color)
-            .setOngoing(true)
+            .setDeleteIntent(dismissIntent(context, NotificationType.MESSAGE, itemId(message), notificationId))
+            .setOngoing(false)
             .setLargeIcon(createIconWithText(context, icon, color))
 
         val content = message.optString("content", "")
@@ -508,10 +527,13 @@ object UnifiedCapsuleNotifications {
 
     private fun handleExamNotifications(context: Context, now: Long) {
         val exams = decodeList(prefs(context).getString("exams", null))
-        val upcoming = exams.filter { exam ->
+        val upcomingExams = exams.filter { exam ->
             val examTime = exam.getLong("time")
             examTime > now && examTime - now < 7 * 24 * 3600_000 // 7天内
-        }.sortedBy { it.getLong("time") }
+        }
+        pruneDismissed(context, NotificationType.EXAM, upcomingExams.map { itemId(it) }.toSet())
+        val dismissed = dismissedIds(context, NotificationType.EXAM)
+        val upcoming = upcomingExams.filter { itemId(it) !in dismissed }.sortedBy { it.getLong("time") }
 
         upcoming.take(2).forEachIndexed { index, exam ->
             publishExamNotification(context, exam, now, ID_EXAM_START + index)
@@ -551,7 +573,8 @@ object UnifiedCapsuleNotifications {
             .setContentText("📍 $location  •  ⏰ $urgencyText")
             .setSubText("🕐 $timeStr")
             .setColor(color)
-            .setOngoing(true)
+            .setDeleteIntent(dismissIntent(context, NotificationType.EXAM, itemId(exam), notificationId))
+            .setOngoing(false)
             .setTimeoutAfter((examTime - now).coerceAtLeast(1))
             .setLargeIcon(createIconWithText(context, "📝", color))
 
@@ -578,10 +601,13 @@ object UnifiedCapsuleNotifications {
 
     private fun handleActivityNotifications(context: Context, now: Long) {
         val activities = decodeList(prefs(context).getString("activities", null))
-        val upcoming = activities.filter { activity ->
+        val upcomingActivities = activities.filter { activity ->
             val activityTime = activity.getLong("time")
             activityTime > now && activityTime - now < 24 * 3600_000 // 24小时内
-        }.sortedBy { it.getLong("time") }
+        }
+        pruneDismissed(context, NotificationType.ACTIVITY, upcomingActivities.map { itemId(it) }.toSet())
+        val dismissed = dismissedIds(context, NotificationType.ACTIVITY)
+        val upcoming = upcomingActivities.filter { itemId(it) !in dismissed }.sortedBy { it.getLong("time") }
 
         upcoming.take(2).forEachIndexed { index, activity ->
             publishActivityNotification(context, activity, now, ID_ACTIVITY_START + index)
@@ -621,7 +647,8 @@ object UnifiedCapsuleNotifications {
             .setContentText("📍 $location  •  ⏰ $urgencyText")
             .setSubText("🕐 $timeStr")
             .setColor(color)
-            .setOngoing(true)
+            .setDeleteIntent(dismissIntent(context, NotificationType.ACTIVITY, itemId(activity), notificationId))
+            .setOngoing(false)
             .setTimeoutAfter((activityTime - now).coerceAtLeast(1))
             .setLargeIcon(createIconWithText(context, "🎉", color))
 
@@ -719,7 +746,9 @@ object UnifiedCapsuleNotifications {
         if (Build.VERSION.SDK_INT < 36) return
 
         val extras = Bundle().apply {
-            putBoolean("android.requestPromotedOngoing", true)
+            if (type == NotificationType.COURSE) {
+                putBoolean("android.requestPromotedOngoing", true)
+            }
 
             // Honor Magic Capsule
             putString("honor.magic.capsule.style", "unified_notification")
@@ -742,7 +771,7 @@ object UnifiedCapsuleNotifications {
         builder.addExtras(extras)
     }
 
-    private fun scheduleNextRefresh(context: Context) {
+    private fun scheduleNextRefresh(context: Context, enabledTypes: Set<String>, now: Long) {
         val alarmManager = alarms(context)
         val intent = Intent(context, UnifiedCapsuleReceiver::class.java)
             .setAction(ACTION_REFRESH)
@@ -753,7 +782,10 @@ object UnifiedCapsuleNotifications {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val nextRefresh = System.currentTimeMillis() + 60_000 // 1分钟后刷新
+        val nextRefresh = nextRefreshAt(context, enabledTypes, now) ?: run {
+            alarmManager.cancel(pendingIntent)
+            return
+        }
 
         try {
             if (Build.VERSION.SDK_INT < 31 || alarmManager.canScheduleExactAlarms()) {
@@ -770,6 +802,102 @@ object UnifiedCapsuleNotifications {
                 )
             }
         } catch (_: SecurityException) {}
+    }
+
+    private fun nextRefreshAt(context: Context, enabledTypes: Set<String>, now: Long): Long? {
+        val candidates = mutableListOf<Long>()
+        if (NotificationType.COURSE in enabledTypes) {
+            decodeList(prefs(context).getString("courses", null)).forEach { course ->
+                val start = course.optLong("start", 0)
+                val end = course.optLong("end", 0)
+                if (now >= start && now < end) candidates.add(now + 60_000)
+                else {
+                    if (start > now) candidates.add(start)
+                    if (end > now) candidates.add(end)
+                }
+            }
+        }
+        if (NotificationType.HOMEWORK in enabledTypes) {
+            decodeList(prefs(context).getString("homework", null)).forEach { item ->
+                val deadline = item.optLong("deadline", 0)
+                if (deadline > now) {
+                    val entersWindow = deadline - 48 * 3600_000L
+                    if (entersWindow > now) candidates.add(entersWindow)
+                    candidates.add(deadline)
+                }
+            }
+        }
+        if (NotificationType.EXAM in enabledTypes) {
+            decodeList(prefs(context).getString("exams", null)).forEach { item ->
+                val time = item.optLong("time", 0)
+                if (time > now) {
+                    val entersWindow = time - 7 * 24 * 3600_000L
+                    if (entersWindow > now) candidates.add(entersWindow)
+                    candidates.add(time)
+                }
+            }
+        }
+        if (NotificationType.ACTIVITY in enabledTypes) {
+            decodeList(prefs(context).getString("activities", null)).forEach { item ->
+                val time = item.optLong("time", 0)
+                if (time > now) {
+                    val entersWindow = time - 24 * 3600_000L
+                    if (entersWindow > now) candidates.add(entersWindow)
+                    candidates.add(time)
+                }
+            }
+        }
+        return candidates.filter { it > now }.minOrNull()
+    }
+
+    private fun itemId(item: JSONObject): String = item.optString("id").ifBlank {
+        "${item.optLong("time", item.optLong("deadline", 0))}:${item.optString("title")}"
+    }
+
+    private fun dismissedKey(type: String) = "dismissed_$type"
+
+    private fun dismissedIds(context: Context, type: String): Set<String> =
+        prefs(context).getStringSet(dismissedKey(type), emptySet())?.toSet() ?: emptySet()
+
+    private fun pruneDismissed(context: Context, type: String, activeIds: Set<String>) {
+        val old = dismissedIds(context, type)
+        val retained = old.intersect(activeIds)
+        if (old != retained) {
+            prefs(context).edit().putStringSet(dismissedKey(type), retained).apply()
+        }
+    }
+
+    private fun dismissIntent(
+        context: Context,
+        type: String,
+        itemId: String,
+        notificationId: Int,
+    ): PendingIntent {
+        val intent = Intent(context, UnifiedCapsuleReceiver::class.java)
+            .setAction(ACTION_DISMISS)
+            .putExtra("type", type)
+            .putExtra("itemId", itemId)
+            .putExtra("notificationId", notificationId)
+        return PendingIntent.getBroadcast(
+            context,
+            notificationId,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    fun dismiss(context: Context, intent: Intent) {
+        val type = intent.getStringExtra("type") ?: return
+        val itemId = intent.getStringExtra("itemId") ?: return
+        val notificationId = intent.getIntExtra("notificationId", -1)
+        if (notificationId >= 0) manager(context).cancel(notificationId)
+        val dismissed = dismissedIds(context, type) + itemId
+        prefs(context).edit().putStringSet(dismissedKey(type), dismissed).apply()
+        refresh(context)
+    }
+
+    private fun cancelRange(context: Context, start: Int, count: Int) {
+        repeat(count) { manager(context).cancel(start + it) }
     }
 
     fun cancelAll(context: Context) {
@@ -800,6 +928,10 @@ object UnifiedCapsuleNotifications {
 
 class UnifiedCapsuleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        UnifiedCapsuleNotifications.refresh(context)
+        if (intent.action == UnifiedCapsuleNotifications.ACTION_DISMISS) {
+            UnifiedCapsuleNotifications.dismiss(context, intent)
+        } else {
+            UnifiedCapsuleNotifications.refresh(context)
+        }
     }
 }

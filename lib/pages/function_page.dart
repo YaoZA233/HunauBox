@@ -16,11 +16,13 @@ import 'chaoxing_messages_page.dart';
 import 'leave_page.dart';
 import 'network_speed_test_page.dart';
 import 'payment_code_page.dart';
+import 'physical_fitness_page.dart';
 import 'questionnaire_list_page.dart';
 import 'repair_page.dart';
 import 'score_page.dart';
 import 'sunshine_page.dart';
 import 'timetable_page.dart';
+import 'tuition_payment_page.dart';
 import 'vpn_converter_page.dart';
 import 'webview_detail_page.dart';
 import 'xgxt_webview_page.dart';
@@ -116,14 +118,8 @@ class FunctionPage extends StatelessWidget {
                   icon: Icons.account_balance_wallet_outlined,
                   title: '学费与学杂费缴费',
                   subtitle: '学费、学杂费、书籍费等缴费查询',
-                  onTap: () => _openProtected(
-                    context,
-                    const WebViewDetailPage(
-                      title: '学费与学杂费缴费',
-                      url: AppConstants.tuitionPaymentUrl,
-                      showWebBack: true,
-                    ),
-                  ),
+                  onTap: () =>
+                      _openProtected(context, const TuitionPaymentPage()),
                 ),
                 AppCell(
                   icon: Icons.credit_card_outlined,
@@ -190,14 +186,8 @@ class FunctionPage extends StatelessWidget {
                   icon: Icons.directions_run_outlined,
                   title: '体测成绩',
                   subtitle: '查看大学生体质健康测试成绩',
-                  onTap: () => _openProtected(
-                    context,
-                    const WebViewDetailPage(
-                      title: '体测成绩',
-                      url: AppConstants.physicalFitnessScoreUrl,
-                      showWebBack: true,
-                    ),
-                  ),
+                  onTap: () =>
+                      _openProtected(context, const PhysicalFitnessPage()),
                 ),
                 AppCell(
                   icon: Icons.event_note_outlined,

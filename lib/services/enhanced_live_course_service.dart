@@ -11,6 +11,7 @@ class EnhancedLiveCourseService {
   EnhancedLiveCourseService._();
   static final instance = EnhancedLiveCourseService._();
   static const channel = MethodChannel('hunaubox/enhanced_live_course');
+  static const _legacyChannel = MethodChannel('hunaubox/live_course');
 
   bool get supported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -49,6 +50,11 @@ class EnhancedLiveCourseService {
     if (!supported) return;
     final store = CourseNotificationSettingsStore.instance;
     await store.load();
+    await _legacyChannel.invokeMethod<void>('configure', {
+      'enabled': false,
+      'minutesBefore': store.settings.value.minutesBefore,
+      'courses': const <Map<String, Object>>[],
+    });
     await channel.invokeMethod<void>('configure', {
       'enabled': store.settings.value.liveActivityEnabled,
       'minutesBefore': store.settings.value.minutesBefore,
@@ -95,42 +101,42 @@ class EnhancedLiveCourseService {
     switch (style) {
       case 'honor_magic_capsule':
         return '✨ 荣耀灵动胶囊 - 支持智能展示\n'
-               '在屏幕顶部以胶囊形态显示课程进度和剩余时间，'
-               '轻触可快速查看详情或展开完整信息。';
+            '在屏幕顶部以胶囊形态显示课程进度和剩余时间，'
+            '轻触可快速查看详情或展开完整信息。';
 
       case 'huawei_live_window':
         return '🎯 华为实时窗口 - 动态信息展示\n'
-               '在通知栏顶部以卡片形式展示课程状态，'
-               '支持进度条和倒计时显示。';
+            '在通知栏顶部以卡片形式展示课程状态，'
+            '支持进度条和倒计时显示。';
 
       case 'xiaomi_notification_capsule':
         return '🔔 小米通知胶囊 - 智能聚合显示\n'
-               '在状态栏以胶囊样式聚合展示课程信息，'
-               '支持展开查看完整内容。';
+            '在状态栏以胶囊样式聚合展示课程信息，'
+            '支持展开查看完整内容。';
 
       case 'oppo_sidebar':
         return '📱 OPPO 侧边栏通知\n'
-               '支持侧边快速展示课程信息。';
+            '支持侧边快速展示课程信息。';
 
       case 'vivo_notification_style':
         return '💫 vivo 通知样式\n'
-               '优化的通知卡片展示，支持快捷操作。';
+            '优化的通知卡片展示，支持快捷操作。';
 
       default:
         if (hasIslandSupport) {
           return '📲 标准灵动岛适配\n'
-                 '您的设备 ($manufacturer) 支持类灵动岛功能，'
-                 '课程信息将以智能胶囊形式展示。';
+              '您的设备 ($manufacturer) 支持类灵动岛功能，'
+              '课程信息将以智能胶囊形式展示。';
         }
         return '📋 标准通知展示\n'
-               '使用增强的通知样式，包含丰富的课程信息、'
-               '进度条和快捷操作按钮。';
+            '使用增强的通知样式，包含丰富的课程信息、'
+            '进度条和快捷操作按钮。';
     }
   }
 
   /// Check if device supports dynamic island / capsule features
   bool supportsDynamicIsland(Map<String, dynamic> deviceInfo) {
     return deviceInfo['dynamicIslandSupport'] == true ||
-           deviceInfo['liveUpdates'] == true;
+        deviceInfo['liveUpdates'] == true;
   }
 }

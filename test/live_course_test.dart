@@ -6,6 +6,7 @@ import 'package:smart_hunan_agri/models/course_model.dart';
 import 'package:smart_hunan_agri/pages/live_course_page.dart';
 import 'package:smart_hunan_agri/services/course_notification_settings_store.dart';
 import 'package:smart_hunan_agri/services/course_schedule_service.dart';
+import 'package:smart_hunan_agri/services/enhanced_live_course_service.dart';
 import 'package:smart_hunan_agri/services/live_course_service.dart';
 
 void main() {
@@ -16,6 +17,13 @@ void main() {
     calls.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(LiveCourseService.channel, (call) async {
+          calls.add(call);
+          return null;
+        });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(EnhancedLiveCourseService.channel, (
+          call,
+        ) async {
           calls.add(call);
           if (call.method == 'capabilities') {
             return {
@@ -35,6 +43,8 @@ void main() {
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(LiveCourseService.channel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(EnhancedLiveCourseService.channel, null);
   });
 
   test('通知设置保留其他开关，课程实况默认关闭并可持久化', () async {
