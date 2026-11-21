@@ -12,11 +12,30 @@ class TuitionPaymentService {
   final String _guestKey = _uuid();
   final String _deviceId = _uuid();
   String? _token;
+  int? _academicYear;
 
   Future<Map<String, dynamic>> createSession() async {
-    final data = await _request('POST', '/api/query/anonToken', body: const {});
+    final data = await _request(
+      'POST',
+      '/api/query/anonToken',
+      body: const {},
+      includeAcademicYear: false,
+    );
     _token = data['userToken']?.toString();
     if (_token?.isNotEmpty != true) throw Exception('学费查询会话初始化失败');
+    try {
+      final year = await _request(
+        'GET',
+        '/api/dm/anno/kjnd/current',
+        includeAcademicYear: false,
+      );
+      final value = year['data'];
+      final parsed = value is num ? value.toInt() : int.tryParse('$value');
+      if (parsed != null) _academicYear = parsed;
+    } catch (_) {
+      // The current year fallback is accepted by the same API and keeps the
+      // login form usable if the optional dictionary endpoint is unavailable.
+    }
     return data;
   }
 
@@ -27,25 +46,30 @@ class TuitionPaymentService {
         'GET',
         '/api/common/captcha/create',
         query: const {'type': 'h5_login', 'firstRequired': 'true'},
+        includeAcademicYear: false,
       );
     } catch (error) {
       if (!error.toString().contains('2004113')) rethrow;
+      // A captcha can invalidate the anonymous session on the server. Retry
+      // once with a fresh token so the next image and doQuery share a session.
       _token = null;
       await createSession();
-      await Future<void>.delayed(const Duration(milliseconds: 180));
       return _request(
         'GET',
         '/api/common/captcha/create',
         query: const {'type': 'h5_login', 'firstRequired': 'true'},
+        includeAcademicYear: false,
       );
     }
   }
 
   Future<Uint8List> fetchCaptchaImage(String id) async {
-    await _ensureSession();
     final r = await _dio.get<List<int>>(
       '$_base/api/common/captcha/$id.gif',
-      options: Options(responseType: ResponseType.bytes, headers: _headers()),
+      options: Options(
+        responseType: ResponseType.bytes,
+        headers: _headers(includeAcademicYear: false),
+      ),
     );
     if (r.statusCode != 200 || r.data == null) throw Exception('验证码图片加载失败');
     return Uint8List.fromList(r.data!);
@@ -59,22 +83,25 @@ class TuitionPaymentService {
     String? captchaVerification,
   }) async {
     await _ensureSession();
+    final body = <String, dynamic>{
+      'agencyNm': agency,
+      'username': _sm2(idCard.trim()),
+      'xm': _sm2(name.trim()),
+      'captchaId': captchaId,
+      'captchaCode': captchaCode.trim(),
+    };
+    final verification = captchaVerification?.trim();
+    if (verification != null && verification.isNotEmpty) {
+      body['captchaVerification'] = verification;
+    }
     final data = await _request(
       'POST',
       '/api/query/doQuery',
       allowApiFailure: true,
-      body: {
-        'agencyNm': agency,
-        'openid': null,
-        'username': _sm2(idCard.trim()),
-        'xm': _sm2(name.trim()),
-        'captchaId': captchaId,
-        'captchaCode': captchaCode.trim(),
-        'captchaVerification': captchaVerification,
-      },
+      body: body,
     );
     if (data['success'] != true) {
-      throw Exception(_message(data, '身份证号或姓名校验失败，请确认与学校登记信息一致'));
+      throw Exception(_message(data, '缴费平台暂时无法完成查询'));
     }
     final token = data['userToken']?.toString();
     if (token?.isNotEmpty == true) _token = token;
@@ -109,6 +136,7 @@ class TuitionPaymentService {
     Map<String, dynamic>? query,
     Object? body,
     bool allowApiFailure = false,
+    bool includeAcademicYear = true,
   }) async {
     final r = await _dio.request<dynamic>(
       '$_base$path',
@@ -116,7 +144,7 @@ class TuitionPaymentService {
       data: body,
       options: Options(
         method: method,
-        headers: _headers(),
+        headers: _headers(includeAcademicYear: includeAcademicYear),
         contentType: Headers.jsonContentType,
         validateStatus: (s) => s != null && s < 500,
       ),
@@ -130,20 +158,27 @@ class TuitionPaymentService {
     return data;
   }
 
-  Map<String, String> _headers() => {
-    'agencyNm': agency,
-    'version': '1.0.0',
-    'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
-    'nonce': _randomText(16),
-    'X-Guest-Key': _guestKey,
-    'X-Device-Id': _deviceId,
-    'userToken': _token ?? '',
-    'kjnd': DateTime.now().year.toString(),
-    'Content-Type': 'application/json;charset=UTF-8',
-    'Accept': 'application/json, text/javascript, */*; q=0.01',
-    'Origin': 'https://cwcx.hunau.edu.cn',
-    'Referer': 'https://cwcx.hunau.edu.cn/SFPT_H5/',
-  };
+  Map<String, String> _headers({bool includeAcademicYear = true}) =>
+      {
+        'agencyNm': agency,
+        'version': '1.0.0',
+        'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
+        'nonce': _randomText(16),
+        'X-Guest-Key': _guestKey,
+        'X-Device-Id': _deviceId,
+        'userToken': _token ?? '',
+        'Content-Type': 'application/json;charset=UTF-8',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Origin': 'https://cwcx.hunau.edu.cn',
+        'Referer': 'https://cwcx.hunau.edu.cn/SFPT_H5/',
+      }..addAll(
+        includeAcademicYear
+            ? {'kjnd': (_academicYear ?? DateTime.now().year).toString()}
+            : const <String, String>{},
+      );
   Future<void> _ensureSession() async {
     if (_token == null) await createSession();
   }
@@ -154,29 +189,23 @@ class TuitionPaymentService {
   static String _message(Map<String, dynamic> d, String fallback) {
     final raw = (d['detailMsg'] ?? d['msg'] ?? d['message'])?.toString().trim();
     if (raw == null || raw.isEmpty) return fallback;
-
+    final code = int.tryParse('${d['code']}');
+    if (code == 2004108) {
+      return '账号与姓名不匹配，请核对身份证号和姓名';
+    }
+    if (code == 2004113 || code == 2004111 || code == 2004116) {
+      return '查询会话已失效，请刷新验证码后重试';
+    }
     final text = raw.toLowerCase();
-    if (text.contains('验证码') ||
-        text.contains('captcha') ||
-        text.contains('verify code')) {
-      return '图片验证码错误，请刷新后重试';
+    if (text.contains('验证码') || text.contains('captcha')) {
+      return '图片验证码错误（${d['code'] ?? '未知'}），请刷新后重试';
     }
     if (text.contains('token') ||
         text.contains('会话') ||
-        text.contains('登录失效') ||
-        text.contains('2004113')) {
+        text.contains('登录失效')) {
       return '查询会话已失效，请刷新验证码后重试';
     }
-    if (text.contains('密码') ||
-        text.contains('password') ||
-        text.contains('身份') ||
-        text.contains('学号') ||
-        text.contains('姓名') ||
-        text.contains('用户不存在') ||
-        text.contains('未找到')) {
-      return '身份证号或姓名校验失败，请确认与学校登记信息一致';
-    }
-    return '缴费平台暂时无法完成身份核验：$raw';
+    return '缴费平台返回错误（${d['code'] ?? '未知'}）：$raw';
   }
 
   static String _uuid() {

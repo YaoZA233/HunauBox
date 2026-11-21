@@ -180,7 +180,13 @@ class _PhysicalFitnessPageState extends State<PhysicalFitnessPage> {
                   child: InkWell(
                     onTap: _captchaLoading ? null : _refreshCaptcha,
                     child: _captchaLoading || _captchaImage == null
-                        ? const Center(child: CampusLoadingMark(size: 22))
+                        ? Center(
+                            child: _captchaLoading
+                                ? const CampusLoadingMark(size: 22)
+                                : const Icon(
+                                    Icons.image_not_supported_outlined,
+                                  ),
+                          )
                         : Image.memory(_captchaImage!, fit: BoxFit.fill),
                   ),
                 ),
@@ -236,36 +242,248 @@ class _ResultTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Column(
+    if (table.headers.any((header) => header.contains('体测项目'))) {
+      final metrics = table.rows
+          .map(_FitnessMetric.fromRow)
+          .whereType<_FitnessMetric>()
+          .toList();
+      final totals = metrics.where((item) => item.name == '成绩总分').toList();
+      final total = totals.isEmpty ? null : totals.first;
+      final items = metrics.where((item) => item.name != '成绩总分').toList();
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final row in table.rows)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (var i = 0; i < row.length; i++)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        '${i < table.headers.length ? table.headers[i] : '项目'}  ${row[i]}',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: i == row.length - 1
-                              ? colors.onSurface
-                              : colors.onSurfaceVariant,
-                          fontWeight: i == row.length - 1
-                              ? FontWeight.w600
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    ),
-                ],
+          if (total != null) _TotalScoreCard(total: total),
+          const SizedBox(height: 14),
+          for (final item in items) _MetricCard(item: item),
+          const SizedBox(height: 8),
+        ],
+      );
+    }
+
+    final labelRow = table.rows.firstWhere(
+      (row) => row.any((value) => value == '标准分'),
+      orElse: () => const [],
+    );
+    final valueIndex = table.rows.indexOf(labelRow) + 1;
+    final valueRow = valueIndex > 0 && valueIndex < table.rows.length
+        ? table.rows[valueIndex]
+        : const <String>[];
+    final year = table.headers.firstWhere(
+      (value) => value.contains('学年'),
+      orElse: () => '本学年',
+    );
+    return Container(
+      margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withValues(alpha: .45),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(year, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _SummaryValue(label: '标准分', value: _at(valueRow, 0)),
+              _SummaryValue(label: '附加分', value: _at(valueRow, 1)),
+              _SummaryValue(
+                label: '学年总分',
+                value: _at(valueRow, 2),
+                emphasized: true,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _at(List<String> values, int index) =>
+      index < values.length && values[index].isNotEmpty ? values[index] : '--';
+}
+
+class _FitnessMetric {
+  const _FitnessMetric({
+    required this.name,
+    required this.value,
+    required this.unit,
+    required this.score,
+    required this.level,
+  });
+
+  final String name;
+  final String value;
+  final String unit;
+  final String score;
+  final String level;
+
+  static _FitnessMetric? fromRow(List<String> row) {
+    if (row.length < 3) return null;
+    final nameIndex = row.indexWhere((value) => value.isNotEmpty);
+    if (nameIndex < 0) return null;
+    final name = row[nameIndex];
+    if (name.isEmpty || name == '体测项目') return null;
+    if (name == '成绩总分') {
+      final numbers = row
+          .where((value) => double.tryParse(value) != null)
+          .toList();
+      final level = row.lastWhere(
+        (value) => value.isNotEmpty && double.tryParse(value) == null,
+        orElse: () => '',
+      );
+      return _FitnessMetric(
+        name: name,
+        value: '',
+        unit: '',
+        score: numbers.isEmpty ? '--' : numbers.last,
+        level: level,
+      );
+    }
+    return _FitnessMetric(
+      name: name,
+      value: row.length > nameIndex + 1 ? row[nameIndex + 1] : '--',
+      unit: row.length > nameIndex + 2 ? row[nameIndex + 2] : '',
+      score: row.length > nameIndex + 3 ? row[nameIndex + 3] : '--',
+      level: row.length > nameIndex + 5 ? row[nameIndex + 5] : '',
+    );
+  }
+}
+
+class _SummaryValue extends StatelessWidget {
+  const _SummaryValue({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(color: colors.onSurfaceVariant)),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: emphasized ? FontWeight.w800 : FontWeight.w600,
+              color: emphasized ? colors.primary : colors.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TotalScoreCard extends StatelessWidget {
+  const _TotalScoreCard({required this.total});
+
+  final _FitnessMetric total;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: colors.primaryContainer,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.assessment_outlined, color: colors.onPrimaryContainer),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '成绩总分',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: colors.onPrimaryContainer,
+                fontWeight: FontWeight.w700,
               ),
             ),
-          Divider(color: colors.outlineVariant),
+          ),
+          Text(
+            total.score,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: colors.onPrimaryContainer,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (total.level.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Text(
+              total.level,
+              style: TextStyle(color: colors.onPrimaryContainer),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({required this.item});
+
+  final _FitnessMetric item;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.name, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 5),
+                Text(
+                  [
+                    item.value,
+                    item.unit,
+                  ].where((value) => value.isNotEmpty).join(' '),
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                item.score,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: colors.primary,
+                ),
+              ),
+              if (item.level.isNotEmpty)
+                Text(
+                  item.level,
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
+            ],
+          ),
         ],
       ),
     );
